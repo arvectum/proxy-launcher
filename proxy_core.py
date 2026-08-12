@@ -43,6 +43,13 @@ def is_windows():
     return os.name == "nt"
 
 
+def is_macos():
+    return sys.platform == "darwin"
+
+
+def is_linux():
+    return sys.platform.startswith("linux")
+
 def settings_path():
     return os.path.join(app_dir(), "proxy_settings.json")
 
@@ -234,7 +241,9 @@ def build_pac():
 
 
 # ---------------------------------------------------------------------------
-# Системный прокси Windows (HKCU Internet Settings)
+
+# ---------------------------------------------------------------------------
+# Системный прокси (Windows HKCU / macOS networksetup / Linux gsettings)
 # ---------------------------------------------------------------------------
 
 _INTERNET_BACKUP_PATH = "proxy_internet_backup.json"
@@ -249,28 +258,131 @@ def _internet_backup_path():
     return os.path.join(app_dir(), _INTERNET_BACKUP_PATH)
 
 
-def _read_internet_settings():
-    values = {}
-    if not is_windows():
-        return values
+# ---------- macOS: networksetup ----------
+
+def _mac_services():
+    """Активные сетевые службы macOS (без отключённых)."""
+    out = []
     try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings") as key:
-            for name in ("AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"):
-                try:
-                    value, _ = winreg.QueryValueEx(key, name)
-                    values[name] = {"exists": True, "value": value}
-                except FileNotFoundError:
-                    values[name] = {"exists": False, "value": None}
-        return values
+        raw = subprocess.run(
+            ["networksetup", "-listallnetworkservices"],
+            capture_output=True, text=True,
+        ).stdout
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or line.startswith("An asterisk") or line.startswith("*"):
+                continue
+            out.append(line)
     except Exception as e:
-        _log("internet settings read error: %r" % e)
-        return None
+        _log("mac services error: %r" % e)
+    return out
+
+
+def _mac_service_state(svc):
+    """(enabled, url) для одной сетевой службы."""
+    try:
+        out = subprocess.run(
+            ["networksetup", "-getautoproxyurl", svc], capture_output=True, text=True,
+        ).stdout
+        m = re.search(r"URL:\s*(\S+)", out)
+        return ("Enabled: Yes" in out), (m.group(1) if m else "")
+    except Exception:
+        return False, ""
+
+
+def _mac_set_auto_proxy(url):
+    """Включить/выключить autoproxy (PAC) на всех активных службах."""
+    for svc in _mac_services():
+        try:
+            if url:
+                subprocess.run(["networksetup", "-setautoproxyurl", svc, url], capture_output=True)
+                subprocess.run(["networksetup", "-setautoproxystate", svc, "on"], capture_output=True)
+            else:
+                subprocess.run(["networksetup", "-setautoproxystate", svc, "off"], capture_output=True)
+        except Exception:
+            pass
+
+
+# ---------- Linux: GNOME gsettings ----------
+
+def _linux_mode():
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.system.proxy", "mode"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        return out.strip("'\"'").lower()
+    except Exception:
+        return ""
+
+
+def _linux_autoconfig_url():
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.system.proxy", "autoconfig-url"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        return out.strip("'\"'")
+    except Exception:
+        return ""
+
+
+def _linux_set_autoconfig_url(url):
+    try:
+        subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "autoconfig-url", url],
+                       capture_output=True)
+    except Exception:
+        pass
+
+
+def _linux_set_mode(mode):
+    try:
+        subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", mode],
+                       capture_output=True)
+    except Exception:
+        pass
+
+
+# ---------- Общие платформенные ветки ----------
+
+def _read_internet_settings():
+    """Снимок текущих настроек системного прокси для *текущей* платформы."""
+    if is_windows():
+        values = {}
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings") as key:
+                for name in ("AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"):
+                    try:
+                        value, _ = winreg.QueryValueEx(key, name)
+                        values[name] = {"exists": True, "value": value}
+                    except FileNotFoundError:
+                        values[name] = {"exists": False, "value": None}
+            return values
+        except Exception as e:
+            _log("internet settings read error: %r" % e)
+            return None
+    elif is_macos():
+        services = {}
+        for svc in _mac_services():
+            enabled, url = _mac_service_state(svc)
+            services[svc] = {"enabled": enabled, "url": url}
+        return {"mac_services": services}
+    elif is_linux():
+        return {"linux": {"mode": _linux_mode(), "url": _linux_autoconfig_url()}}
+    return {}
 
 
 def _valid_internet_backup(values):
-    required = {"AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"}
-    return isinstance(values, dict) and required.issubset(values.keys())
+    """Структура backup должна соответствовать текущей платформе."""
+    if is_windows():
+        required = {"AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"}
+        return isinstance(values, dict) and required.issubset(values.keys())
+    if is_macos():
+        return isinstance(values, dict) and isinstance(values.get("mac_services"), dict)
+    if is_linux():
+        return isinstance(values, dict) and isinstance(values.get("linux"), dict)
+    return False
 
 
 def has_network_backup():
@@ -290,7 +402,7 @@ def has_network_backup():
 
 
 def _save_internet_backup():
-    """Сохраняет исходные WinINET-настройки ДО любых изменений.
+    """Сохраняет исходные настройки системного прокси ДО любых изменений.
 
     Если резервную копию создать нельзя, прокси не включается: лучше не менять
     сеть вообще, чем потом не суметь восстановить пользовательские настройки.
@@ -307,7 +419,7 @@ def _save_internet_backup():
         return False
     values = _read_internet_settings()
     if not _valid_internet_backup(values):
-        _log("internet settings backup aborted: registry snapshot unavailable")
+        _log("internet settings backup aborted: platform snapshot unavailable")
         return False
     tmp = path + ".tmp"
     try:
@@ -325,6 +437,43 @@ def _save_internet_backup():
         return False
 
 
+def _remove_owned_pac():
+    """Без backup снимает только PAC, принадлежащий этой копии.
+
+    Возвращает False, если собственный PAC был снят, но исходные настройки
+    неизвестны (rollback неполный). Возвращает True, если менять нечего.
+    """
+    url = pac_url(load_settings())
+    if is_windows():
+        current = _read_internet_settings() or {}
+        item = current.get("AutoConfigURL") or {}
+        if item.get("exists") and str(item.get("value")) == url:
+            _reg_del("AutoConfigURL")
+            _log("internet settings backup missing/invalid; removed only Arvectum PAC")
+            return False
+        _log("internet settings backup missing/invalid; no owned WinINET values changed")
+        return True
+    if is_macos():
+        removed = False
+        for svc in _mac_services():
+            enabled, cur = _mac_service_state(svc)
+            if enabled and cur == url:
+                try:
+                    subprocess.run(["networksetup", "-setautoproxystate", svc, "off"],
+                                   capture_output=True)
+                    removed = True
+                except Exception:
+                    pass
+        return not removed
+    if is_linux():
+        if _linux_mode() == "auto" and _linux_autoconfig_url() == url:
+            _linux_set_mode("none")
+            _linux_set_autoconfig_url("")
+            return False
+        return True
+    return True
+
+
 def _restore_internet_backup():
     path = _internet_backup_path()
     try:
@@ -332,34 +481,43 @@ def _restore_internet_backup():
             values = json.load(f)
     except Exception:
         values = None
-    if not _valid_internet_backup(values):
-        # Без backup нельзя угадывать исходный ProxyEnable/ProxyServer. Поэтому
-        # удаляем только собственный PAC, если он однозначно распознан. Это
-        # важно и для uninstall до первого запуска: чужой manual proxy не должен
-        # быть отключён одной лишь командой rollback.
-        current = _read_internet_settings() or {}
-        item = current.get("AutoConfigURL") or {}
-        if item.get("exists") and str(item.get("value")) == pac_url(load_settings()):
-            _reg_del("AutoConfigURL")
-            _log("internet settings backup missing/invalid; removed only Arvectum PAC")
-        else:
-            _log("internet settings backup missing/invalid; no owned WinINET values changed")
-            # Чистый сценарий (например uninstall до первого включения):
-            # восстанавливать нечего, поэтому это успешный no-op.
-            return True
-        # Собственный PAC без backup означает legacy/повреждённое состояние:
-        # AutoConfigURL снять можно, но исходные ProxyEnable/ProxyServer уже
-        # неизвестны. Считаем rollback неполным и НЕ разрешаем uninstall
-        # удалить файлы восстановления.
-        return False
     ok = True
-    for name, item in values.items():
-        if not isinstance(item, dict) or not item.get("exists"):
-            ok = _reg_del(name) and ok
-            continue
-        value = item.get("value")
-        typ = "REG_DWORD" if name in ("ProxyEnable", "AutoDetect") else "REG_SZ"
-        ok = _reg_set(name, str(int(value)) if typ == "REG_DWORD" else str(value), typ) and ok
+    if not _valid_internet_backup(values):
+        ok = _remove_owned_pac()
+        if ok:
+            return True
+        return False
+    # Полный restore по платформе
+    if is_windows():
+        for name, item in values.items():
+            if not isinstance(item, dict) or not item.get("exists"):
+                ok = _reg_del(name) and ok
+                continue
+            value = item.get("value")
+            typ = "REG_DWORD" if name in ("ProxyEnable", "AutoDetect") else "REG_SZ"
+            ok = _reg_set(name, str(int(value)) if typ == "REG_DWORD" else str(value), typ) and ok
+    elif is_macos():
+        mac = (values or {}).get("mac_services") or {}
+        for svc in _mac_services():
+            item = mac.get(svc)
+            try:
+                if item and item.get("enabled") and item.get("url"):
+                    subprocess.run(["networksetup", "-setautoproxyurl", svc, item["url"]],
+                                   capture_output=True)
+                    subprocess.run(["networksetup", "-setautoproxystate", svc, "on"],
+                                   capture_output=True)
+                else:
+                    subprocess.run(["networksetup", "-setautoproxystate", svc, "off"],
+                                   capture_output=True)
+            except Exception:
+                ok = False
+    elif is_linux():
+        li = (values or {}).get("linux") or {}
+        mode = li.get("mode")
+        if mode not in ("none", "manual", "auto"):
+            mode = "none"
+        _linux_set_mode(mode)
+        _linux_set_autoconfig_url(li.get("url") or "")
     if ok:
         try:
             os.remove(path)
@@ -370,27 +528,56 @@ def _restore_internet_backup():
     return ok
 
 
+# ---------- переменные окружения для клиентов ----------
+
 def _read_user_env(name):
-    """Возвращает пользовательскую переменную окружения из реестра."""
-    if not is_windows():
-        return False, ""
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-            value, _ = winreg.QueryValueEx(key, name)
-        return True, str(value)
-    except FileNotFoundError:
-        return False, ""
-    except Exception as e:
-        _log("env read error (%s): %r" % (name, e))
-        return False, ""
+    """Возвращает (существует, значение)."""
+    if is_windows():
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                value, _ = winreg.QueryValueEx(key, name)
+            return True, str(value)
+        except FileNotFoundError:
+            return False, ""
+        except Exception as e:
+            _log("env read error (%s): %r" % (name, e))
+            return False, ""
+    if is_macos():
+        try:
+            out = subprocess.run(["launchctl", "getenv", name],
+                                 capture_output=True, text=True).stdout.strip()
+            return bool(out), out
+        except Exception as e:
+            _log("env read error (%s): %r" % (name, e))
+            return False, ""
+    if is_linux():
+        try:
+            out = subprocess.run(["systemctl", "--user", "show-environment"],
+                                 capture_output=True, text=True).stdout
+            for line in out.splitlines():
+                if line.startswith(name + "="):
+                    return True, line.split("=", 1)[1].strip('"')
+            return False, ""
+        except Exception as e:
+            _log("env read error (%s): %r" % (name, e))
+            return False, ""
+    return False, ""
 
 
 def _write_user_env(name, value):
     try:
-        import winreg
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-            winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+        if is_windows():
+            import winreg
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+        elif is_macos():
+            subprocess.run(["launchctl", "setenv", name, value], capture_output=True)
+        elif is_linux():
+            subprocess.run(["systemctl", "--user", "set-environment", "%s=%s" % (name, value)],
+                           capture_output=True)
+        else:
+            return False
         return True
     except Exception as e:
         _log("env write error (%s): %r" % (name, e))
@@ -399,9 +586,16 @@ def _write_user_env(name, value):
 
 def _delete_user_env(name):
     try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
-            winreg.DeleteValue(key, name)
+        if is_windows():
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
+                winreg.DeleteValue(key, name)
+        elif is_macos():
+            subprocess.run(["launchctl", "unsetenv", name], capture_output=True)
+        elif is_linux():
+            subprocess.run(["systemctl", "--user", "unset-environment", name], capture_output=True)
+        else:
+            return False
         return True
     except FileNotFoundError:
         return True
@@ -487,8 +681,6 @@ def sync_client_no_proxy():
     удаление домена из Arvectum не удаляет исключение, которое существовало у
     пользователя ещё до запуска приложения.
     """
-    if not is_windows():
-        return True
     backup_path = _env_backup_path()
     if not os.path.exists(backup_path):
         return True
@@ -543,6 +735,8 @@ def pac_url(settings):
     return "http://127.0.0.1:%d%s" % (int(settings.get("local_pac_port", 8082)), path)
 
 
+# ---------- Windows: реестр (HKCU Internet Settings) ----------
+
 def _reg_set(name, data, typ):
     if not is_windows():
         return False
@@ -577,7 +771,8 @@ def _reg_del(name):
 
 
 def _refresh_internet():
-    """Заставить WinINET (браузеры/систему) перечитать настройки прокси."""
+    """Заставить WinINET (браузеры/систему) перечитать настройки прокси.
+    На macOS/Linux настройки применяются сетью сразу."""
     if not is_windows():
         return
     try:
@@ -622,10 +817,26 @@ def _ensure_local_files():
 _RECOVERY_RUN_VALUE = "ArvectumProxyLauncherRecovery"
 
 
+def _self_start_argv():
+    """argv команды авто-восстановления (--start)."""
+    if getattr(sys, "frozen", False):
+        return [os.path.realpath(sys.executable), "--start"]
+    return [sys.executable, os.path.realpath(__file__), "--start"]
+
+
 def _self_start_command():
+    """командная строка (для реестра Windows)."""
     if getattr(sys, "frozen", False):
         return '"%s" --start' % os.path.realpath(sys.executable)
-    return '"%s" "%s" --start' % (sys.executable, os.path.realpath(__file__))
+    return '"%s" "%s" --start' % (os.path.realpath(sys.executable), os.path.realpath(__file__))
+
+
+def _recovery_agent_path():
+    return os.path.expanduser("~/Library/LaunchAgents/com.arvectum.proxylauncher-recovery.plist")
+
+
+def _recovery_desktop_path():
+    return os.path.expanduser("~/.config/autostart/arvectum-proxy-recovery.desktop")
 
 
 def _enable_recovery_autostart():
@@ -634,50 +845,126 @@ def _enable_recovery_autostart():
     Это отдельный механизм от пользовательской галочки автозапуска. Он нужен,
     чтобы после перезагрузки не остался PAC на localhost без работающего core.
     """
-    if not is_windows():
-        return True
-    try:
-        import winreg
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
-            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, _self_start_command())
-        return True
-    except Exception as e:
-        _log("recovery autostart enable error: %r" % e)
-        return False
+    if is_windows():
+        try:
+            import winreg
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+                winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, _self_start_command())
+            return True
+        except Exception as e:
+            _log("recovery autostart enable error: %r" % e)
+            return False
+    elif is_macos():
+        path = _recovery_agent_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            argv = _self_start_argv()
+            plist = (
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
+                "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                "<plist version=\"1.0\">\n<dict>\n"
+                "    <key>Label</key>\n    <string>com.arvectum.proxylauncher-recovery</string>\n"
+                "    <key>ProgramArguments</key>\n    <array>\n"
+                + "".join("        <string>%s</string>\n" % a.replace("&", "&amp;")
+                          .replace("<", "&lt;").replace(">", "&gt;") for a in argv)
+                + "    </array>\n"
+                "    <key>RunAtLoad</key>\n    <true/>\n"
+                "    <key>ProcessType</key>\n    <string>Background</string>\n"
+                "</dict>\n</plist>\n"
+            )
+            with io.open(path, "w", encoding="utf-8") as f:
+                f.write(plist)
+            for action in ("unload", "load"):
+                try:
+                    subprocess.run(["launchctl", action, path], capture_output=True)
+                except Exception:
+                    pass
+            return True
+        except Exception as e:
+            _log("recovery autostart enable error: %r" % e)
+            return False
+    elif is_linux():
+        path = _recovery_desktop_path()
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            argv = _self_start_argv()
+            exec_args = " ".join('"%s"' % a if " " in a else a for a in argv)
+            desktop = (
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=Arvectum Proxy Launcher Recovery\n"
+                "Comment=Restart Arvectum proxy after reboot\n"
+                "Exec=%s\n"
+                "Terminal=false\n"
+                "X-GNOME-Autostart-enabled=true\n" % exec_args
+            )
+            with io.open(path, "w", encoding="utf-8") as f:
+                f.write(desktop)
+            return True
+        except Exception as e:
+            _log("recovery autostart enable error: %r" % e)
+            return False
+    return True
 
 
 def _disable_recovery_autostart():
-    if not is_windows():
-        return True
-    try:
-        import winreg
-        with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                0, winreg.KEY_SET_VALUE) as key:
+    if is_windows():
+        try:
+            import winreg
+            with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                    0, winreg.KEY_SET_VALUE) as key:
+                try:
+                    winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
+                except FileNotFoundError:
+                    pass
+            return True
+        except FileNotFoundError:
+            return True
+        except Exception as e:
+            _log("recovery autostart disable error: %r" % e)
+            return False
+    elif is_macos():
+        path = _recovery_agent_path()
+        if os.path.exists(path):
             try:
-                winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
-            except FileNotFoundError:
+                subprocess.run(["launchctl", "unload", path], capture_output=True)
+            except Exception:
+                pass
+            try:
+                os.remove(path)
+            except Exception:
                 pass
         return True
-    except FileNotFoundError:
+    elif is_linux():
+        try:
+            os.remove(_recovery_desktop_path())
+        except Exception:
+            pass
         return True
-    except Exception as e:
-        _log("recovery autostart disable error: %r" % e)
-        return False
+    return True
 
 
 def enable_system_proxy():
     settings = load_settings()
     url = pac_url(settings)
-    if not is_windows():
-        _log("system proxy: (non-Windows) %s" % url)
-        return True
     if not _save_internet_backup():
         _log("system proxy enable aborted: cannot create safe backup")
         return False
-    # PAC и старый manual ProxyServer не должны работать параллельно.
-    ok = _reg_set("AutoConfigURL", url, "REG_SZ")
-    ok = _reg_set("ProxyEnable", "0", "REG_DWORD") and ok
+    if is_windows():
+        # PAC и старый manual ProxyServer не должны работать параллельно.
+        ok = _reg_set("AutoConfigURL", url, "REG_SZ")
+        ok = _reg_set("ProxyEnable", "0", "REG_DWORD") and ok
+    elif is_macos():
+        _mac_set_auto_proxy(url)
+        ok = True
+    elif is_linux():
+        _linux_set_autoconfig_url(url)
+        _linux_set_mode("auto")
+        ok = True
+    else:
+        ok = True
     ok = _enable_client_proxy_env(int(settings.get("local_http_port", 8080))) and ok
     ok = _enable_recovery_autostart() and ok
     if not ok:
@@ -693,9 +980,6 @@ def enable_system_proxy():
 
 
 def disable_system_proxy():
-    if not is_windows():
-        _log("system proxy: (non-Windows) disabled")
-        return True
     # Другая копия приложения может использовать те же localhost-порты и PAC.
     # Без собственных backup-файлов текущая копия не имеет права снимать такой
     # PAC: это мог бы быть работающий proxy из другой папки установки.
@@ -705,8 +989,8 @@ def disable_system_proxy():
     ok = _restore_internet_backup()
     env_ok = _disable_client_proxy_env()
     # Если собственный PAC уже снят и env backup отсутствует/восстановлен,
-    # страховочный Run-value больше не нужен. При неполном rollback оставляем
-    # его, чтобы следующий вход в Windows не получил мёртвый localhost proxy.
+    # страховочный автозапуск больше не нужен. При неполном rollback оставляем
+    # его, чтобы следующий вход в систему не получил мёртвый localhost proxy.
     env_pending = os.path.exists(_env_backup_path())
     if not system_proxy_enabled() and (env_ok or not env_pending):
         _disable_recovery_autostart()
@@ -716,11 +1000,21 @@ def disable_system_proxy():
 
 
 def system_proxy_enabled():
-    if not is_windows():
+    if is_windows():
+        values = _read_internet_settings() or {}
+        item = values.get("AutoConfigURL") or {}
+        return bool(item.get("exists") and str(item.get("value")) == pac_url(load_settings()))
+    elif is_macos():
+        url = pac_url(load_settings())
+        for svc in _mac_services():
+            enabled, cur = _mac_service_state(svc)
+            if enabled and cur == url:
+                return True
         return False
-    values = _read_internet_settings() or {}
-    item = values.get("AutoConfigURL") or {}
-    return bool(item.get("exists") and str(item.get("value")) == pac_url(load_settings()))
+    elif is_linux():
+        return bool(_linux_mode() == "auto"
+                    and _linux_autoconfig_url() == pac_url(load_settings()))
+    return False
 
 
 def network_restore_pending():
@@ -731,8 +1025,6 @@ def network_restore_pending():
     сообщать пользователю об успешном восстановлении и тем более удалять
     каталог приложения.
     """
-    if not is_windows():
-        return False
     return (
         system_proxy_enabled()
         or os.path.exists(_internet_backup_path())
@@ -740,7 +1032,6 @@ def network_restore_pending():
     )
 
 
-# ---------------------------------------------------------------------------
 # Собственно прокси
 # ---------------------------------------------------------------------------
 

@@ -221,6 +221,98 @@ def _header_title(root, title):
     tk.Frame(root, bg=MINT, height=3).pack(fill="x")
 
 
+def _launch_agent_path():
+    return os.path.expanduser("~/Library/LaunchAgents/com.arvectum.proxylauncher.plist")
+
+
+def _autostart_desktop_path():
+    return os.path.expanduser("~/.config/autostart/arvectum-proxy.desktop")
+
+
+def _autostart_command():
+    """Команда (argv) автозапуска прокси-движка при входе в систему."""
+    if getattr(sys, "frozen", False):
+        return [os.path.realpath(sys.executable), "--start"]
+    return [sys.executable, os.path.join(core.app_dir(), "proxy_core.py"), "--start"]
+
+
+def _enable_launch_agent():
+    path = _launch_agent_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    cmd = _autostart_command()
+    plist = (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
+        "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+        "<plist version=\"1.0\">\n<dict>\n"
+        "    <key>Label</key>\n    <string>com.arvectum.proxylauncher</string>\n"
+        "    <key>ProgramArguments</key>\n    <array>\n"
+        + "".join("        <string>%s</string>\n" % a.replace("&", "&amp;")
+                  .replace("<", "&lt;").replace(">", "&gt;") for a in cmd)
+        + "    </array>\n"
+        "    <key>RunAtLoad</key>\n    <true/>\n"
+        "    <key>ProcessType</key>\n    <string>Background</string>\n"
+        "</dict>\n</plist>\n"
+    )
+    with io.open(path, "w", encoding="utf-8") as f:
+        f.write(plist)
+    _launchctl_load(path)
+
+
+def _disable_launch_agent():
+    path = _launch_agent_path()
+    if os.path.exists(path):
+        _launchctl_unload(path)
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+
+
+def _launchctl_load(path):
+    try:
+        subprocess.run(["launchctl", "unload", path], capture_output=True)
+    except Exception:
+        pass
+    try:
+        subprocess.run(["launchctl", "load", path], capture_output=True)
+    except Exception:
+        pass
+
+
+def _launchctl_unload(path):
+    try:
+        subprocess.run(["launchctl", "unload", path], capture_output=True)
+    except Exception:
+        pass
+
+
+def _enable_autostart_desktop():
+    path = _autostart_desktop_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    cmd = _autostart_command()
+    exec_args = " ".join('"%s"' % a if " " in a else a for a in cmd)
+    desktop = (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=Arvectum Proxy Launcher\n"
+        "Comment=Autostart Arvectum proxy on login\n"
+        "Exec=%s\n"
+        "Terminal=false\n"
+        "X-GNOME-Autostart-enabled=true\n" % exec_args
+    )
+    with io.open(path, "w", encoding="utf-8") as f:
+        f.write(desktop)
+
+
+def _disable_autostart_desktop():
+    try:
+        os.remove(_autostart_desktop_path())
+    except Exception:
+        pass
+
+
+
 class SettingsDialog(tk.Toplevel):
     """Окно настроек внешнего прокси: несколько upstream'ов (IP, порт, логин, пароль)."""
 
@@ -561,7 +653,7 @@ class Launcher:
 
         # ---------- автозапуск ----------
         self.auto_var = tk.BooleanVar(value=self._autostart_enabled())
-        ttk.Checkbutton(body, text="Запускать прокси при входе в Windows",
+        ttk.Checkbutton(body, text="Запускать прокси автоматически при входе в систему",
                         variable=self.auto_var, command=self._toggle_autostart,
                         style="Brand.TCheckbutton").grid(row=5, column=0, sticky="w", pady=(16, 0))
 
@@ -655,8 +747,8 @@ class Launcher:
             messagebox.showinfo(
                 APP_NAME,
                 "Прокси подключен.\nСистемный proxy установлен.\n\n"
-                "Для корректной работы приложений через proxy полностью "
-                "закройте их через Диспетчер задач и запустите заново.")
+                "Перезапустите приложения (браузеры, мессенджеры), чтобы "
+                "они подхватили новые настройки системного прокси.")
         elif attempt < 40:
             # One-file PyInstaller + антивирус на первом запуске могут
             # стартовать заметно дольше нескольких секунд.
@@ -700,7 +792,7 @@ class Launcher:
             return
         if not messagebox.askyesno(
                 APP_NAME,
-                "Восстановить исходные настройки сети Windows и остановить proxy?",
+                "Восстановить настройки сети и остановить прокси?",
                 icon="warning"):
             return
         _run_headless("--rollback")
@@ -819,7 +911,7 @@ class Launcher:
         path = core.log_path()
         if os.path.exists(path):
             try:
-                os.startfile(path) if os.name == "nt" else subprocess.run(["open", path])
+                os.startfile(path) if os.name == "nt" else subprocess.run(["open", path] if core.is_macos() else ["xdg-open", path])
             except Exception as e:
                 messagebox.showerror(APP_NAME, "Не удалось открыть журнал: %s" % e)
         else:
@@ -828,12 +920,14 @@ class Launcher:
     # -- автозапуск -------------------------------------------------------------
 
     def _autostart_enabled(self):
-        try:
-            result = subprocess.run(["schtasks", "/Query", "/TN", TASK_NAME],
-                                    capture_output=True, text=True)
-            return result.returncode == 0
-        except Exception:
-            return False
+        if core.is_windows():
+            try:
+                result = subprocess.run(["schtasks", "/Query", "/TN", TASK_NAME], capture_output=True, text=True)
+                return result.returncode == 0
+            except Exception: return False
+        if core.is_macos(): return os.path.exists(_launch_agent_path())
+        if core.is_linux(): return os.path.exists(_autostart_desktop_path())
+        return False
 
     def _toggle_autostart(self):
         if self.auto_var.get():
@@ -843,36 +937,24 @@ class Launcher:
         self.auto_var.set(self._autostart_enabled())
 
     def _enable_autostart(self):
-        settings = core.load_settings()
-        configured = any((u.get("host") or "").strip() for u in settings.get("upstream") or [])
-        if not configured:
-            messagebox.showwarning(APP_NAME, "Сначала настройте внешний прокси, затем включайте автозапуск.")
-            return
-        target = _autostart_target()
         try:
-            result = subprocess.run(
-                ["schtasks", "/Create", "/F", "/TN", TASK_NAME,
-                 "/TR", target, "/SC", "ONLOGON", "/RL", "LIMITED"],
-                capture_output=True, text=True)
-            if result.returncode != 0:
-                details = (result.stderr or result.stdout or "").strip()
-                if not details:
-                    details = (
-                        "Windows не разрешила создать задачу. "
-                        "Запустите Arvectum Proxy Launcher от имени администратора "
-                        "и включите автозапуск ещё раз."
-                    )
-                raise RuntimeError(details)
-            messagebox.showinfo(APP_NAME, "Прокси будет запускаться автоматически при входе в Windows.")
+            if core.is_windows():
+                target = _autostart_target()
+                result = subprocess.run(["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/TR", target, "/SC", "ONLOGON", "/RL", "LIMITED"], capture_output=True, text=True)
+                if result.returncode != 0: raise RuntimeError(result.stderr or result.stdout or "Access denied")
+            elif core.is_macos(): _enable_launch_agent()
+            elif core.is_linux(): _enable_autostart_desktop()
+            messagebox.showinfo(APP_NAME, "Автозапуск включен.")
         except Exception as e:
             messagebox.showerror(APP_NAME, "Не удалось включить автозапуск: %s" % e)
 
     def _disable_autostart(self):
         try:
-            subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME],
-                           capture_output=True, text=True)
-        except Exception:
-            pass
+            if core.is_windows():
+                subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME], capture_output=True, text=True)
+            elif core.is_macos(): _disable_launch_agent()
+            elif core.is_linux(): _disable_autostart_desktop()
+        except Exception: pass
 
     # -- прочее --------------------------------------------------------------------
 

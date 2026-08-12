@@ -49,3 +49,12 @@ Arvectum Proxy Launcher (Windows)
   one-file EXE через PyInstaller.
   Итог:
     dist\Arvectum Proxy Launcher.exe
+
+
+=== MACOS / LINUX INSTALLATION ===
+
+1. Unpack the zip archive.
+2. Open Terminal.
+3. Run: ./install.command (macOS) or ./install.sh (Linux).
+4. The application will be installed in 'Library/Application Support' (macOS) or '.local/share' (Linux).
+5. Autostart will be configured if selected in the UI.

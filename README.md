@@ -1,5 +1,7 @@
 # Arvectum Proxy Launcher
 
+Cross-platform proxy launcher (Windows, macOS, Linux) with local HTTP, HTTPS CONNECT, SOCKS5 and PAC support.
+
 Windows proxy launcher with local HTTP, HTTPS CONNECT, SOCKS5 and PAC support.
 
 ## Client release
@@ -18,3 +20,10 @@ Proxy credentials and runtime data are intentionally not versioned. Configure th
 Run `build_exe.bat` on Windows to compile and test the one-file EXE. The `tests/` directory contains proxy-core regression tests.
 
 Интерфейс для управления системным прокси, с проверкой и настройкой исключений
+
+
+## macOS and Linux releases
+- [release/windows-proxy-macos.zip](release/windows-proxy-macos.zip)
+- [release/windows-proxy-linux.zip](release/windows-proxy-linux.zip)
+
+Unpack and run `install.command` (macOS) or `install.sh` (Linux).
