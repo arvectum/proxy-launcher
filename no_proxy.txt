@@ -1,0 +1,41 @@
+# Список исключений (no_proxy). По одному домену на строку.
+# Сайты из списка открываются напрямую, минуя прокси.
+# Строки, начинающиеся с #, игнорируются.
+# Изменения применяются сразу, перезапуск не нужен.
+#
+# Внутренние сервисы и localhost — всегда в обход (можно удалить,
+# они всё равно подставляются автоматически):
+localhost
+127.0.0.1
+::1
+*.local
+10.*
+192.168.*
+
+reg.ru
+hosting.reg.ru
+sm40.hosting.reg.ru
+server34.hosting.reg.ru
+webmail.hosting.reg.ru
+yandex.ru
+yandex.net
+ya.ru
+mail.ru
+bk.ru
+list.ru
+inbox.ru
+vk.com
+vk.ru
+sberbank.ru
+gosuslugi.ru
+nalog.ru
+cbr.ru
+zakupki.gov.ru
+zakupki.mos.ru
+mos.ru
+xcodereleases.com
+github.com
+api.github.com
+raw.githubusercontent.com
+captive.apple.com
+gsp1.apple.com

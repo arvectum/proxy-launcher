@@ -1,0 +1,1354 @@
+# -*- coding: utf-8 -*-
+"""
+Кроссплатформенный прокси-движок для клиента (целевая ОС — Windows).
+
+Слушает на localhost:
+  * HTTP-прокси  (по умолчанию 127.0.0.1:8080)
+  * SOCKS5-прокси (по умолчанию 127.0.0.1:1080)
+  * отдаёт PAC-файл (по умолчанию http://127.0.0.1:8082/proxy.pac)
+
+Всё, кроме исключений (no_proxy) и localhost, уходит на внешние прокси
+из proxy_settings.json (список с failover). Исключения берутся из no_proxy.txt
+и подставляются в PAC на лету — правки применяются без перезапуска.
+
+Запуск вручную:
+  pythonw.exe proxy_core.py --start     # запустить (+ включить системный прокси Windows)
+  pythonw.exe proxy_core.py --stop      # остановить (+ выключить системный прокси)
+  python proxy_core.py --status         # показать статус
+"""
+
+import base64
+import io
+import json
+import os
+import re
+import select
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import time
+
+
+def app_dir():
+    """Каталог, где лежат настройки. Для скомпилированного exe — рядом с exe,
+    а не во временной папке PyInstaller."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.realpath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def is_windows():
+    return os.name == "nt"
+
+
+def settings_path():
+    return os.path.join(app_dir(), "proxy_settings.json")
+
+
+def no_proxy_path():
+    return os.path.join(app_dir(), "no_proxy.txt")
+
+
+def pid_path():
+    return os.path.join(app_dir(), "proxy_core.pid")
+
+
+def log_path():
+    return os.path.join(app_dir(), "proxy_core.log")
+
+
+def _log(msg):
+    try:
+        with io.open(log_path(), "a", encoding="utf-8") as f:
+            f.write("%s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
+    except Exception:
+        pass
+
+
+DEFAULT_SETTINGS = {
+    "local_http_port": 8080,
+    "local_socks_port": 1080,
+    "local_pac_port": 8082,
+    "pac_path": "/proxy.pac",
+    "upstream": [
+        {"host": "", "port": 8000, "username": "", "password": ""}
+    ],
+}
+
+
+def load_settings():
+    data = json.loads(json.dumps(DEFAULT_SETTINGS))
+    p = settings_path()
+    if not os.path.exists(p):
+        return data
+    try:
+        with io.open(p, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            data.update(loaded)
+    except Exception as e:
+        _log("settings read error: %r" % e)
+    return data
+
+
+def save_settings(settings):
+    try:
+        with io.open(settings_path(), "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        _log("settings saved")
+    except Exception as e:
+        _log("settings save error: %r" % e)
+
+
+DEFAULT_NO_PROXY = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "*.local",
+    "10.*",
+    "192.168.*",
+]
+
+
+def load_no_proxy():
+    domains = []
+    p = no_proxy_path()
+    if os.path.exists(p):
+        try:
+            with io.open(p, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    domains.append(line)
+        except Exception as e:
+            _log("no_proxy read error: %r" % e)
+    return domains
+
+
+def save_no_proxy(domains):
+    try:
+        with io.open(no_proxy_path(), "w", encoding="utf-8") as f:
+            f.write("# Список исключений (no_proxy). По одному домену на строку.\n")
+            f.write("# Сайты из списка открываются напрямую, минуя прокси.\n")
+            f.write("# Строки, начинающиеся с #, игнорируются.\n")
+            f.write("# Изменения применяются сразу, перезапуск не нужен.\n")
+            f.write("\n")
+            for d in domains:
+                f.write(d + "\n")
+        _log("no_proxy saved: %d domains" % len(domains))
+    except Exception as e:
+        _log("no_proxy save error: %r" % e)
+
+
+def clean_domain(value):
+    """Из сырого ввода (URL, host:port) вытащить чистый домен.
+    Поддерживает IPv6 (::1, [::1]:порт) и маски (*.local, 10.*)."""
+    d = value.strip().lower()
+    d = d.split("#")[0].strip()
+    if "://" in d:
+        d = d.split("://", 1)[1]
+    d = d.split("/")[0]
+    d = d.strip()
+    if not d:
+        return ""
+    if d.startswith("["):
+        return d.lstrip("[").split("]")[0]
+    colon = d.count(":")
+    if colon == 1:
+        host, _, port = d.rpartition(":")
+        if port.isdigit():
+            return host
+    # 0 двоеточий — обычный хост/маска; 2+ — IPv6-адрес, оставляем как есть
+    return d
+
+
+def _normalize_host(host):
+    host = (host or "").strip().lower().rstrip(".")
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    return host
+
+
+def host_bypasses_proxy(host):
+    """Единая проверка no_proxy для PAC-клиентов, HTTP_PROXY и SOCKS5.
+
+    Важно: исключения должны работать не только в PAC. Некоторые Windows-
+    приложения игнорируют PAC и используют HTTP_PROXY/HTTPS_PROXY; в таком
+    случае запрос всё равно приходит в локальный proxy, и движок обязан сам
+    отправить исключённый хост напрямую.
+    """
+    host = _normalize_host(host)
+    if not host:
+        return False
+    patterns = list(DEFAULT_NO_PROXY)
+    for item in load_no_proxy():
+        if item not in patterns:
+            patterns.append(item)
+    for raw in patterns:
+        pattern = _normalize_host(raw)
+        if not pattern:
+            continue
+        if pattern.startswith("."):
+            pattern = pattern[1:]
+        if "*" in pattern or "?" in pattern:
+            regex = "^" + re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".") + "$"
+            if re.match(regex, host, flags=re.IGNORECASE):
+                return True
+        elif host == pattern or host.endswith("." + pattern):
+            return True
+    return False
+
+
+def build_pac():
+    """PAC: локальные сервисы (localhost/внутренние сети) обходятся всегда,
+    остальные исключения из no_proxy.txt добавляются сразу."""
+    direct = list(DEFAULT_NO_PROXY)
+    for d in load_no_proxy():
+        if d not in direct:
+            direct.append(d)
+    lines = "\n".join(
+        '        "%s",' % d.replace("\\", "\\\\").replace('"', '\\"') for d in direct
+    )
+    port = int(load_settings().get("local_http_port", 8080))
+    return (
+        "function FindProxyForURL(url, host) {\n"
+        "    // Исключения no_proxy — синтезируется автоматически (localhost и внутренние сети всегда в обход)\n"
+        "    var direct = [\n"
+        + lines +
+        "\n    ];\n"
+        "    for (var i = 0; i < direct.length; i++) {\n"
+        "        var d = direct[i];\n"
+        "        if (d.indexOf('*') !== -1) {\n"
+        "            if (shExpMatch(host, d)) return 'DIRECT';\n"
+        "        } else if (host === d || shExpMatch(host, '*.' + d)\n"
+        "                   || (host.indexOf(':') !== -1 && host === '[' + d + ']')) {\n"
+        "            return 'DIRECT';\n"
+        "        }\n"
+        "    }\n"
+        "    return 'PROXY 127.0.0.1:%d';\n"
+        "}\n" % port
+    )
+
+
+# ---------------------------------------------------------------------------
+# Системный прокси Windows (HKCU Internet Settings)
+# ---------------------------------------------------------------------------
+
+_INTERNET_BACKUP_PATH = "proxy_internet_backup.json"
+_PROXY_ENV_NAMES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
+
+
+def _env_backup_path():
+    return os.path.join(app_dir(), "proxy_env_backup.json")
+
+
+def _internet_backup_path():
+    return os.path.join(app_dir(), _INTERNET_BACKUP_PATH)
+
+
+def _read_internet_settings():
+    values = {}
+    if not is_windows():
+        return values
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings") as key:
+            for name in ("AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"):
+                try:
+                    value, _ = winreg.QueryValueEx(key, name)
+                    values[name] = {"exists": True, "value": value}
+                except FileNotFoundError:
+                    values[name] = {"exists": False, "value": None}
+        return values
+    except Exception as e:
+        _log("internet settings read error: %r" % e)
+        return None
+
+
+def _valid_internet_backup(values):
+    required = {"AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"}
+    return isinstance(values, dict) and required.issubset(values.keys())
+
+
+def has_network_backup():
+    """Есть ли у *этой* копии данные для точного восстановления сети."""
+    try:
+        with io.open(_internet_backup_path(), "r", encoding="utf-8") as f:
+            if _valid_internet_backup(json.load(f)):
+                return True
+    except Exception:
+        pass
+    try:
+        with io.open(_env_backup_path(), "r", encoding="utf-8") as f:
+            values = json.load(f)
+        return isinstance(values, dict) and all(name in values for name in _PROXY_ENV_NAMES)
+    except Exception:
+        return False
+
+
+def _save_internet_backup():
+    """Сохраняет исходные WinINET-настройки ДО любых изменений.
+
+    Если резервную копию создать нельзя, прокси не включается: лучше не менять
+    сеть вообще, чем потом не суметь восстановить пользовательские настройки.
+    """
+    path = _internet_backup_path()
+    if os.path.exists(path):
+        try:
+            with io.open(path, "r", encoding="utf-8") as f:
+                if _valid_internet_backup(json.load(f)):
+                    return True
+        except Exception:
+            pass
+        _log("internet settings backup is invalid; refusing to overwrite it")
+        return False
+    values = _read_internet_settings()
+    if not _valid_internet_backup(values):
+        _log("internet settings backup aborted: registry snapshot unavailable")
+        return False
+    tmp = path + ".tmp"
+    try:
+        with io.open(tmp, "w", encoding="utf-8") as f:
+            json.dump(values, f, ensure_ascii=False)
+            f.flush()
+        os.replace(tmp, path)
+        return True
+    except Exception as e:
+        _log("internet settings backup error: %r" % e)
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        return False
+
+
+def _restore_internet_backup():
+    path = _internet_backup_path()
+    try:
+        with io.open(path, "r", encoding="utf-8") as f:
+            values = json.load(f)
+    except Exception:
+        values = None
+    if not _valid_internet_backup(values):
+        # Без backup нельзя угадывать исходный ProxyEnable/ProxyServer. Поэтому
+        # удаляем только собственный PAC, если он однозначно распознан. Это
+        # важно и для uninstall до первого запуска: чужой manual proxy не должен
+        # быть отключён одной лишь командой rollback.
+        current = _read_internet_settings() or {}
+        item = current.get("AutoConfigURL") or {}
+        if item.get("exists") and str(item.get("value")) == pac_url(load_settings()):
+            _reg_del("AutoConfigURL")
+            _log("internet settings backup missing/invalid; removed only Arvectum PAC")
+        else:
+            _log("internet settings backup missing/invalid; no owned WinINET values changed")
+            # Чистый сценарий (например uninstall до первого включения):
+            # восстанавливать нечего, поэтому это успешный no-op.
+            return True
+        # Собственный PAC без backup означает legacy/повреждённое состояние:
+        # AutoConfigURL снять можно, но исходные ProxyEnable/ProxyServer уже
+        # неизвестны. Считаем rollback неполным и НЕ разрешаем uninstall
+        # удалить файлы восстановления.
+        return False
+    ok = True
+    for name, item in values.items():
+        if not isinstance(item, dict) or not item.get("exists"):
+            ok = _reg_del(name) and ok
+            continue
+        value = item.get("value")
+        typ = "REG_DWORD" if name in ("ProxyEnable", "AutoDetect") else "REG_SZ"
+        ok = _reg_set(name, str(int(value)) if typ == "REG_DWORD" else str(value), typ) and ok
+    if ok:
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+    else:
+        _log("internet settings restore incomplete; keeping backup for retry")
+    return ok
+
+
+def _read_user_env(name):
+    """Возвращает пользовательскую переменную окружения из реестра."""
+    if not is_windows():
+        return False, ""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            value, _ = winreg.QueryValueEx(key, name)
+        return True, str(value)
+    except FileNotFoundError:
+        return False, ""
+    except Exception as e:
+        _log("env read error (%s): %r" % (name, e))
+        return False, ""
+
+
+def _write_user_env(name, value):
+    try:
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+        return True
+    except Exception as e:
+        _log("env write error (%s): %r" % (name, e))
+        return False
+
+
+def _delete_user_env(name):
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key, name)
+        return True
+    except FileNotFoundError:
+        return True
+    except Exception as e:
+        _log("env delete error (%s): %r" % (name, e))
+        return False
+
+
+def _broadcast_environment_change():
+    if not is_windows():
+        return
+    try:
+        import ctypes
+        ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 2, 5000, None)
+    except Exception as e:
+        _log("env broadcast error: %r" % e)
+
+
+def _enable_client_proxy_env(port):
+    """Даёт нативным клиентам стандартный proxy env с безопасным rollback."""
+    backup_path = _env_backup_path()
+    backup = None
+    if os.path.exists(backup_path):
+        try:
+            with io.open(backup_path, "r", encoding="utf-8") as f:
+                candidate = json.load(f)
+            if isinstance(candidate, dict) and all(name in candidate for name in _PROXY_ENV_NAMES):
+                backup = candidate
+        except Exception:
+            pass
+        if backup is None:
+            _log("env backup is invalid; refusing to overwrite user environment")
+            return False
+    else:
+        backup = {}
+        for name in _PROXY_ENV_NAMES:
+            exists, value = _read_user_env(name)
+            backup[name] = {"exists": exists, "value": value}
+        tmp = backup_path + ".tmp"
+        try:
+            with io.open(tmp, "w", encoding="utf-8") as f:
+                json.dump(backup, f, ensure_ascii=False)
+                f.flush()
+            os.replace(tmp, backup_path)
+        except Exception as e:
+            _log("env backup error: %r" % e)
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            return False
+
+    local_proxy = "http://127.0.0.1:%d" % int(port)
+    ok = True
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        ok = _write_user_env(name, local_proxy) and ok
+
+    direct = _combined_no_proxy(backup)
+    ok = _write_user_env("NO_PROXY", ",".join(direct)) and ok
+    if not ok:
+        _log("client proxy environment update incomplete")
+        _disable_client_proxy_env()
+        return False
+    _broadcast_environment_change()
+    _log("client proxy environment enabled: %s" % local_proxy)
+    return True
+
+
+def _combined_no_proxy(backup):
+    direct = []
+    existing_no_proxy = str((backup.get("NO_PROXY") or {}).get("value") or "")
+    for item in existing_no_proxy.split(",") + DEFAULT_NO_PROXY + load_no_proxy():
+        item = item.strip()
+        if item and item not in direct:
+            direct.append(item)
+    return direct
+
+
+def sync_client_no_proxy():
+    """Обновляет активный NO_PROXY после правки исключений без restart.
+
+    Источником пользовательского NO_PROXY остаётся исходный backup, поэтому
+    удаление домена из Arvectum не удаляет исключение, которое существовало у
+    пользователя ещё до запуска приложения.
+    """
+    if not is_windows():
+        return True
+    backup_path = _env_backup_path()
+    if not os.path.exists(backup_path):
+        return True
+    try:
+        with io.open(backup_path, "r", encoding="utf-8") as f:
+            backup = json.load(f)
+    except Exception as e:
+        _log("NO_PROXY sync backup read error: %r" % e)
+        return False
+    if not isinstance(backup, dict) or not all(name in backup for name in _PROXY_ENV_NAMES):
+        _log("NO_PROXY sync aborted: env backup is invalid")
+        return False
+    if not _write_user_env("NO_PROXY", ",".join(_combined_no_proxy(backup))):
+        return False
+    _broadcast_environment_change()
+    _log("client NO_PROXY synchronized")
+    return True
+
+
+def _disable_client_proxy_env():
+    backup_path = _env_backup_path()
+    try:
+        with io.open(backup_path, "r", encoding="utf-8") as f:
+            backup = json.load(f)
+    except Exception:
+        backup = None
+    if not isinstance(backup, dict) or not all(name in backup for name in _PROXY_ENV_NAMES):
+        return False
+    ok = True
+    for name in _PROXY_ENV_NAMES:
+        item = backup.get(name) or {}
+        if item.get("exists"):
+            ok = _write_user_env(name, str(item.get("value", ""))) and ok
+        else:
+            ok = _delete_user_env(name) and ok
+    if ok:
+        try:
+            os.remove(backup_path)
+        except Exception:
+            pass
+        _broadcast_environment_change()
+        _log("client proxy environment restored")
+    else:
+        _log("client proxy environment restore incomplete; keeping backup for retry")
+    return ok
+
+
+def pac_url(settings):
+    path = str(settings.get("pac_path", "/proxy.pac") or "/proxy.pac")
+    if not path.startswith("/"):
+        path = "/" + path
+    return "http://127.0.0.1:%d%s" % (int(settings.get("local_pac_port", 8082)), path)
+
+
+def _reg_set(name, data, typ):
+    if not is_windows():
+        return False
+    try:
+        import winreg
+        reg_type = winreg.REG_DWORD if typ == "REG_DWORD" else winreg.REG_SZ
+        value = int(data) if reg_type == winreg.REG_DWORD else str(data)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings") as key:
+            winreg.SetValueEx(key, name, 0, reg_type, value)
+        return True
+    except Exception as e:
+        _log("registry set error (%s): %r" % (name, e))
+        return False
+
+
+def _reg_del(name):
+    if not is_windows():
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", 0, winreg.KEY_SET_VALUE) as key:
+            try:
+                winreg.DeleteValue(key, name)
+            except FileNotFoundError:
+                pass
+        return True
+    except FileNotFoundError:
+        return True
+    except Exception as e:
+        _log("registry delete error (%s): %r" % (name, e))
+        return False
+
+
+def _refresh_internet():
+    """Заставить WinINET (браузеры/систему) перечитать настройки прокси."""
+    if not is_windows():
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        INTERNET_OPTION_SETTINGS_CHANGED = 39
+        INTERNET_OPTION_REFRESH = 37
+        wininet = ctypes.windll.wininet
+        wininet.InternetOpenW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+        wininet.InternetOpenW.restype = wintypes.HANDLE
+        wininet.InternetSetOptionW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD]
+        wininet.InternetSetOptionW.restype = wintypes.BOOL
+        wininet.InternetCloseHandle.argtypes = [wintypes.HANDLE]
+        wininet.InternetCloseHandle.restype = wintypes.BOOL
+        h = wininet.InternetOpenW("ArvectumProxyLauncher", 0, None, None, 0)
+        if h:
+            wininet.InternetSetOptionW(h, INTERNET_OPTION_SETTINGS_CHANGED, None, 0)
+            wininet.InternetSetOptionW(h, INTERNET_OPTION_REFRESH, None, 0)
+            wininet.InternetCloseHandle(h)
+    except Exception as e:
+        _log("refresh error: %r" % e)
+
+
+def _ensure_local_files():
+    """При первом запуске скомпилированного exe копирует дефолтные
+    настройки из бандла PyInstaller рядом с exe (для редактирования)."""
+    if not getattr(sys, "frozen", False) or not hasattr(sys, "_MEIPASS"):
+        return
+    for name in ("no_proxy.txt", "proxy_settings.json"):
+        target = os.path.join(app_dir(), name)
+        if not os.path.exists(target):
+            src = os.path.join(sys._MEIPASS, name)
+            try:
+                if os.path.exists(src):
+                    import shutil
+                    shutil.copyfile(src, target)
+            except Exception as e:
+                _log("ensure files error: %r" % e)
+
+
+_RECOVERY_RUN_VALUE = "ArvectumProxyLauncherRecovery"
+
+
+def _self_start_command():
+    if getattr(sys, "frozen", False):
+        return '"%s" --start' % os.path.realpath(sys.executable)
+    return '"%s" "%s" --start' % (sys.executable, os.path.realpath(__file__))
+
+
+def _enable_recovery_autostart():
+    """Страховочный запуск после reboot, пока системный proxy активен.
+
+    Это отдельный механизм от пользовательской галочки автозапуска. Он нужен,
+    чтобы после перезагрузки не остался PAC на localhost без работающего core.
+    """
+    if not is_windows():
+        return True
+    try:
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, _self_start_command())
+        return True
+    except Exception as e:
+        _log("recovery autostart enable error: %r" % e)
+        return False
+
+
+def _disable_recovery_autostart():
+    if not is_windows():
+        return True
+    try:
+        import winreg
+        with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                0, winreg.KEY_SET_VALUE) as key:
+            try:
+                winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
+            except FileNotFoundError:
+                pass
+        return True
+    except FileNotFoundError:
+        return True
+    except Exception as e:
+        _log("recovery autostart disable error: %r" % e)
+        return False
+
+
+def enable_system_proxy():
+    settings = load_settings()
+    url = pac_url(settings)
+    if not is_windows():
+        _log("system proxy: (non-Windows) %s" % url)
+        return True
+    if not _save_internet_backup():
+        _log("system proxy enable aborted: cannot create safe backup")
+        return False
+    # PAC и старый manual ProxyServer не должны работать параллельно.
+    ok = _reg_set("AutoConfigURL", url, "REG_SZ")
+    ok = _reg_set("ProxyEnable", "0", "REG_DWORD") and ok
+    ok = _enable_client_proxy_env(int(settings.get("local_http_port", 8080))) and ok
+    ok = _enable_recovery_autostart() and ok
+    if not ok:
+        _restore_internet_backup()
+        _disable_client_proxy_env()
+        _disable_recovery_autostart()
+        _refresh_internet()
+        _log("system proxy enable failed; rolled back")
+        return False
+    _refresh_internet()
+    _log("system proxy enabled: %s" % url)
+    return True
+
+
+def disable_system_proxy():
+    if not is_windows():
+        _log("system proxy: (non-Windows) disabled")
+        return True
+    # Другая копия приложения может использовать те же localhost-порты и PAC.
+    # Без собственных backup-файлов текущая копия не имеет права снимать такой
+    # PAC: это мог бы быть работающий proxy из другой папки установки.
+    if is_running() and not owns_running_proxy() and not has_network_backup():
+        _log("refusing to restore network owned by another Launcher instance")
+        return False
+    ok = _restore_internet_backup()
+    env_ok = _disable_client_proxy_env()
+    # Если собственный PAC уже снят и env backup отсутствует/восстановлен,
+    # страховочный Run-value больше не нужен. При неполном rollback оставляем
+    # его, чтобы следующий вход в Windows не получил мёртвый localhost proxy.
+    env_pending = os.path.exists(_env_backup_path())
+    if not system_proxy_enabled() and (env_ok or not env_pending):
+        _disable_recovery_autostart()
+    _refresh_internet()
+    _log("system proxy disabled")
+    return ok and (env_ok or not env_pending)
+
+
+def system_proxy_enabled():
+    if not is_windows():
+        return False
+    values = _read_internet_settings() or {}
+    item = values.get("AutoConfigURL") or {}
+    return bool(item.get("exists") and str(item.get("value")) == pac_url(load_settings()))
+
+
+def network_restore_pending():
+    """Есть ли признаки незавершённого восстановления сети.
+
+    Backup-файлы удаляются только после успешного restore. Поэтому их
+    наличие после команды --stop/--rollback — надёжный сигнал, что нельзя
+    сообщать пользователю об успешном восстановлении и тем более удалять
+    каталог приложения.
+    """
+    if not is_windows():
+        return False
+    return (
+        system_proxy_enabled()
+        or os.path.exists(_internet_backup_path())
+        or os.path.exists(_env_backup_path())
+    )
+
+
+# ---------------------------------------------------------------------------
+# Собственно прокси
+# ---------------------------------------------------------------------------
+
+
+class ProxyCore:
+    def __init__(self, settings=None):
+        self.settings = settings if settings is not None else load_settings()
+        self._stop = threading.Event()
+        self._socks = []
+        self._threads = []
+        self._upstreams = self._build_upstreams()
+
+    def _build_upstreams(self):
+        out = []
+        for up in self.settings.get("upstream") or []:
+            host = (up.get("host") or "").strip()
+            if not host:
+                continue
+            raw = ("%s:%s" % (up.get("username") or "", up.get("password") or "")).encode("utf-8")
+            token = base64.b64encode(raw).decode("ascii")
+            try:
+                port = int(up.get("port", 8000))
+            except (TypeError, ValueError):
+                port = 8000
+            out.append((host, port, token))
+        return out
+
+    # -- помощь ------------------------------------------------------------
+
+    @staticmethod
+    def _send_error(client, code, text):
+        reason = {400: "Bad Request", 502: "Bad Gateway"}.get(code, "Error")
+        body = (text or reason).encode("utf-8")
+        try:
+            client.sendall(
+                b"HTTP/1.1 %d %s\r\nContent-Type: text/plain; charset=utf-8\r\n"
+                b"Content-Length: %d\r\nConnection: close\r\n\r\n%s"
+                % (code, reason.encode("ascii"), len(body), body)
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _relay(src, dst, stop):
+        try:
+            while not stop.is_set():
+                try:
+                    r, _, _ = select.select([src, dst], [], [], 300)
+                except (OSError, ValueError):
+                    return
+                if not r:
+                    continue
+                for s in r:
+                    try:
+                        data = s.recv(65536)
+                    except OSError:
+                        return
+                    if not data:
+                        return
+                    (dst if s is src else src).sendall(data)
+        except Exception:
+            pass
+        finally:
+            for s in (src, dst):
+                try:
+                    s.close()
+                except Exception:
+                    pass
+
+    # -- HTTP ----------------------------------------------------------------
+
+    def _handle_http(self, client):
+        try:
+            client.settimeout(30)
+            data = client.recv(8192)
+            if not data:
+                return
+            first = data.split(b"\r\n", 1)[0]
+            is_connect = first.startswith(b"CONNECT")
+
+            if is_connect:
+                try:
+                    dest = first.split(b" ")[1].decode()
+                    host, port_s = dest.rsplit(":", 1)
+                    port = int(port_s)
+                except Exception:
+                    self._send_error(client, 400, "Bad CONNECT")
+                    return
+                method = None
+                path = None
+            else:
+                parts = first.split(b" ")
+                if len(parts) < 2:
+                    self._send_error(client, 400, "Bad request")
+                    return
+                method = parts[0]
+                url = parts[1].decode()
+                if url.startswith("http://"):
+                    url = url[7:]
+                elif url.startswith("https://"):
+                    url = url[8:]
+                slash = url.find("/")
+                hostport = url if slash == -1 else url[:slash]
+                path = "/" if slash == -1 else url[slash:]
+                if ":" in hostport:
+                    host, port_s = hostport.rsplit(":", 1)
+                    try:
+                        port = int(port_s)
+                    except ValueError:
+                        port = 80
+                else:
+                    host = hostport
+                    port = 80
+
+            host = _normalize_host(host)
+            if host_bypasses_proxy(host):
+                # no_proxy — напрямую, без внешних прокси
+                try:
+                    direct = socket.create_connection((host, port), timeout=15)
+                except Exception:
+                    self._send_error(client, 502, "Localhost connection failed")
+                    return
+                direct.settimeout(300)
+                if is_connect:
+                    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                else:
+                    rest = data.split(b"\r\n", 1)[1]
+                    data = method + b" " + path.encode() + b" HTTP/1.1\r\n" + rest
+                    direct.sendall(data)
+                self._relay(direct, client, self._stop)
+            else:
+                upstream = None
+                for host_u, pport, token in self._upstreams:
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(15)
+                        s.connect((host_u, pport))
+                        if is_connect:
+                            # Формируем чистый CONNECT для внешнего HTTP-
+                            # прокси. Нельзя пересылать служебные заголовки
+                            # клиента как есть: некоторые upstream-прокси
+                            # из-за этого направляют TLS-туннель неверно.
+                            target = ("%s:%d" % (host, port)).encode("idna")
+                            request = (b"CONNECT " + target + b" HTTP/1.1\r\n"
+                                       b"Host: " + target + b"\r\n"
+                                       b"Proxy-Authorization: Basic " + token.encode("ascii") +
+                                       b"\r\n\r\n")
+                        else:
+                            hdr = b"Proxy-Authorization: Basic " + token.encode("ascii") + b"\r\n"
+                            request = data.replace(b"\r\n", b"\r\n" + hdr, 1)
+                        s.sendall(request)
+                        upstream = s
+                        break
+                    except Exception:
+                        try:
+                            s.close()
+                        except Exception:
+                            pass
+                        continue
+                if upstream is None:
+                    self._send_error(client, 502, "All external proxies unreachable")
+                    return
+                self._relay(upstream, client, self._stop)
+        except OSError:
+            try:
+                self._send_error(client, 502, "Proxy error")
+            except Exception:
+                pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    # -- SOCKS5 ---------------------------------------------------------------
+
+    def _handle_socks(self, client):
+        try:
+            client.settimeout(15)
+            if client.recv(1) != b"\x05":
+                return
+            nmethods = client.recv(1)[0]
+            client.recv(nmethods)
+            client.sendall(b"\x05\x00")
+            data = client.recv(4)
+            if len(data) < 4 or data[0] != 5:
+                return
+            atype = data[3]
+            if atype == 1:
+                host = socket.inet_ntoa(client.recv(4))
+            elif atype == 3:
+                n = client.recv(1)[0]
+                host = client.recv(n).decode()
+            elif atype == 4:
+                host = socket.inet_ntop(socket.AF_INET6, client.recv(16))
+            else:
+                return
+            port = struct.unpack(">H", client.recv(2))[0]
+
+            upstream = None
+            host = _normalize_host(host)
+            if host_bypasses_proxy(host):
+                try:
+                    upstream = socket.create_connection((host, port), timeout=15)
+                except Exception:
+                    upstream = None
+            else:
+                for host_u, pport, token in self._upstreams:
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(15)
+                        s.connect((host_u, pport))
+                        cr = (
+                            "CONNECT %s:%d HTTP/1.1\r\n"
+                            "Proxy-Authorization: Basic %s\r\n"
+                            "Host: %s:%d\r\n\r\n" % (host, port, token, host, port)
+                        ).encode()
+                        s.sendall(cr)
+                        upstream = s
+                        break
+                    except Exception:
+                        try:
+                            s.close()
+                        except Exception:
+                            pass
+                        continue
+
+            if upstream is None:
+                client.sendall(b"\x05\x03\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+                return
+            if not host_bypasses_proxy(host):
+                resp = b""
+                while b"\r\n\r\n" not in resp:
+                    chunk = upstream.recv(4096)
+                    if not chunk:
+                        break
+                    resp += chunk
+                if b"200" not in resp:
+                    upstream.close()
+                    client.sendall(b"\x05\x03\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+                    return
+            client.sendall(b"\x05\x00\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+            self._relay(upstream, client, self._stop)
+        except Exception:
+            pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    # -- PAC --------------------------------------------------------------------
+
+    def _handle_pac(self, client):
+        try:
+            data = client.recv(4096)
+            if not data:
+                return
+            match = re.search(rb"GET\s+(\S+)\s+HTTP", data)
+            if not match:
+                client.close()
+                return
+            path = match.group(1).decode()
+            if path != self.settings.get("pac_path", "/proxy.pac"):
+                resp = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            else:
+                pac = build_pac().encode("utf-8")
+                resp = (
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: application/x-ns-proxy-autoconfig\r\n"
+                    b"Cache-Control: no-cache\r\n"
+                    b"Content-Length: " + str(len(pac)).encode() + b"\r\n"
+                    b"Connection: close\r\n\r\n" + pac
+                )
+            client.sendall(resp)
+        except Exception:
+            pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    # -- жизненный цикл -----------------------------------------------------------
+
+    def start(self):
+        if self._socks:
+            return False, "Уже запущено"
+        ports = (
+            ("HTTP", int(self.settings.get("local_http_port", 8080)), self._handle_http),
+            ("SOCKS5", int(self.settings.get("local_socks_port", 1080)), self._handle_socks),
+            ("PAC", int(self.settings.get("local_pac_port", 8082)), self._handle_pac),
+        )
+        bound = []
+        try:
+            for name, port, handler in ports:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("127.0.0.1", port))
+                s.listen(200)
+                s.settimeout(1.0)
+                bound.append(s)
+        except OSError as e:
+            for s in bound:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+            return False, "Не удалось занять порт: %s" % e
+        self._socks = bound
+        self._stop = threading.Event()
+        for lsock, (name, port, handler) in zip(bound, ports):
+            t = threading.Thread(target=self._accept_loop, args=(lsock, handler), daemon=True)
+            t.start()
+            self._threads.append(t)
+        _log("proxy started (http=%d socks=%d pac=%d, upstreams=%d)"
+             % (ports[0][1], ports[1][1], ports[2][1], len(self._upstreams)))
+        return True, "OK"
+
+    def _accept_loop(self, lsock, handler):
+        while not self._stop.is_set():
+            try:
+                c, _ = lsock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if self._stop.is_set():
+                try:
+                    c.close()
+                except Exception:
+                    pass
+                break
+            threading.Thread(target=handler, args=(c,), daemon=True).start()
+
+    def stop(self):
+        self._stop.set()
+        for s in self._socks:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
+                s.close()
+            except Exception:
+                pass
+        self._socks = []
+        _log("proxy stopped")
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Статус: проверка портов / процесса
+# ---------------------------------------------------------------------------
+
+def _pac_healthy(settings=None):
+    settings = settings or load_settings()
+    port = int(settings.get("local_pac_port", 8082))
+    path = str(settings.get("pac_path", "/proxy.pac") or "/proxy.pac")
+    if not path.startswith("/"):
+        path = "/" + path
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=1.0)
+        req = ("GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" % path).encode("ascii")
+        s.sendall(req)
+        data = b""
+        while len(data) < 65536:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        s.close()
+        return b"200 OK" in data and b"FindProxyForURL" in data and b"127.0.0.1:" in data
+    except Exception:
+        return False
+
+
+def is_running():
+    return _pac_healthy(load_settings())
+
+
+def owns_running_proxy():
+    """Подтверждает, что живой local proxy запущен именно этой копией app.
+
+    Несколько копий Launcher могут использовать одинаковые localhost-порты и
+    PAC URL. Одного health-check недостаточно: другая копия не должна получать
+    право остановить или откатить её сетевые настройки.
+    """
+    record = _read_pid()
+    if not record:
+        return False
+    try:
+        pid = int(record.get("pid"))
+    except Exception:
+        return False
+    if is_windows():
+        expected_created = record.get("created")
+        actual_created = _windows_process_creation_time(pid)
+        return bool(
+            expected_created is not None
+            and actual_created is not None
+            and int(expected_created) == int(actual_created)
+            and _pac_healthy(load_settings())
+        )
+    try:
+        os.kill(pid, 0)
+        return _pac_healthy(load_settings())
+    except Exception:
+        return False
+
+
+def _windows_process_creation_time(pid):
+    if not is_windows():
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+            ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME)]
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not handle:
+            return None
+        try:
+            creation = wintypes.FILETIME()
+            exit_time = wintypes.FILETIME()
+            kernel = wintypes.FILETIME()
+            user = wintypes.FILETIME()
+            if not kernel32.GetProcessTimes(
+                    handle, ctypes.byref(creation), ctypes.byref(exit_time),
+                    ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            return (int(creation.dwHighDateTime) << 32) | int(creation.dwLowDateTime)
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception as e:
+        _log("process creation time error: %r" % e)
+        return None
+
+
+def _read_pid():
+    try:
+        with io.open(pid_path(), "r", encoding="utf-8") as f:
+            raw = f.read().strip()
+        try:
+            data = json.loads(raw)
+        except Exception:
+            data = None
+        if isinstance(data, dict) and data.get("pid"):
+            return {"pid": int(data["pid"]), "created": data.get("created")}
+        # Старый формат содержал только PID. Он небезопасен для taskkill после
+        # перезагрузки/PID reuse, поэтому читаем его как непроверяемый.
+        return {"pid": int(raw), "created": None}
+    except Exception:
+        return None
+
+
+def _write_pid():
+    try:
+        pid = os.getpid()
+        record = {"pid": pid, "created": _windows_process_creation_time(pid)}
+        with io.open(pid_path(), "w", encoding="utf-8") as f:
+            json.dump(record, f)
+    except Exception as e:
+        _log("pid write error: %r" % e)
+
+
+def _remove_pid():
+    try:
+        os.remove(pid_path())
+    except Exception:
+        pass
+
+
+def _kill_pid(record):
+    if not record:
+        return False
+    pid = int(record.get("pid")) if isinstance(record, dict) else int(record)
+    expected_created = record.get("created") if isinstance(record, dict) else None
+    try:
+        if is_windows():
+            actual_created = _windows_process_creation_time(pid)
+            if expected_created is None or actual_created is None or int(expected_created) != int(actual_created):
+                _log("refusing unsafe taskkill for pid=%s: process identity mismatch/unverified" % pid)
+                return False
+            result = subprocess.run(
+                ["taskkill", "/PID", str(pid), "/F"], capture_output=True, text=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if result.returncode != 0:
+                _log("taskkill failed for pid=%s: %s" % (pid, (result.stderr or result.stdout).strip()))
+                return False
+            return True
+        os.kill(pid, 9)
+        return True
+    except Exception as e:
+        _log("kill pid error (%s): %r" % (pid, e))
+        return False
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def _cmd_start():
+    settings = load_settings()
+    configured = any((u.get("host") or "").strip() for u in settings.get("upstream") or [])
+    if not configured:
+        _log("start aborted: no upstream proxy configured")
+        print("upstream proxy is not configured")
+        return 2
+    if is_running():
+        _log("already running, enabling system proxy")
+        return 0 if enable_system_proxy() else 1
+    core = ProxyCore(settings)
+    ok, msg = core.start()
+    if not ok:
+        _log("start failed: %s" % msg)
+        print(msg)
+        return 1
+    _write_pid()
+    if not enable_system_proxy():
+        core.stop()
+        _remove_pid()
+        print("failed to enable system proxy; network settings rolled back")
+        return 1
+    print("proxy started")
+    try:
+        while not core._stop.wait(3600):
+            pass
+    except KeyboardInterrupt:
+        pass
+    finally:
+        core.stop()
+        _remove_pid()
+    return 0
+
+
+def _cmd_stop():
+    record = _read_pid()
+    killed = _kill_pid(record)
+    still_running = is_running()
+    if killed or not still_running:
+        _remove_pid()
+    network_ok = disable_system_proxy()
+    still_running = is_running()
+    pending = network_restore_pending()
+    if still_running:
+        print("proxy process is still running; network proxy was disabled where possible")
+        return 1
+    if not network_ok or pending:
+        print("proxy stopped, but network settings restore is incomplete; retry --rollback")
+        return 1
+    print("proxy stopped; network settings restored")
+    return 0
+
+
+def _cmd_rollback():
+    """Аварийный откат, не зависящий от работающего GUI или proxy."""
+    record = _read_pid()
+    killed = _kill_pid(record)
+    still_running = is_running()
+    if killed or not still_running:
+        _remove_pid()
+    network_ok = disable_system_proxy()
+    still_running = is_running()
+    pending = network_restore_pending()
+    if still_running:
+        print("network proxy was disabled where possible, but proxy process is still running")
+        return 1
+    if not network_ok or pending:
+        print("network settings restore is incomplete; recovery files were kept for retry")
+        return 1
+    print("network settings restored")
+    return 0
+
+
+def _cmd_status():
+    s = load_settings()
+    if is_running():
+        print("RUNNING (http=127.0.0.1:%d socks=127.0.0.1:%d pac=%s)"
+              % (s["local_http_port"], s["local_socks_port"], pac_url(s)))
+        print("system proxy: %s" % ("ENABLED" if system_proxy_enabled() else "disabled"))
+        print("exceptions: %d domains" % len(load_no_proxy()))
+    else:
+        print("STOPPED")
+
+
+def main():
+    action = sys.argv[1][2:] if len(sys.argv) > 1 and sys.argv[1].startswith("--") else ("start" if len(sys.argv) == 1 else None)
+    if action == "start":
+        return _cmd_start()
+    if action == "stop":
+        return _cmd_stop()
+    if action == "status":
+        _cmd_status()
+        return 0
+    if action == "rollback":
+        return _cmd_rollback()
+    print("usage: proxy_core.py --start | --stop | --status | --rollback")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
