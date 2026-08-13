@@ -27,6 +27,14 @@ class AutostartOwnershipTests(unittest.TestCase):
 
         self.assertFalse(launcher.auto_var.get())
 
+    def test_autostart_prefers_owned_per_user_run_value(self):
+        launcher = gui.Launcher.__new__(gui.Launcher)
+        launcher._autostart_run_is_ours = mock.Mock(return_value=True)
+        launcher._autostart_task_is_ours = mock.Mock(return_value=False)
+
+        self.assertTrue(launcher._autostart_enabled())
+        launcher._autostart_task_is_ours.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

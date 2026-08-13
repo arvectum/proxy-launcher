@@ -30,7 +30,9 @@ import proxy_core as core
 
 APP_NAME = "Arvectum Proxy Launcher"
 APP_VERSION = core.APP_VERSION
-TASK_NAME = "ArvectumProxyLauncher"
+TASK_NAME = "ArvectumProxyLauncher"  # legacy scheduled-task name
+AUTOSTART_RUN_VALUE = "ArvectumProxyLauncher"
+AUTOSTART_RUN_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 NAVY = "#001432"          # Deep Navy
 MINT = "#00C8A0"          # Mint Primary
@@ -852,6 +854,28 @@ class Launcher:
 
     # -- автозапуск -------------------------------------------------------------
 
+    def _autostart_run_value(self):
+        """Return the per-user Run value, or None when it is absent/unreadable."""
+        if os.name != "nt":
+            return None
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH) as key:
+                value, _ = winreg.QueryValueEx(key, AUTOSTART_RUN_VALUE)
+                return str(value or "")
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return None
+
+    def _autostart_run_is_ours(self, value=None):
+        value = self._autostart_run_value() if value is None else value
+        if not value:
+            return False
+        identity = (os.path.realpath(sys.executable) if getattr(sys, "frozen", False)
+                    else os.path.realpath(os.path.join(core.app_dir(), "proxy_core.py")))
+        return identity.lower() in value.lower()
+
     def _autostart_task_xml(self):
         try:
             result = subprocess.run(
@@ -874,7 +898,9 @@ class Launcher:
         return identity.lower() in xml.lower()
 
     def _autostart_enabled(self):
-        return self._autostart_task_is_ours()
+        # Current versions use HKCU\\...\\Run: no elevation is required and this
+        # works even when Task Scheduler creation is restricted by Windows policy.
+        return self._autostart_run_is_ours() or self._autostart_task_is_ours()
 
     def _toggle_autostart(self):
         if self.auto_var.get():
@@ -894,22 +920,19 @@ class Launcher:
         if not configured:
             messagebox.showwarning(APP_NAME, "Сначала настройте внешний прокси, затем включайте автозапуск.")
             return False
-        existing = self._autostart_task_xml()
-        if existing is not None and not self._autostart_task_is_ours(existing):
+        existing_run = self._autostart_run_value()
+        if existing_run is not None and not self._autostart_run_is_ours(existing_run):
             self.auto_var.set(False)
             messagebox.showerror(
                 APP_NAME,
-                "Задача Windows с именем ArvectumProxyLauncher уже существует, "
-                "но принадлежит другой команде. Она не будет перезаписана.")
+                "Запись автозапуска Windows с именем ArvectumProxyLauncher уже "
+                "принадлежит другой команде. Она не будет перезаписана.")
             return False
         target = _autostart_target()
         try:
-            result = subprocess.run(
-                ["schtasks", "/Create", "/F", "/TN", TASK_NAME,
-                 "/TR", target, "/SC", "ONLOGON", "/RL", "LIMITED"],
-                capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError((result.stderr or result.stdout or "schtasks error").strip())
+            import winreg
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH) as key:
+                winreg.SetValueEx(key, AUTOSTART_RUN_VALUE, 0, winreg.REG_SZ, target)
             messagebox.showinfo(APP_NAME, "Прокси будет запускаться автоматически при входе в Windows.")
             return True
         except Exception as e:
@@ -919,11 +942,17 @@ class Launcher:
 
     def _disable_autostart(self):
         try:
-            xml = self._autostart_task_xml()
-            if xml is None or not self._autostart_task_is_ours(xml):
+            import winreg
+            current = self._autostart_run_value()
+            if self._autostart_run_is_ours(current):
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, AUTOSTART_RUN_VALUE)
                 return
-            subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME],
-                           capture_output=True, text=True)
+            # Compatibility cleanup for tasks created by releases before RC2.1.
+            xml = self._autostart_task_xml()
+            if xml is not None and self._autostart_task_is_ours(xml):
+                subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME],
+                               capture_output=True, text=True)
         except Exception:
             pass
 

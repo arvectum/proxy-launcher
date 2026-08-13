@@ -73,11 +73,14 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
 
-    def test_gui_autostart_task_is_ownership_checked(self):
+    def test_gui_autostart_uses_owned_per_user_run_value(self):
         text = self.read("proxy_gui.py")
+        self.assertIn("AUTOSTART_RUN_VALUE", text)
+        self.assertIn("AUTOSTART_RUN_PATH", text)
+        self.assertIn("_autostart_run_is_ours", text)
+        self.assertIn("winreg.SetValueEx", text)
         self.assertIn("_autostart_task_is_ours", text)
         self.assertIn("принадлежит другой команде", text)
-        self.assertIn('["schtasks", "/Query", "/TN", TASK_NAME, "/XML"]', text)
 
     def test_recovery_run_value_is_ownership_checked(self):
         text = self.read("proxy_core.py")
