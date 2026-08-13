@@ -219,7 +219,10 @@ def _run_headless(mode):
 
 def _autostart_target():
     if getattr(sys, "frozen", False):
-        return '"%s"' % os.path.realpath(sys.executable) + " --start"
+        target = core.managed_executable()
+        if not target:
+            raise RuntimeError(core.self_heal_error() or "Не удалось подготовить постоянную копию Launcher.")
+        return '"%s" --start' % target
     return '"%s" "%s" --start' % (sys.executable, os.path.join(core.app_dir(), "proxy_core.py"))
 
 
@@ -970,9 +973,7 @@ class Launcher:
         value = self._autostart_run_value() if value is None else value
         if not value:
             return False
-        identity = (os.path.realpath(sys.executable) if getattr(sys, "frozen", False)
-                    else os.path.realpath(os.path.join(core.app_dir(), "proxy_core.py")))
-        return identity.lower() in value.lower()
+        return core.is_owned_arvectum_start_command(value)
 
     def _autostart_task_xml(self):
         try:
@@ -1075,6 +1076,12 @@ class Launcher:
 
 
 def main():
+    # A portable launch first moves itself to the permanent AppData location.
+    # If the handoff fails, the original GUI remains available and the failure
+    # is recorded by core instead of silently closing the application.
+    if core.handoff_to_stable_copy(sys.argv[1:]):
+        return 0
+    handoff_error = core.self_heal_error()
     if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):
         sys.argv = [sys.argv[0], sys.argv[1]]
         return core.main()
@@ -1085,9 +1092,14 @@ def main():
         pass
     if not core._ensure_local_files():
         return 1
-    if core.handoff_to_canonical_install():
-        return 0
+    core.repair_portable_run_entries()
     root = tk.Tk()
+    if handoff_error:
+        messagebox.showerror(
+            APP_NAME,
+            handoff_error + "\n\nLauncher оставлен открытым из текущей папки. "
+            "Закройте старую копию приложения и повторите запуск.",
+        )
     app = Launcher(root)
     root.mainloop()
     return 0

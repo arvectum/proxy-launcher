@@ -18,6 +18,7 @@
 """
 
 import base64
+import hashlib
 import io
 import json
 import os
@@ -32,7 +33,7 @@ import time
 from urllib.parse import urlsplit
 
 
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3 P0.1"
 
 _STATE_FILES = (
     "proxy_settings.json", "no_proxy.txt", "proxy_core.pid", "proxy_core.log",
@@ -42,6 +43,9 @@ _STATE_READY = False
 _INSTALL_OWNER_MARKER = ".arvectum-install-owner"
 _INSTALL_OWNER_VALUE = "ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER"
 _LEGACY_INSTALL_OWNER_VALUES = {"ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1"}
+_LAUNCHER_EXE_NAME = "Arvectum Proxy Launcher.exe"
+_USER_AUTOSTART_RUN_VALUE = "ArvectumProxyLauncher"
+_LAST_SELF_HEAL_ERROR = ""
 
 
 def install_dir():
@@ -72,6 +76,147 @@ def runtime_dir():
     return data_dir()
 
 
+def stable_app_dir():
+    """Canonical user-writable executable location (never the state folder)."""
+    return os.path.join(os.path.expanduser("~"), "Documents", "ArvectumProxyLauncher")
+
+
+def stable_app_exe():
+    return os.path.join(stable_app_dir(), _LAUNCHER_EXE_NAME)
+
+
+def _same_path(first, second):
+    try:
+        return os.path.normcase(os.path.realpath(first)) == os.path.normcase(os.path.realpath(second))
+    except Exception:
+        return False
+
+
+def _temporary_roots():
+    roots = []
+    for value in (os.environ.get("TEMP"), os.environ.get("TMP")):
+        if value:
+            roots.append(value)
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        roots.append(os.path.join(local, "Temp"))
+    # ``tempfile.gettempdir`` is deliberately used rather than shell output:
+    # it works with Cyrillic user names and does not depend on cmd quoting.
+    try:
+        import tempfile
+        roots.append(tempfile.gettempdir())
+    except Exception:
+        pass
+    unique = []
+    for root in roots:
+        resolved = os.path.normcase(os.path.realpath(root))
+        if resolved and resolved not in unique:
+            unique.append(resolved)
+    return unique
+
+
+def is_temporary_path(path):
+    """True only when *path* is inside an OS-provided temporary root."""
+    try:
+        candidate = os.path.normcase(os.path.realpath(path))
+        for root in _temporary_roots():
+            root = os.path.normcase(os.path.realpath(root))
+            if os.path.commonpath([candidate, root]) == root:
+                return True
+    except (TypeError, ValueError):
+        pass
+    return False
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _is_historical_documents_copy(path):
+    return _same_path(path, stable_app_exe())
+
+
+def ensure_stable_app_copy():
+    """Copy a frozen portable launcher to the canonical Documents location.
+
+    This is intentionally best-effort: inability to copy must not prevent a
+    GUI opened from Downloads from showing an actionable error/state.  The copy
+    is atomically replaced only after its hash matches the launched EXE.
+    """
+    if not (is_windows() and getattr(sys, "frozen", False)):
+        return None
+    global _LAST_SELF_HEAL_ERROR
+    _LAST_SELF_HEAL_ERROR = ""
+    source = os.path.realpath(sys.executable)
+    target = os.path.realpath(stable_app_exe())
+    if _same_path(source, target):
+        return target
+    try:
+        import shutil
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        # A portable P0 source is authoritative.  Existing Documents builds
+        # are compared by SHA-256 and replaced before handoff when different.
+        # Consequently an old canonical EXE is never launched merely because
+        # it already exists.
+        if os.path.isfile(target) and _sha256_file(source) == _sha256_file(target):
+            return target
+        temporary = target + ".%s.tmp" % os.getpid()
+        try:
+            shutil.copy2(source, temporary)
+            if _sha256_file(source) != _sha256_file(temporary):
+                raise IOError("stable executable copy hash mismatch")
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary):
+                try:
+                    os.remove(temporary)
+                except OSError:
+                    pass
+        with io.open(os.path.join(os.path.dirname(target), _INSTALL_OWNER_MARKER), "w", encoding="ascii") as marker:
+            marker.write(_INSTALL_OWNER_VALUE)
+        _log("portable launcher copied to canonical Documents location: %s" % target)
+        return target
+    except Exception as e:
+        _LAST_SELF_HEAL_ERROR = "Не удалось обновить постоянную копию Launcher в Documents: %s" % e
+        _log("portable launcher self-heal failed: %r" % e)
+        return None
+
+
+def self_heal_error():
+    return _LAST_SELF_HEAL_ERROR
+
+
+def managed_executable():
+    """Return the only executable path allowed in Windows Run entries."""
+    if not getattr(sys, "frozen", False):
+        return None
+    # Never fall back to a Downloads/TEMP source: that is precisely the P0
+    # failure mode.  Callers must report the self-heal error instead.
+    return ensure_stable_app_copy()
+
+
+def handoff_to_stable_copy(arguments=None):
+    """Continue a portable launch only from the matching Documents copy."""
+    if not (is_windows() and getattr(sys, "frozen", False)):
+        return False
+    source = os.path.realpath(sys.executable)
+    target = ensure_stable_app_copy()
+    if not target or _same_path(source, target):
+        return False
+    try:
+        subprocess.Popen([target] + list(arguments or []), cwd=os.path.dirname(target),
+                         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        _log("portable launcher handed off to canonical Documents copy")
+        return True
+    except Exception as e:
+        _log("portable launcher handoff failed; keeping current GUI open: %r" % e)
+        return False
+
+
 def _legacy_state_dirs():
     home = os.path.expanduser("~")
     local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
@@ -85,47 +230,24 @@ def _legacy_state_dirs():
 
 
 def canonical_install_exe():
-    """Return the owned installed EXE, if another copy is being launched."""
+    """Return Documents canonical path only when it matches this executable."""
     if not getattr(sys, "frozen", False):
         return None
-    canonical_dir = os.path.join(os.path.expanduser("~"), "Documents", "ArvectumProxyLauncher")
-    # Existing accepted installations predating the marker are recognised only
-    # at this exact, documented location.  A marker is then written there;
-    # arbitrary Downloads/temp copies can never self-elect as canonical.
-    if os.path.normcase(os.path.realpath(install_dir())) == os.path.normcase(os.path.realpath(canonical_dir)):
-        try:
-            marker = os.path.join(canonical_dir, _INSTALL_OWNER_MARKER)
-            if not os.path.exists(marker):
-                with io.open(marker, "w", encoding="ascii") as f:
-                    f.write(_INSTALL_OWNER_VALUE)
-        except Exception:
-            pass
+    target = os.path.realpath(stable_app_exe())
+    source = os.path.realpath(sys.executable)
+    if _same_path(source, target):
         return None
-    candidates = [os.path.join(canonical_dir, "Arvectum Proxy Launcher.exe")]
-    for candidate in candidates:
-        marker = os.path.join(os.path.dirname(candidate), _INSTALL_OWNER_MARKER)
-        if os.path.isfile(candidate) and os.path.isfile(marker):
-            try:
-                with io.open(marker, "r", encoding="ascii") as f:
-                    marker_value = f.read().strip()
-                    owned = marker_value == _INSTALL_OWNER_VALUE or marker_value in _LEGACY_INSTALL_OWNER_VALUES
-                if owned and os.path.normcase(os.path.realpath(candidate)) != os.path.normcase(os.path.realpath(sys.executable)):
-                    return os.path.realpath(candidate)
-            except Exception:
-                continue
+    try:
+        if os.path.isfile(target) and _sha256_file(source) == _sha256_file(target):
+            return target
+    except Exception:
+        pass
     return None
 
 
 def handoff_to_canonical_install():
-    target = canonical_install_exe()
-    if not target:
-        return False
-    try:
-        subprocess.Popen([target], cwd=os.path.dirname(target),
-                         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-        return True
-    except Exception:
-        return False
+    """Compatibility wrapper: P0 has one canonical handoff mechanism."""
+    return handoff_to_stable_copy()
 
 
 def _copy_state_atomically(src, dst):
@@ -997,7 +1119,7 @@ _RECOVERY_MISSING = "MISSING"
 
 def _self_start_command():
     if getattr(sys, "frozen", False):
-        return '"%s" --start' % os.path.realpath(sys.executable)
+        return '"%s" --start' % managed_executable()
     return '"%s" "%s" --start' % (sys.executable, os.path.realpath(__file__))
 
 
@@ -1025,12 +1147,92 @@ def _recovery_command_target(command):
     return os.path.realpath(match.group(1)), (match.group(2) or "").strip()
 
 
+def _is_temporary_arvectum_start(command):
+    """Recognise only the exact old launcher start command in a temp root."""
+    target, args = _recovery_command_target(command)
+    return bool(
+        target and
+        os.path.basename(target).lower() == _LAUNCHER_EXE_NAME.lower() and
+        _normalize_command(args) == "--start" and
+        is_temporary_path(target)
+    )
+
+
+def _is_proven_legacy_arvectum_start(command):
+    """Strictly identify legacy Arvectum start entries, never a foreign cmd."""
+    target, args = _recovery_command_target(command)
+    if not target or os.path.basename(target).lower() != _LAUNCHER_EXE_NAME.lower():
+        return False
+    if _normalize_command(args) != "--start":
+        return False
+    if _is_temporary_arvectum_start(command):
+        return True
+    parent = os.path.normcase(os.path.realpath(os.path.dirname(target)))
+    if parent in _known_legacy_recovery_dirs():
+        return True
+    # Historical portable P0 packages used this exact release-directory form.
+    return any(part.lower().startswith("arvectum-proxy-launcher-windows-")
+               for part in os.path.normpath(target).split(os.sep))
+
+
+def _delete_run_value(name):
+    try:
+        import winreg
+        path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key, name)
+        return True
+    except FileNotFoundError:
+        return True
+    except Exception as e:
+        _log("Run value delete error for %s: %r" % (name, e))
+        return False
+
+
+def repair_portable_run_entries():
+    """Make P0 Run state use one canonical Documents executable.
+
+    The ordinary user autostart keeps its opt-in state.  The old recovery Run
+    mechanism is removed when it is provably Arvectum-owned, avoiding a second
+    competing engine at logon.  Foreign same-named commands are untouched.
+    """
+    if not is_windows():
+        return True
+    try:
+        import winreg
+        stable = managed_executable()
+        if not stable:
+            return False
+        expected = '"%s" --start' % stable
+        path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+            for name in (_USER_AUTOSTART_RUN_VALUE, _RECOVERY_RUN_VALUE):
+                try:
+                    current, _ = winreg.QueryValueEx(key, name)
+                except FileNotFoundError:
+                    continue
+                if not _is_proven_legacy_arvectum_start(current):
+                    continue
+                if name == _USER_AUTOSTART_RUN_VALUE:
+                    winreg.SetValueEx(key, name, 0, winreg.REG_SZ, expected)
+                    _log("legacy user autostart migrated to canonical Documents copy")
+                else:
+                    winreg.DeleteValue(key, name)
+                    _log("legacy recovery Run value removed; P0 uses one user autostart entry")
+        return True
+    except Exception as e:
+        _log("portable Run entry repair failed: %r" % e)
+        return False
+
+
 def classify_recovery_autostart(command):
     """Classify the shared recovery Run value without heuristic substring checks."""
     if command is None or not str(command).strip():
         return _RECOVERY_MISSING
     if _normalize_command(command) == _normalize_command(_self_start_command()):
         return _RECOVERY_CURRENT_OWNED
+    if _is_proven_legacy_arvectum_start(command):
+        return _RECOVERY_LEGACY_ARVECTUM
     target, args = _recovery_command_target(command)
     if not target:
         return _RECOVERY_FOREIGN
@@ -1043,6 +1245,20 @@ def classify_recovery_autostart(command):
     if name == "restore_network.bat" and not args:
         return _RECOVERY_LEGACY_ARVECTUM
     return _RECOVERY_FOREIGN
+
+
+def is_owned_arvectum_start_command(command):
+    """Strict ownership check shared by recovery and user autostart UI."""
+    if _normalize_command(command) == _normalize_command(_self_start_command()):
+        return True
+    if _is_proven_legacy_arvectum_start(command):
+        return True
+    target, args = _recovery_command_target(command)
+    if not target or os.path.basename(target).lower() != _LAUNCHER_EXE_NAME.lower():
+        return False
+    if _normalize_command(args) != "--start":
+        return False
+    return os.path.normcase(os.path.realpath(os.path.dirname(target))) in _known_legacy_recovery_dirs()
 
 
 def _recovery_legacy_process_active(command):
@@ -1109,38 +1325,17 @@ def _enable_recovery_autostart():
     """
     if not is_windows():
         return True
-    expected = _self_start_command()
     current = _get_recovery_run_value()
     if current is False:
-        return False
+        _log("recovery Run state unreadable; P0 continues without recovery autostart")
+        return True
     classification = classify_recovery_autostart(current)
     if classification == _RECOVERY_FOREIGN:
-        _log("recovery autostart conflicts with a foreign command; refusing overwrite")
-        return False
-    if classification == _RECOVERY_LEGACY_ARVECTUM:
-        if _recovery_legacy_process_active(current):
-            _log("legacy Arvectum recovery autostart is active; migration blocked")
-            return False
-        _log("legacy Arvectum recovery autostart found: %s" % _normalize_command(current))
-        if not _set_recovery_run_value(expected):
-            return False
-        if classify_recovery_autostart(_get_recovery_run_value()) != _RECOVERY_CURRENT_OWNED:
-            _set_recovery_run_value(current)
-            _log("legacy Arvectum recovery autostart migration verification failed")
-            return False
-        if not os.path.exists(_recovery_command_target(current)[0]):
-            _log("stale legacy Arvectum recovery autostart migrated")
-        else:
-            _log("legacy Arvectum recovery autostart migrated to current installation")
+        _log("recovery autostart conflicts with a foreign command; leaving it untouched and continuing without recovery autostart")
         return True
-    if classification in (_RECOVERY_MISSING, _RECOVERY_CURRENT_OWNED):
-        if not _set_recovery_run_value(expected):
-            return False
-        if classify_recovery_autostart(_get_recovery_run_value()) != _RECOVERY_CURRENT_OWNED:
-            _log("recovery autostart write verification failed")
-            return False
-        return True
-    return False
+    if classification in (_RECOVERY_LEGACY_ARVECTUM, _RECOVERY_CURRENT_OWNED):
+        return _delete_run_value(_RECOVERY_RUN_VALUE)
+    return classification == _RECOVERY_MISSING
 
 
 def _disable_recovery_autostart():
@@ -1155,7 +1350,8 @@ def _disable_recovery_autostart():
                 current, _ = winreg.QueryValueEx(key, _RECOVERY_RUN_VALUE)
             except FileNotFoundError:
                 return True
-            if _normalize_command(current) != _normalize_command(_self_start_command()):
+            if (_normalize_command(current) != _normalize_command(_self_start_command()) and
+                    not _is_temporary_arvectum_start(current)):
                 _log("recovery autostart belongs to another command; leaving it untouched")
                 return True
             winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
@@ -1938,13 +2134,17 @@ def _cmd_status():
 
 
 def main():
+    action = sys.argv[1][2:] if len(sys.argv) > 1 and sys.argv[1].startswith("--") else ("start" if len(sys.argv) == 1 else None)
+    # A portable --start must never register its temporary extraction path in
+    # HKCU Run.  Re-execute from the stable copy before mutating any network
+    # settings or recovery state.
+    if action == "start" and handoff_to_stable_copy(sys.argv[1:]):
+        print("opened permanent launcher copy")
+        return 0
     if not _ensure_local_files():
         print("state initialization failed")
         return 1
-    if handoff_to_canonical_install():
-        print("opened canonical installed launcher")
-        return 0
-    action = sys.argv[1][2:] if len(sys.argv) > 1 and sys.argv[1].startswith("--") else ("start" if len(sys.argv) == 1 else None)
+    repair_portable_run_entries()
     if action == "start":
         return _cmd_start()
     if action == "stop":

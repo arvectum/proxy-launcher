@@ -39,6 +39,83 @@ class ProxyCoreTests(unittest.TestCase):
             self.assertEqual(core.data_dir(), "C:/State\\Arvectum\\ProxyLauncher")
             self.assertTrue(core.settings_path().endswith("Arvectum\\ProxyLauncher\\proxy_settings.json"))
 
+    def test_portable_executable_is_copied_to_documents_canonical_location(self):
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / "Temp" / "ZipExtract" / "Arvectum Proxy Launcher.exe"
+            stable = Path(td) / "Документы" / "ArvectumProxyLauncher" / "Arvectum Proxy Launcher.exe"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"portable launcher payload")
+            with mock.patch.object(core, "is_windows", return_value=True), \
+                 mock.patch.object(core.sys, "frozen", True, create=True), \
+                 mock.patch.object(core.sys, "executable", str(source)), \
+                 mock.patch.object(core, "stable_app_exe", return_value=str(stable)), \
+                 mock.patch.object(core, "_log"):
+                self.assertEqual(core.ensure_stable_app_copy(), str(stable))
+            self.assertEqual(stable.read_bytes(), source.read_bytes())
+            self.assertEqual((stable.parent / ".arvectum-install-owner").read_text(encoding="ascii"),
+                             core._INSTALL_OWNER_VALUE)
+
+    def test_existing_old_documents_copy_is_replaced_before_handoff(self):
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / "Загрузки" / "Arvectum Proxy Launcher.exe"
+            canonical = Path(td) / "Документы" / "ArvectumProxyLauncher" / "Arvectum Proxy Launcher.exe"
+            source.parent.mkdir(parents=True)
+            canonical.parent.mkdir(parents=True)
+            source.write_bytes(b"new portable payload")
+            canonical.write_bytes(b"old payload")
+            with mock.patch.object(core, "is_windows", return_value=True), \
+                 mock.patch.object(core.sys, "frozen", True, create=True), \
+                 mock.patch.object(core.sys, "executable", str(source)), \
+                 mock.patch.object(core, "stable_app_exe", return_value=str(canonical)), \
+                 mock.patch.object(core, "_log"):
+                self.assertEqual(core.ensure_stable_app_copy(), str(canonical))
+                self.assertEqual(core.canonical_install_exe(), str(canonical))
+            self.assertEqual(canonical.read_bytes(), source.read_bytes())
+
+    def test_temp_run_recognition_is_exact_and_never_uses_substrings(self):
+        with tempfile.TemporaryDirectory() as td:
+            temp_root = Path(td) / "Temp"
+            temp_root.mkdir()
+            good = temp_root / "x" / "Arvectum Proxy Launcher.exe"
+            good.parent.mkdir()
+            with mock.patch.object(core, "_temporary_roots", return_value=[str(temp_root)]):
+                self.assertTrue(core._is_temporary_arvectum_start('"%s" --start' % good))
+                self.assertFalse(core._is_temporary_arvectum_start('"%s" --status' % good))
+                self.assertFalse(core._is_temporary_arvectum_start('"%s" --start' % (temp_root / "Arvectum Proxy Launcher.exe.evil")))
+                self.assertFalse(core._is_temporary_arvectum_start('"%s" --start' % (Path(td) / "NotTemp" / "Arvectum Proxy Launcher.exe")))
+
+    def test_paths_keep_documents_executable_and_localappdata_state_with_cyrillic_user(self):
+        home = r"C:\Users\Анастасия"
+        local = home + r"\AppData\Local"
+        with mock.patch.object(core.os.path, "expanduser", return_value=home), \
+             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": local}, clear=False), \
+             mock.patch.object(core, "is_windows", return_value=True):
+            self.assertEqual(core.stable_app_exe(), home + r"\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe")
+            self.assertEqual(core.data_dir(), local + r"\Arvectum\ProxyLauncher")
+
+    def test_canonical_copy_failure_never_launches_old_executable(self):
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core.sys, "frozen", True, create=True), \
+             mock.patch.object(core, "ensure_stable_app_copy", return_value=None), \
+             mock.patch.object(core.subprocess, "Popen") as spawn:
+            self.assertFalse(core.handoff_to_stable_copy())
+        spawn.assert_not_called()
+
+    def test_failed_self_heal_never_returns_portable_path_for_autostart(self):
+        with mock.patch.object(core.sys, "frozen", True, create=True), \
+             mock.patch.object(core, "ensure_stable_app_copy", return_value=None):
+            self.assertIsNone(core.managed_executable())
+
+    def test_owned_start_command_accepts_only_current_or_proven_temp_or_legacy(self):
+        temporary = '"C:/Temp/zip/Arvectum Proxy Launcher.exe" --start'
+        foreign = '"C:/Temp/zip/not-arvectum.exe" --start'
+        with mock.patch.object(core, "_self_start_command", return_value='"C:/Stable/Arvectum Proxy Launcher.exe" --start'), \
+             mock.patch.object(core, "_is_temporary_arvectum_start", side_effect=lambda command: command == temporary), \
+             mock.patch.object(core, "_known_legacy_recovery_dirs", return_value=set()):
+            self.assertTrue(core.is_owned_arvectum_start_command(temporary))
+            self.assertTrue(core.is_owned_arvectum_start_command('"C:/Stable/Arvectum Proxy Launcher.exe" --start'))
+            self.assertFalse(core.is_owned_arvectum_start_command(foreign))
+
     def test_pid_record_contains_executable_path(self):
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(core, "pid_path", return_value=str(Path(td) / "pid.json")), \
@@ -180,7 +257,7 @@ class ProxyCoreTests(unittest.TestCase):
                 self.assertTrue((stable / "proxy_settings.json").exists())
                 self.assertEqual((stable / "no_proxy.txt").read_text(encoding="utf-8"), "example.invalid\n")
 
-    def test_second_copy_handoffs_only_to_owned_canonical_install(self):
+    def test_old_canonical_exe_is_never_selected_by_hashless_handoff(self):
         with tempfile.TemporaryDirectory() as td:
             docs = Path(td) / "Documents" / "ArvectumProxyLauncher"
             other = Path(td) / "Downloads"
@@ -194,8 +271,6 @@ class ProxyCoreTests(unittest.TestCase):
                  mock.patch.object(core.sys, "frozen", True, create=True), \
                  mock.patch.object(core.sys, "executable", str(other / "Arvectum Proxy Launcher.exe")):
                 self.assertIsNone(core.canonical_install_exe())
-                (docs / ".arvectum-install-owner").write_text(core._INSTALL_OWNER_VALUE, encoding="ascii")
-                self.assertEqual(core.canonical_install_exe(), str(canonical))
 
     def test_no_proxy_matching_is_boundary_safe(self):
         with mock.patch.object(core, "load_no_proxy", return_value=["zakupki.gov.ru", "10.*"]):
@@ -242,49 +317,21 @@ class ProxyCoreTests(unittest.TestCase):
             self.assertEqual(core.classify_recovery_autostart('"C:/Other/Arvectum-not-launcher.exe" --start'), core._RECOVERY_FOREIGN)
             self.assertEqual(core.classify_recovery_autostart('"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --other'), core._RECOVERY_FOREIGN)
 
-    def test_legacy_recovery_autostart_migrates_and_verifies_write(self):
-        legacy = '"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'
-        expected = '"C:/Current/Arvectum Proxy Launcher.exe" --start'
-        values = [legacy, expected]
-        logs = []
-        with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core, "_self_start_command", return_value=expected), \
-             mock.patch.object(core, "_get_recovery_run_value", side_effect=values), \
-             mock.patch.object(core, "classify_recovery_autostart", side_effect=[core._RECOVERY_LEGACY_ARVECTUM, core._RECOVERY_CURRENT_OWNED]), \
-             mock.patch.object(core, "_recovery_legacy_process_active", return_value=False), \
-             mock.patch.object(core, "_set_recovery_run_value", return_value=True) as write, \
-             mock.patch.object(core.os.path, "exists", return_value=False), \
-             mock.patch.object(core, "_log", side_effect=logs.append):
-            self.assertTrue(core._enable_recovery_autostart())
-        write.assert_called_once_with(expected)
-        self.assertIn("stale legacy Arvectum recovery autostart migrated", logs)
-
-    def test_legacy_migration_verification_failure_restores_legacy_value(self):
-        legacy = '"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'
-        expected = '"C:/Current/Arvectum Proxy Launcher.exe" --start'
-        with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core, "_self_start_command", return_value=expected), \
-             mock.patch.object(core, "_get_recovery_run_value", side_effect=[legacy, "bad"]), \
-             mock.patch.object(core, "classify_recovery_autostart", side_effect=[core._RECOVERY_LEGACY_ARVECTUM, core._RECOVERY_FOREIGN]), \
-             mock.patch.object(core, "_recovery_legacy_process_active", return_value=False), \
-             mock.patch.object(core, "_set_recovery_run_value", return_value=True) as write:
-            self.assertFalse(core._enable_recovery_autostart())
-        self.assertEqual(write.call_args_list, [mock.call(expected), mock.call(legacy)])
-
-    def test_foreign_recovery_value_is_never_overwritten_and_active_legacy_blocks(self):
-        with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core, "_get_recovery_run_value", return_value='"C:/Windows/System32/cmd.exe" /c exit 0'), \
-             mock.patch.object(core, "classify_recovery_autostart", return_value=core._RECOVERY_FOREIGN), \
-             mock.patch.object(core, "_set_recovery_run_value") as write:
-            self.assertFalse(core._enable_recovery_autostart())
-        write.assert_not_called()
+    def test_recovery_autostart_is_removed_only_when_owned(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
              mock.patch.object(core, "_get_recovery_run_value", return_value='legacy'), \
              mock.patch.object(core, "classify_recovery_autostart", return_value=core._RECOVERY_LEGACY_ARVECTUM), \
-             mock.patch.object(core, "_recovery_legacy_process_active", return_value=True), \
-             mock.patch.object(core, "_set_recovery_run_value") as write:
-            self.assertFalse(core._enable_recovery_autostart())
-        write.assert_not_called()
+             mock.patch.object(core, "_delete_run_value", return_value=True) as delete:
+            self.assertTrue(core._enable_recovery_autostart())
+        delete.assert_called_once_with(core._RECOVERY_RUN_VALUE)
+
+    def test_foreign_recovery_value_is_never_overwritten_or_used_to_block_start(self):
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "_get_recovery_run_value", return_value='"C:/Windows/System32/cmd.exe" /c exit 0'), \
+             mock.patch.object(core, "classify_recovery_autostart", return_value=core._RECOVERY_FOREIGN), \
+             mock.patch.object(core, "_delete_run_value") as delete:
+            self.assertTrue(core._enable_recovery_autostart())
+        delete.assert_not_called()
 
     def test_start_without_upstream_never_touches_system_proxy(self):
         settings = dict(core.DEFAULT_SETTINGS)

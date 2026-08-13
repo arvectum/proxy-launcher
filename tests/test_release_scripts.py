@@ -155,7 +155,7 @@ class ReleaseScriptTests(unittest.TestCase):
     def test_release_version_is_visible_in_gui(self):
         core_text = self.read("proxy_core.py")
         gui_text = self.read("proxy_gui.py")
-        self.assertIn('APP_VERSION = "0.2.2"', core_text)
+        self.assertIn('APP_VERSION = "0.2.3 P0.1"', core_text)
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
 
@@ -167,23 +167,41 @@ class ReleaseScriptTests(unittest.TestCase):
         build = self.read("build_exe.bat")
         version = self.read("version_info.txt")
         self.assertIn('--version-file "version_info.txt"', build)
-        for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.2', '0.2.2.0'):
+        for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.3', '0.2.3.0'):
             self.assertIn(value, version)
 
-    def test_inno_setup_delegates_safe_uninstall_and_blocks_unsafe_upgrade(self):
-        text = self.read("ArvectumProxyLauncherSetup.iss")
-        self.assertIn("Uninstallable=no", text)
-        self.assertIn("QuietUninstallString", text)
-        self.assertIn("uninstall.ps1", text)
-        self.assertIn("UPDATE BLOCKED", text)
-        self.assertIn("proxy_internet_backup.json", text)
-        self.assertIn("ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER", text)
-        self.assertIn("SaveStringToFile", text)
-        self.assertIn("CloseApplications=yes", text)
-        self.assertIn("CloseApplicationsFilter=Arvectum Proxy Launcher.exe", text)
-        self.assertIn("function CloseOwnedLauncher", text)
-        self.assertIn("$_.ExecutablePath", text)
-        self.assertIn("Get-CimInstance Win32_Process", text)
+    def test_inno_setup_is_self_contained_and_hash_verifies_payload(self):
+        text = self.read("installer/ArvectumProxyLauncher.iss")
+        self.assertIn("Uninstallable=yes", text)
+        self.assertIn("ExtractTemporaryFile", text)
+        self.assertIn("upgrade_helper.ps1", text)
+        self.assertIn("build_manifest.json", text)
+        self.assertIn("InstallFailure", text)
+        self.assertNotIn("SourceDir", text)
+        self.assertNotIn("skipifsourcedoesntexist", text)
+        helper = self.read("installer/upgrade_helper.ps1")
+        self.assertIn("application_sha256", helper)
+        self.assertIn("upgrade_helper_sha256", helper)
+
+    def test_upgrade_helper_has_preflight_transaction_and_session_logging(self):
+        text = self.read("installer/upgrade_helper.ps1")
+        self.assertIn("=== INSTALL SESSION START", text)
+        self.assertIn("=== INSTALL SESSION END: PASS", text)
+        self.assertIn("ERROR TYPE:", text)
+        self.assertIn("ERROR MESSAGE:", text)
+        self.assertIn("embedded application expected SHA256", text)
+        self.assertIn("transactional replacement rolled back", text)
+        self.assertIn("conflicting recovery autostart is not owned", text)
+        self.assertIn("releaseFolder", text)
+        self.assertIn("arvectum-proxy-launcher-windows", text)
+        self.assertNotIn("& (Join-Path $SourceDir", text)
+
+    def test_inno_uninstall_uses_embedded_rollback_helper(self):
+        text = self.read("installer/ArvectumProxyLauncher.iss")
+        helper = self.read("installer/uninstall_helper.ps1")
+        self.assertIn("uninstall_helper.ps1", text)
+        self.assertIn("Network rollback", helper)
+        self.assertIn("--rollback", helper)
 
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
