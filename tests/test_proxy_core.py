@@ -50,7 +50,7 @@ class ProxyCoreTests(unittest.TestCase):
                  mock.patch.object(core.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(stable)), \
                  mock.patch.object(core, "_log"):
-                self.assertEqual(core.ensure_stable_app_copy(), str(stable))
+                self.assertEqual(core.ensure_stable_app_copy(), os.path.realpath(stable))
             self.assertEqual(stable.read_bytes(), source.read_bytes())
             self.assertEqual((stable.parent / ".arvectum-install-owner").read_text(encoding="ascii"),
                              core._INSTALL_OWNER_VALUE)
@@ -68,8 +68,8 @@ class ProxyCoreTests(unittest.TestCase):
                  mock.patch.object(core.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(canonical)), \
                  mock.patch.object(core, "_log"):
-                self.assertEqual(core.ensure_stable_app_copy(), str(canonical))
-                self.assertEqual(core.canonical_install_exe(), str(canonical))
+                self.assertEqual(core.ensure_stable_app_copy(), os.path.realpath(canonical))
+                self.assertEqual(core.canonical_install_exe(), os.path.realpath(canonical))
             self.assertEqual(canonical.read_bytes(), source.read_bytes())
 
     def test_temp_run_recognition_is_exact_and_never_uses_substrings(self):
