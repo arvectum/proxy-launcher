@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="assets/arvectum-banner.png" width="720">
-</p>
-
 <h1 align="center">Arvectum Proxy Launcher</h1>
 
 <p align="center">
