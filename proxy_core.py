@@ -31,6 +31,9 @@ import threading
 import time
 
 
+APP_VERSION = "RC2.1"
+
+
 def app_dir():
     """Каталог, где лежат настройки. Для скомпилированного exe — рядом с exe,
     а не во временной папке PyInstaller."""
@@ -78,6 +81,168 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _dpapi_protect_text(value):
+    """Encrypt a UTF-8 secret with Windows DPAPI for the current user.
+
+    The resulting blob may safely live in proxy_settings.json: it is bound to
+    the Windows user profile and is not usable as the upstream password by
+    simply copying the settings file to another account/machine.
+    """
+    if value in (None, ""):
+        return ""
+    if not is_windows():
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [("cbData", wintypes.DWORD),
+                        ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+        crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        crypt32.CryptProtectData.argtypes = [
+            ctypes.POINTER(DATA_BLOB), wintypes.LPCWSTR, ctypes.POINTER(DATA_BLOB),
+            ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(DATA_BLOB),
+        ]
+        crypt32.CryptProtectData.restype = wintypes.BOOL
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+
+        raw = str(value).encode("utf-8")
+        buf = (ctypes.c_byte * len(raw)).from_buffer_copy(raw)
+        src = DATA_BLOB(len(raw), ctypes.cast(buf, ctypes.POINTER(ctypes.c_byte)))
+        dst = DATA_BLOB()
+        CRYPTPROTECT_UI_FORBIDDEN = 0x1
+        if not crypt32.CryptProtectData(
+                ctypes.byref(src), "Arvectum Proxy Launcher upstream password", None,
+                None, None, CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(dst)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            encrypted = ctypes.string_at(dst.pbData, dst.cbData)
+            return base64.b64encode(encrypted).decode("ascii")
+        finally:
+            if dst.pbData:
+                kernel32.LocalFree(ctypes.cast(dst.pbData, ctypes.c_void_p))
+    except Exception as e:
+        _log("DPAPI protect error: %r" % e)
+        return None
+
+
+def _dpapi_unprotect_text(value):
+    if value in (None, ""):
+        return ""
+    if not is_windows():
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [("cbData", wintypes.DWORD),
+                        ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+        crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        crypt32.CryptUnprotectData.argtypes = [
+            ctypes.POINTER(DATA_BLOB), ctypes.POINTER(wintypes.LPWSTR),
+            ctypes.POINTER(DATA_BLOB), ctypes.c_void_p, ctypes.c_void_p,
+            wintypes.DWORD, ctypes.POINTER(DATA_BLOB),
+        ]
+        crypt32.CryptUnprotectData.restype = wintypes.BOOL
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+
+        raw = base64.b64decode(str(value).encode("ascii"), validate=True)
+        buf = (ctypes.c_byte * len(raw)).from_buffer_copy(raw)
+        src = DATA_BLOB(len(raw), ctypes.cast(buf, ctypes.POINTER(ctypes.c_byte)))
+        dst = DATA_BLOB()
+        description = wintypes.LPWSTR()
+        CRYPTPROTECT_UI_FORBIDDEN = 0x1
+        if not crypt32.CryptUnprotectData(
+                ctypes.byref(src), ctypes.byref(description), None, None, None,
+                CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(dst)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return ctypes.string_at(dst.pbData, dst.cbData).decode("utf-8")
+        finally:
+            if description:
+                kernel32.LocalFree(ctypes.cast(description, ctypes.c_void_p))
+            if dst.pbData:
+                kernel32.LocalFree(ctypes.cast(dst.pbData, ctypes.c_void_p))
+    except Exception as e:
+        _log("DPAPI unprotect error: %r" % e)
+        return None
+
+
+def _decode_upstream_secrets(settings):
+    data = json.loads(json.dumps(settings))
+    decoded = []
+    for raw in data.get("upstream") or []:
+        up = dict(raw)
+        credentials_blob = up.pop("credentials_dpapi", None)
+        legacy_password_blob = up.pop("password_dpapi", None)
+        if credentials_blob not in (None, ""):
+            plain = _dpapi_unprotect_text(credentials_blob)
+            if plain is None:
+                _log("settings contain unreadable DPAPI credentials; leaving auth empty")
+                up["username"] = ""
+                up["password"] = ""
+            else:
+                try:
+                    auth = json.loads(plain)
+                    up["username"] = str(auth.get("username") or "")
+                    up["password"] = str(auth.get("password") or "")
+                except Exception as e:
+                    _log("DPAPI credentials payload is invalid: %r" % e)
+                    up["username"] = ""
+                    up["password"] = ""
+        elif legacy_password_blob not in (None, ""):
+            # Compatibility with early RC2.1 development builds that encrypted
+            # only password.  A later Save migrates to credentials_dpapi.
+            plain = _dpapi_unprotect_text(legacy_password_blob)
+            up["username"] = str(up.get("username") or "")
+            up["password"] = "" if plain is None else plain
+        else:
+            # Backward compatibility with RC2 plaintext settings.  The first
+            # successful load on Windows transparently migrates username and
+            # password to a current-user DPAPI blob.
+            up["username"] = str(up.get("username") or "")
+            up["password"] = str(up.get("password") or "")
+        decoded.append(up)
+    data["upstream"] = decoded
+    return data
+
+
+def _encode_settings_for_disk(settings):
+    data = json.loads(json.dumps(settings))
+    encoded = []
+    for raw in data.get("upstream") or []:
+        up = dict(raw)
+        username = str(up.pop("username", "") or "")
+        password = str(up.pop("password", "") or "")
+        up.pop("credentials_dpapi", None)
+        up.pop("password_dpapi", None)
+        if is_windows():
+            if username or password:
+                payload = json.dumps(
+                    {"username": username, "password": password},
+                    ensure_ascii=False, separators=(",", ":"))
+                protected = _dpapi_protect_text(payload)
+                if protected is None:
+                    raise RuntimeError("Windows DPAPI could not protect upstream credentials")
+                up["credentials_dpapi"] = protected
+        else:
+            # Source-level tests on non-Windows keep the legacy representation.
+            # Client builds are Windows-only and therefore always use DPAPI.
+            up["username"] = username
+            up["password"] = password
+        encoded.append(up)
+    data["upstream"] = encoded
+    return data
+
+
 def load_settings():
     data = json.loads(json.dumps(DEFAULT_SETTINGS))
     p = settings_path()
@@ -88,18 +253,46 @@ def load_settings():
             loaded = json.load(f)
         if isinstance(loaded, dict):
             data.update(loaded)
+        runtime = _decode_upstream_secrets(data)
+        # Transparent RC2 -> RC2.1 migration: an existing plaintext password is
+        # protected as soon as the new Windows build first reads the settings.
+        # If DPAPI is unavailable we keep the old file untouched so the proxy
+        # does not lose credentials; the failure is visible in proxy_core.log.
+        legacy_plaintext = any(
+            isinstance(up, dict)
+            and "credentials_dpapi" not in up
+            and "password_dpapi" not in up
+            and (bool(up.get("username")) or bool(up.get("password")))
+            for up in (loaded.get("upstream") or [])
+        ) if isinstance(loaded, dict) else False
+        if legacy_plaintext and is_windows():
+            if save_settings(runtime):
+                _log("legacy plaintext upstream credentials migrated to DPAPI")
+            else:
+                _log("legacy plaintext upstream credentials migration to DPAPI failed")
+        return runtime
     except Exception as e:
         _log("settings read error: %r" % e)
     return data
 
 
 def save_settings(settings):
+    tmp = settings_path() + ".tmp"
     try:
-        with io.open(settings_path(), "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
+        disk_settings = _encode_settings_for_disk(settings)
+        with io.open(tmp, "w", encoding="utf-8") as f:
+            json.dump(disk_settings, f, indent=2, ensure_ascii=False)
+            f.flush()
+        os.replace(tmp, settings_path())
         _log("settings saved")
+        return True
     except Exception as e:
         _log("settings save error: %r" % e)
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        return False
 
 
 DEFAULT_NO_PROXY = [
@@ -273,22 +466,6 @@ def _valid_internet_backup(values):
     return isinstance(values, dict) and required.issubset(values.keys())
 
 
-def has_network_backup():
-    """Есть ли у *этой* копии данные для точного восстановления сети."""
-    try:
-        with io.open(_internet_backup_path(), "r", encoding="utf-8") as f:
-            if _valid_internet_backup(json.load(f)):
-                return True
-    except Exception:
-        pass
-    try:
-        with io.open(_env_backup_path(), "r", encoding="utf-8") as f:
-            values = json.load(f)
-        return isinstance(values, dict) and all(name in values for name in _PROXY_ENV_NAMES)
-    except Exception:
-        return False
-
-
 def _save_internet_backup():
     """Сохраняет исходные WinINET-настройки ДО любых изменений.
 
@@ -333,25 +510,13 @@ def _restore_internet_backup():
     except Exception:
         values = None
     if not _valid_internet_backup(values):
-        # Без backup нельзя угадывать исходный ProxyEnable/ProxyServer. Поэтому
-        # удаляем только собственный PAC, если он однозначно распознан. Это
-        # важно и для uninstall до первого запуска: чужой manual proxy не должен
-        # быть отключён одной лишь командой rollback.
-        current = _read_internet_settings() or {}
-        item = current.get("AutoConfigURL") or {}
-        if item.get("exists") and str(item.get("value")) == pac_url(load_settings()):
-            _reg_del("AutoConfigURL")
-            _log("internet settings backup missing/invalid; removed only Arvectum PAC")
-        else:
-            _log("internet settings backup missing/invalid; no owned WinINET values changed")
-            # Чистый сценарий (например uninstall до первого включения):
-            # восстанавливать нечего, поэтому это успешный no-op.
-            return True
-        # Собственный PAC без backup означает legacy/повреждённое состояние:
-        # AutoConfigURL снять можно, но исходные ProxyEnable/ProxyServer уже
-        # неизвестны. Считаем rollback неполным и НЕ разрешаем uninstall
-        # удалить файлы восстановления.
-        return False
+        # Без локального backup нельзя доказать, что текущий WinINET/PAC
+        # принадлежит именно этому экземпляру Launcher. Другой установленный
+        # экземпляр использует тот же localhost PAC URL, поэтому совпадение URL
+        # само по себе недостаточно для безопасного удаления. Чистый rollback
+        # всегда является no-op и не трогает чужую конфигурацию.
+        _log("internet settings backup missing/invalid; ownership unverified, no WinINET values changed")
+        return True
     ok = True
     for name, item in values.items():
         if not isinstance(item, dict) or not item.get("exists"):
@@ -363,8 +528,11 @@ def _restore_internet_backup():
     if ok:
         try:
             os.remove(path)
-        except Exception:
-            pass
+        except Exception as e:
+            # A remaining backup means recovery is not complete.  Never report
+            # success while the next GUI start will correctly enter recovery.
+            _log("internet settings restored but backup removal failed: %r" % e)
+            return False
     else:
         _log("internet settings restore incomplete; keeping backup for retry")
     return ok
@@ -527,8 +695,9 @@ def _disable_client_proxy_env():
     if ok:
         try:
             os.remove(backup_path)
-        except Exception:
-            pass
+        except Exception as e:
+            _log("client proxy environment restored but backup removal failed: %r" % e)
+            return False
         _broadcast_environment_change()
         _log("client proxy environment restored")
     else:
@@ -628,18 +797,32 @@ def _self_start_command():
     return '"%s" "%s" --start' % (sys.executable, os.path.realpath(__file__))
 
 
+def _normalize_command(value):
+    return " ".join(str(value or "").replace("'", '"').split()).strip().lower()
+
+
 def _enable_recovery_autostart():
     """Страховочный запуск после reboot, пока системный proxy активен.
 
     Это отдельный механизм от пользовательской галочки автозапуска. Он нужен,
     чтобы после перезагрузки не остался PAC на localhost без работающего core.
+    Чужое Run-value с тем же именем никогда не перезаписывается.
     """
     if not is_windows():
         return True
     try:
         import winreg
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
-            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, _self_start_command())
+        expected = _self_start_command()
+        path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+            try:
+                current, _ = winreg.QueryValueEx(key, _RECOVERY_RUN_VALUE)
+            except FileNotFoundError:
+                current = None
+            if current and _normalize_command(current) != _normalize_command(expected):
+                _log("recovery autostart name is owned by another command; refusing overwrite")
+                return False
+            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, expected)
         return True
     except Exception as e:
         _log("recovery autostart enable error: %r" % e)
@@ -651,13 +834,17 @@ def _disable_recovery_autostart():
         return True
     try:
         import winreg
+        path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
         with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-                0, winreg.KEY_SET_VALUE) as key:
+                winreg.HKEY_CURRENT_USER, path, 0, winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as key:
             try:
-                winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
+                current, _ = winreg.QueryValueEx(key, _RECOVERY_RUN_VALUE)
             except FileNotFoundError:
-                pass
+                return True
+            if _normalize_command(current) != _normalize_command(_self_start_command()):
+                _log("recovery autostart belongs to another command; leaving it untouched")
+                return True
+            winreg.DeleteValue(key, _RECOVERY_RUN_VALUE)
         return True
     except FileNotFoundError:
         return True
@@ -696,12 +883,6 @@ def disable_system_proxy():
     if not is_windows():
         _log("system proxy: (non-Windows) disabled")
         return True
-    # Другая копия приложения может использовать те же localhost-порты и PAC.
-    # Без собственных backup-файлов текущая копия не имеет права снимать такой
-    # PAC: это мог бы быть работающий proxy из другой папки установки.
-    if is_running() and not owns_running_proxy() and not has_network_backup():
-        _log("refusing to restore network owned by another Launcher instance")
-        return False
     ok = _restore_internet_backup()
     env_ok = _disable_client_proxy_env()
     # Если собственный PAC уже снят и env backup отсутствует/восстановлен,
@@ -734,8 +915,7 @@ def network_restore_pending():
     if not is_windows():
         return False
     return (
-        system_proxy_enabled()
-        or os.path.exists(_internet_backup_path())
+        os.path.exists(_internet_backup_path())
         or os.path.exists(_env_backup_path())
     )
 
@@ -1118,38 +1298,13 @@ def _pac_healthy(settings=None):
         return False
 
 
-def is_running():
-    return _pac_healthy(load_settings())
+def proxy_listener_active():
+    """Whether a compatible PAC endpoint is active on the configured localhost port.
 
-
-def owns_running_proxy():
-    """Подтверждает, что живой local proxy запущен именно этой копией app.
-
-    Несколько копий Launcher могут использовать одинаковые localhost-порты и
-    PAC URL. Одного health-check недостаточно: другая копия не должна получать
-    право остановить или откатить её сетевые настройки.
+    This intentionally does not imply ownership: another Arvectum installation
+    can expose the same endpoint.  Use is_running() for instance-owned status.
     """
-    record = _read_pid()
-    if not record:
-        return False
-    try:
-        pid = int(record.get("pid"))
-    except Exception:
-        return False
-    if is_windows():
-        expected_created = record.get("created")
-        actual_created = _windows_process_creation_time(pid)
-        return bool(
-            expected_created is not None
-            and actual_created is not None
-            and int(expected_created) == int(actual_created)
-            and _pac_healthy(load_settings())
-        )
-    try:
-        os.kill(pid, 0)
-        return _pac_healthy(load_settings())
-    except Exception:
-        return False
+    return _pac_healthy(load_settings())
 
 
 def _windows_process_creation_time(pid):
@@ -1203,6 +1358,25 @@ def _read_pid():
         return {"pid": int(raw), "created": None}
     except Exception:
         return None
+
+
+def is_running():
+    """Return True only for the proxy process owned by this app directory.
+
+    RC2 treated any healthy PAC endpoint as this instance, which could confuse
+    two installations using the same localhost ports.  On Windows we require
+    the local PID record *and* matching process creation time in addition to a
+    healthy PAC response.
+    """
+    if not proxy_listener_active():
+        return False
+    if not is_windows():
+        return True
+    record = _read_pid()
+    if not isinstance(record, dict) or not record.get("pid") or record.get("created") is None:
+        return False
+    actual = _windows_process_creation_time(int(record["pid"]))
+    return actual is not None and int(actual) == int(record["created"])
 
 
 def _write_pid():

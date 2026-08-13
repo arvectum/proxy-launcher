@@ -7,11 +7,12 @@ Arvectum Proxy Launcher (Windows)
        * Arvectum Proxy Launcher.exe
        * install.bat
        * uninstall.bat
+       * uninstall.ps1
        * restore_network.bat
        * INSTALL.txt
   2) Двойной клик по install.bat.
      EXE будет скопирован в:
-       %LOCALAPPDATA%\ArvectumProxyLauncher
+       %USERPROFILE%\Documents\ArvectumProxyLauncher
      На рабочем столе появится ярлык.
   3) В открывшемся окне введите внешний прокси:
        IP/host, порт, логин, пароль
@@ -27,15 +28,18 @@ Arvectum Proxy Launcher (Windows)
     Он нужен для защиты после reboot/crash и удаляется при нормальном выключении.
   * Исключения no_proxy применяются в PAC и внутри локального HTTP/SOCKS proxy.
     Добавление/удаление исключений также синхронизирует активный NO_PROXY.
-  * Логин/пароль upstream пока хранятся локально в proxy_settings.json открытым
-    текстом. Для частной доверенной поставки это текущее ограничение.
+  * Логин и пароль upstream хранятся в proxy_settings.json только как Windows DPAPI blob,
+    привязанный к текущему пользователю Windows. Старый plaintext RC2 автоматически
+    мигрирует в DPAPI при первом запуске RC2.1.
   * Неподписанный EXE может вызвать SmartScreen/Unknown publisher.
 
 АВАРИЙНОЕ ВОССТАНОВЛЕНИЕ
-  * В приложении: «Восстановить сеть».
+  * Если приложение обнаружило незавершённый rollback, оно само покажет
+    понятное предупреждение и выделит «Восстановить настройки сети».
+  * В приложении: «Восстановить настройки сети».
   * Либо запустите restore_network.bat из папки поставки.
   * Если recovery сообщает ошибку, НЕ удаляйте папку
-      %LOCALAPPDATA%\ArvectumProxyLauncher
+      %USERPROFILE%\Documents\ArvectumProxyLauncher
     и не удаляйте proxy_*_backup.json вручную. Повторите восстановление и
     сохраните proxy_core.log для диагностики.
 
@@ -45,7 +49,13 @@ Arvectum Proxy Launcher (Windows)
   * Если rollback не завершён, удаление отменяется и recovery-файлы сохраняются.
 
 СБОРКА ИЗ ИСХОДНИКОВ
-  build_exe.bat выполняет py_compile + 16 unit/smoke tests, затем собирает
+  build_exe.bat выполняет py_compile + весь unit/smoke suite (RC2.1: 37 тестов), затем собирает
   one-file EXE через PyInstaller.
   Итог:
     dist\Arvectum Proxy Launcher.exe
+
+БЕЗОПАСНОЕ УДАЛЕНИЕ RC2.1
+  * Installer создаёт .arvectum-install-owner внутри каталога приложения.
+  * Uninstaller удаляет каталог рекурсивно только при валидном owner marker,
+    ожидаемом имени каталога и отсутствии reparse-point.
+  * Scheduled task удаляется только если её action указывает на этот EXE.

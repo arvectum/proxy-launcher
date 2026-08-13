@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-set "INSTALLED_EXE=%LOCALAPPDATA%\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe"
+set "INSTALLED_EXE=%USERPROFILE%\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe"
 if exist "%INSTALLED_EXE%" (
     start "" "%INSTALLED_EXE%"
 ) else if exist "%~dp0Arvectum Proxy Launcher.exe" (
