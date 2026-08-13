@@ -1,4 +1,4 @@
-Arvectum Proxy Launcher 0.2.1 — Third-Party Notices
+Arvectum Proxy Launcher 0.2.2 — Third-Party Notices
 =====================================================
 
 This notice covers components bundled by the Windows PyInstaller build.

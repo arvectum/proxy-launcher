@@ -1,5 +1,5 @@
 #define AppName "Arvectum Proxy Launcher"
-#define AppVersion "0.2.1"
+#define AppVersion "0.2.2"
 #define AppPublisher "ООО «Арвектум»"
 #define AppURL "https://arvectum.com"
 #define AppDir "{userdocs}\ArvectumProxyLauncher"
@@ -32,7 +32,7 @@ Source: "uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "restore_network.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "RELEASE_NOTES_0.2.1.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RELEASE_NOTES_0.2.2.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Arvectum Proxy Launcher"; Filename: "{app}\Arvectum Proxy Launcher.exe"; WorkingDir: "{app}"

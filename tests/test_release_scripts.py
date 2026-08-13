@@ -48,6 +48,38 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("'INSTALL.txt'", uninstall)
         self.assertIn("'uninstall.ps1'", uninstall)
 
+    def test_p03_installer_stages_verifies_and_atomically_replaces_exe(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("$stagedExe = $exeForInstall + '.new'", text)
+        self.assertIn("$oldExe = $exeForInstall + '.old'", text)
+        self.assertIn("source EXE hash", text)
+        self.assertIn("staged EXE hash", text)
+        self.assertIn("final installed EXE hash", text)
+        self.assertIn("Move-Item -LiteralPath $exeForInstall -Destination $oldExe", text)
+        self.assertIn("previous Launcher was restored", text)
+
+    def test_p03_installer_closes_only_exact_owned_gui_and_verifies_shortcut(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("function Close-OwnedLauncher", text)
+        self.assertIn("Get-CimInstance Win32_Process", text)
+        self.assertIn("Test-ExactPath $_.ExecutablePath $path", text)
+        self.assertIn("Test-FileUnlocked", text)
+        self.assertIn("desktop shortcut verification failed", text)
+
+    def test_p03_installer_migrates_only_proven_legacy_run_values(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("function Test-LegacyArvectumCommand", text)
+        self.assertIn("arvectum-proxy-launcher-windows", text)
+        self.assertIn("legacy recovery Run value removed", text)
+        self.assertIn("legacy user autostart migrated", text)
+        self.assertNotIn("taskkill /IM", text)
+
+    def test_interactive_install_keeps_console_open_with_diagnostic(self):
+        text = self.read("install.bat")
+        self.assertIn("Обновление не завершено", text)
+        self.assertIn("install.log", text)
+        self.assertIn("if not defined ARVECTUM_NONINTERACTIVE pause", text)
+
     def test_uninstaller_requires_owner_marker_before_recursive_remove(self):
         text = self.read("uninstall.ps1")
         marker_pos = text.index("ownership marker is missing")
@@ -82,7 +114,7 @@ class ReleaseScriptTests(unittest.TestCase):
     def test_release_version_is_visible_in_gui(self):
         core_text = self.read("proxy_core.py")
         gui_text = self.read("proxy_gui.py")
-        self.assertIn('APP_VERSION = "0.2.1"', core_text)
+        self.assertIn('APP_VERSION = "0.2.2"', core_text)
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
 
@@ -90,7 +122,7 @@ class ReleaseScriptTests(unittest.TestCase):
         build = self.read("build_exe.bat")
         version = self.read("version_info.txt")
         self.assertIn('--version-file "version_info.txt"', build)
-        for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.1', '0.2.1.0'):
+        for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.2', '0.2.2.0'):
             self.assertIn(value, version)
 
     def test_inno_setup_delegates_safe_uninstall_and_blocks_unsafe_upgrade(self):
