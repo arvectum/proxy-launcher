@@ -45,6 +45,7 @@ if errorlevel 1 (
 
 echo [4/4] Building one-file EXE...
 %PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name "Arvectum Proxy Launcher" ^
+    --version-file "version_info.txt" ^
     --icon "assets\arvectum.ico" ^
     --add-data "no_proxy.txt;." ^
     --add-data "proxy_settings.json;." ^

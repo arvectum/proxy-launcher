@@ -1,3 +1,5 @@
+import json
+import os
 import socket
 import tempfile
 from pathlib import Path
@@ -30,6 +32,171 @@ def _recv_all(sock, timeout=3):
 
 
 class ProxyCoreTests(unittest.TestCase):
+    def test_state_paths_are_independent_of_executable_directory(self):
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": "C:/State"}, clear=False), \
+             mock.patch.object(core, "install_dir", return_value="C:/Some/Copy"):
+            self.assertEqual(core.data_dir(), "C:/State\\Arvectum\\ProxyLauncher")
+            self.assertTrue(core.settings_path().endswith("Arvectum\\ProxyLauncher\\proxy_settings.json"))
+
+    def test_pid_record_contains_executable_path(self):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(core, "pid_path", return_value=str(Path(td) / "pid.json")), \
+             mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
+             mock.patch.object(core.sys, "executable", "C:/Program Files/Arvectum/Arvectum Proxy Launcher.exe"):
+            core._write_pid()
+            self.assertEqual(os.path.normcase(core._read_pid()["exe_path"]),
+                             os.path.normcase("C:/Program Files/Arvectum/Arvectum Proxy Launcher.exe"))
+
+    def test_stale_system_proxy_is_safe_diagnostic(self):
+        with mock.patch.object(core, "system_proxy_enabled", return_value=True), \
+             mock.patch.object(core, "is_running", return_value=False), \
+             mock.patch.object(core, "network_restore_pending", return_value=False), \
+             mock.patch.object(core, "state_migration_blocked", return_value=False):
+            self.assertTrue(core.stale_system_proxy())
+
+    def _orphan_settings(self, url="http://127.0.0.1:8082/proxy.pac"):
+        return {"AutoConfigURL": {"exists": True, "value": url}}
+
+    def test_exact_orphaned_arvectum_pac_is_detected(self):
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "state_migration_blocked", return_value=False), \
+             mock.patch.object(core, "_read_internet_settings", return_value=self._orphan_settings()), \
+             mock.patch.object(core, "proxy_listener_active", return_value=False), \
+             mock.patch.object(core, "is_running", return_value=False), \
+             mock.patch.object(core, "_any_known_internet_backup_exists", return_value=False), \
+             mock.patch.object(core, "canonical_install_exe", return_value=None):
+            self.assertTrue(core.orphaned_arvectum_pac())
+
+    def test_healthy_listener_or_canonical_instance_is_not_orphaned(self):
+        common = {
+            "is_windows": mock.DEFAULT,
+        }
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "state_migration_blocked", return_value=False), \
+             mock.patch.object(core, "_read_internet_settings", return_value=self._orphan_settings()), \
+             mock.patch.object(core, "proxy_listener_active", return_value=True), \
+             mock.patch.object(core, "is_running", return_value=False), \
+             mock.patch.object(core, "_any_known_internet_backup_exists", return_value=False), \
+             mock.patch.object(core, "canonical_install_exe", return_value=None):
+            self.assertFalse(core.orphaned_arvectum_pac())
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "state_migration_blocked", return_value=False), \
+             mock.patch.object(core, "_read_internet_settings", return_value=self._orphan_settings()), \
+             mock.patch.object(core, "proxy_listener_active", return_value=False), \
+             mock.patch.object(core, "is_running", return_value=False), \
+             mock.patch.object(core, "_any_known_internet_backup_exists", return_value=False), \
+             mock.patch.object(core, "canonical_install_exe", return_value="C:/Docs/Arvectum Proxy Launcher.exe"):
+            self.assertFalse(core.orphaned_arvectum_pac())
+
+    def test_backup_or_foreign_or_similar_pac_remains_diagnostic_only(self):
+        base = [
+            mock.patch.object(core, "is_windows", return_value=True),
+            mock.patch.object(core, "state_migration_blocked", return_value=False),
+            mock.patch.object(core, "proxy_listener_active", return_value=False),
+            mock.patch.object(core, "is_running", return_value=False),
+            mock.patch.object(core, "canonical_install_exe", return_value=None),
+        ]
+        with base[0], base[1], base[2], base[3], base[4], \
+             mock.patch.object(core, "_read_internet_settings", return_value=self._orphan_settings()), \
+             mock.patch.object(core, "_any_known_internet_backup_exists", return_value=True):
+            self.assertFalse(core.orphaned_arvectum_pac())
+        for url in ("http://127.0.0.1:8082/proxy.pac.evil", "http://127.0.0.1.evil:8082/proxy.pac"):
+            with mock.patch.object(core, "is_windows", return_value=True), \
+                 mock.patch.object(core, "state_migration_blocked", return_value=False), \
+                 mock.patch.object(core, "_read_internet_settings", return_value=self._orphan_settings(url)), \
+                 mock.patch.object(core, "proxy_listener_active", return_value=False), \
+                 mock.patch.object(core, "is_running", return_value=False), \
+                 mock.patch.object(core, "_any_known_internet_backup_exists", return_value=False), \
+                 mock.patch.object(core, "canonical_install_exe", return_value=None):
+                self.assertFalse(core.orphaned_arvectum_pac())
+
+    def test_orphan_cleanup_deletes_only_autoconfigurl_and_writes_snapshot(self):
+        values = {
+            "AutoConfigURL": {"exists": True, "value": "http://127.0.0.1:8082/proxy.pac"},
+            "ProxyEnable": {"exists": True, "value": 1},
+            "ProxyServer": {"exists": True, "value": "corp:3128"},
+            "ProxyOverride": {"exists": True, "value": "<local>"},
+            "AutoDetect": {"exists": True, "value": 1},
+        }
+        with mock.patch.object(core, "orphaned_arvectum_pac", return_value=True), \
+             mock.patch.object(core, "_read_internet_settings", return_value=values), \
+             mock.patch.object(core, "_write_orphaned_pac_snapshot", return_value="snapshot.json") as snap, \
+             mock.patch.object(core, "_reg_del", return_value=True) as delete, \
+             mock.patch.object(core, "_refresh_internet") as refresh, \
+             mock.patch.object(core, "system_proxy_enabled", return_value=False):
+            self.assertTrue(core.clear_orphaned_arvectum_pac())
+        snap.assert_called_once_with(values)
+        delete.assert_called_once_with("AutoConfigURL")
+        refresh.assert_called_once()
+        self.assertEqual(values["ProxyEnable"]["value"], 1)
+        self.assertEqual(values["ProxyServer"]["value"], "corp:3128")
+        self.assertEqual(values["ProxyOverride"]["value"], "<local>")
+        self.assertEqual(values["AutoDetect"]["value"], 1)
+
+    def test_orphan_cleanup_aborts_on_registry_race(self):
+        foreign = self._orphan_settings("http://foreign.example/proxy.pac")
+        with mock.patch.object(core, "orphaned_arvectum_pac", return_value=True), \
+             mock.patch.object(core, "_read_internet_settings", return_value=foreign), \
+             mock.patch.object(core, "_write_orphaned_pac_snapshot") as snap, \
+             mock.patch.object(core, "_reg_del") as delete:
+            self.assertFalse(core.clear_orphaned_arvectum_pac())
+        snap.assert_not_called()
+        delete.assert_not_called()
+
+    def test_orphan_snapshot_is_written_to_stable_data(self):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(core, "data_dir", return_value=td), \
+             mock.patch.object(core, "load_settings", return_value=core.DEFAULT_SETTINGS):
+            path = core._write_orphaned_pac_snapshot(self._orphan_settings())
+            self.assertTrue(path and os.path.exists(path))
+            self.assertEqual(json.loads(Path(path).read_text(encoding="utf-8"))["reason"], "orphaned_arvectum_pac")
+
+    def test_disable_proxy_never_claims_disabled_while_pac_remains(self):
+        logs = []
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "system_proxy_enabled", side_effect=[True, True, True]), \
+             mock.patch.object(core, "_valid_internet_backup_at", return_value=False), \
+             mock.patch.object(core, "_restore_internet_backup", return_value=True), \
+             mock.patch.object(core, "_disable_client_proxy_env", return_value=True), \
+             mock.patch.object(core.os.path, "exists", return_value=False), \
+             mock.patch.object(core, "_refresh_internet"), \
+             mock.patch.object(core, "_log", side_effect=logs.append):
+            self.assertFalse(core.disable_system_proxy())
+        self.assertIn("system proxy restore skipped: ownership unverified", logs)
+        self.assertNotIn("system proxy disabled", logs)
+
+    def test_legacy_documents_settings_and_no_proxy_migrate_to_stable_data(self):
+        with tempfile.TemporaryDirectory() as td:
+            legacy = Path(td) / "Documents" / "ArvectumProxyLauncher"
+            stable = Path(td) / "Local" / "Arvectum" / "ProxyLauncher"
+            legacy.mkdir(parents=True)
+            (legacy / "proxy_settings.json").write_text(json.dumps(core.DEFAULT_SETTINGS), encoding="utf-8")
+            (legacy / "no_proxy.txt").write_text("example.invalid\n", encoding="utf-8")
+            with mock.patch.object(core, "data_dir", return_value=str(stable)), \
+                 mock.patch.object(core, "_legacy_state_dirs", return_value=[str(legacy)]), \
+                 mock.patch.object(core, "_STATE_READY", False):
+                self.assertTrue(core.ensure_state_ready())
+                self.assertTrue((stable / "proxy_settings.json").exists())
+                self.assertEqual((stable / "no_proxy.txt").read_text(encoding="utf-8"), "example.invalid\n")
+
+    def test_second_copy_handoffs_only_to_owned_canonical_install(self):
+        with tempfile.TemporaryDirectory() as td:
+            docs = Path(td) / "Documents" / "ArvectumProxyLauncher"
+            other = Path(td) / "Downloads"
+            docs.mkdir(parents=True)
+            other.mkdir()
+            canonical = docs / "Arvectum Proxy Launcher.exe"
+            canonical.write_bytes(b"exe")
+            with mock.patch.object(core, "is_windows", return_value=True), \
+                 mock.patch.object(core, "install_dir", return_value=str(other)), \
+                 mock.patch.object(core.os.path, "expanduser", return_value=str(Path(td))), \
+                 mock.patch.object(core.sys, "frozen", True, create=True), \
+                 mock.patch.object(core.sys, "executable", str(other / "Arvectum Proxy Launcher.exe")):
+                self.assertIsNone(core.canonical_install_exe())
+                (docs / ".arvectum-install-owner").write_text(core._INSTALL_OWNER_VALUE, encoding="ascii")
+                self.assertEqual(core.canonical_install_exe(), str(canonical))
+
     def test_no_proxy_matching_is_boundary_safe(self):
         with mock.patch.object(core, "load_no_proxy", return_value=["zakupki.gov.ru", "10.*"]):
             self.assertTrue(core.host_bypasses_proxy("zakupki.gov.ru"))
@@ -37,6 +204,10 @@ class ProxyCoreTests(unittest.TestCase):
             self.assertFalse(core.host_bypasses_proxy("evilzakupki.gov.ru"))
             self.assertTrue(core.host_bypasses_proxy("10.2.3.4"))
             self.assertFalse(core.host_bypasses_proxy("11.2.3.4"))
+            self.assertTrue(core.host_bypasses_proxy("172.16.0.1"))
+            self.assertTrue(core.host_bypasses_proxy("172.31.255.254"))
+            self.assertFalse(core.host_bypasses_proxy("172.15.255.254"))
+            self.assertFalse(core.host_bypasses_proxy("172.32.0.1"))
             self.assertTrue(core.host_bypasses_proxy("[::1]"))
 
     def test_pac_url_honors_custom_path(self):
@@ -44,6 +215,76 @@ class ProxyCoreTests(unittest.TestCase):
             core.pac_url({"local_pac_port": 9123, "pac_path": "custom.pac"}),
             "http://127.0.0.1:9123/custom.pac",
         )
+
+    def test_recovery_autostart_classifies_current_and_strict_legacy_targets(self):
+        docs = "C:/User/Documents/ArvectumProxyLauncher"
+        old_local = "C:/User/AppData/Local/ArvectumProxyLauncher"
+        stable = "C:/User/AppData/Local/Arvectum/ProxyLauncher"
+        with mock.patch.object(core, "_self_start_command", return_value='"C:/Current/Arvectum Proxy Launcher.exe" --start'), \
+             mock.patch.object(core, "_known_legacy_recovery_dirs", return_value={
+                 os.path.normcase(os.path.realpath(docs)),
+                 os.path.normcase(os.path.realpath(old_local)),
+                 os.path.normcase(os.path.realpath(stable)),
+             }):
+            self.assertEqual(core.classify_recovery_autostart('"C:/Current/Arvectum Proxy Launcher.exe" --start'), core._RECOVERY_CURRENT_OWNED)
+            self.assertEqual(core.classify_recovery_autostart('"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'), core._RECOVERY_LEGACY_ARVECTUM)
+            self.assertEqual(core.classify_recovery_autostart('"C:/User/Documents/ArvectumProxyLauncher/restore_network.bat"'), core._RECOVERY_LEGACY_ARVECTUM)
+            self.assertEqual(core.classify_recovery_autostart('"C:/User/AppData/Local/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'), core._RECOVERY_LEGACY_ARVECTUM)
+            # The target may be gone; its exact old Arvectum location remains
+            # sufficient evidence for stale legacy migration.
+            self.assertEqual(core.classify_recovery_autostart('"C:/User/AppData/Local/Arvectum/ProxyLauncher/Arvectum Proxy Launcher.exe" --start'), core._RECOVERY_LEGACY_ARVECTUM)
+
+    def test_recovery_autostart_rejects_unrelated_or_substring_commands(self):
+        docs = os.path.normcase(os.path.realpath("C:/User/Documents/ArvectumProxyLauncher"))
+        with mock.patch.object(core, "_self_start_command", return_value='"C:/Current/Arvectum Proxy Launcher.exe" --start'), \
+             mock.patch.object(core, "_known_legacy_recovery_dirs", return_value={docs}):
+            self.assertEqual(core.classify_recovery_autostart('"C:/Windows/System32/cmd.exe" /c exit 0'), core._RECOVERY_FOREIGN)
+            self.assertEqual(core.classify_recovery_autostart('"C:/Other/Arvectum-not-launcher.exe" --start'), core._RECOVERY_FOREIGN)
+            self.assertEqual(core.classify_recovery_autostart('"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --other'), core._RECOVERY_FOREIGN)
+
+    def test_legacy_recovery_autostart_migrates_and_verifies_write(self):
+        legacy = '"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'
+        expected = '"C:/Current/Arvectum Proxy Launcher.exe" --start'
+        values = [legacy, expected]
+        logs = []
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "_self_start_command", return_value=expected), \
+             mock.patch.object(core, "_get_recovery_run_value", side_effect=values), \
+             mock.patch.object(core, "classify_recovery_autostart", side_effect=[core._RECOVERY_LEGACY_ARVECTUM, core._RECOVERY_CURRENT_OWNED]), \
+             mock.patch.object(core, "_recovery_legacy_process_active", return_value=False), \
+             mock.patch.object(core, "_set_recovery_run_value", return_value=True) as write, \
+             mock.patch.object(core.os.path, "exists", return_value=False), \
+             mock.patch.object(core, "_log", side_effect=logs.append):
+            self.assertTrue(core._enable_recovery_autostart())
+        write.assert_called_once_with(expected)
+        self.assertIn("stale legacy Arvectum recovery autostart migrated", logs)
+
+    def test_legacy_migration_verification_failure_restores_legacy_value(self):
+        legacy = '"C:/User/Documents/ArvectumProxyLauncher/Arvectum Proxy Launcher.exe" --start'
+        expected = '"C:/Current/Arvectum Proxy Launcher.exe" --start'
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "_self_start_command", return_value=expected), \
+             mock.patch.object(core, "_get_recovery_run_value", side_effect=[legacy, "bad"]), \
+             mock.patch.object(core, "classify_recovery_autostart", side_effect=[core._RECOVERY_LEGACY_ARVECTUM, core._RECOVERY_FOREIGN]), \
+             mock.patch.object(core, "_recovery_legacy_process_active", return_value=False), \
+             mock.patch.object(core, "_set_recovery_run_value", return_value=True) as write:
+            self.assertFalse(core._enable_recovery_autostart())
+        self.assertEqual(write.call_args_list, [mock.call(expected), mock.call(legacy)])
+
+    def test_foreign_recovery_value_is_never_overwritten_and_active_legacy_blocks(self):
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "_get_recovery_run_value", return_value='"C:/Windows/System32/cmd.exe" /c exit 0'), \
+             mock.patch.object(core, "classify_recovery_autostart", return_value=core._RECOVERY_FOREIGN), \
+             mock.patch.object(core, "_set_recovery_run_value") as write:
+            self.assertFalse(core._enable_recovery_autostart())
+        write.assert_not_called()
+        with mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core, "_get_recovery_run_value", return_value='legacy'), \
+             mock.patch.object(core, "classify_recovery_autostart", return_value=core._RECOVERY_LEGACY_ARVECTUM), \
+             mock.patch.object(core, "_recovery_legacy_process_active", return_value=True), \
+             mock.patch.object(core, "_set_recovery_run_value") as write:
+            self.assertFalse(core._enable_recovery_autostart())
+        write.assert_not_called()
 
     def test_start_without_upstream_never_touches_system_proxy(self):
         settings = dict(core.DEFAULT_SETTINGS)
@@ -424,8 +665,9 @@ class ProxyCoreTests(unittest.TestCase):
     def test_is_running_requires_owned_windows_pid_record(self):
         with mock.patch.object(core, "proxy_listener_active", return_value=True), \
              mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core, "_read_pid", return_value={"pid": 42, "created": 123}), \
-             mock.patch.object(core, "_windows_process_creation_time", return_value=123):
+             mock.patch.object(core, "_read_pid", return_value={"pid": 42, "created": 123, "exe_path": "C:/owned.exe"}), \
+             mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
+             mock.patch.object(core, "_windows_process_executable_path", return_value="C:/owned.exe"):
             self.assertTrue(core.is_running())
 
     def test_is_running_rejects_foreign_windows_listener(self):

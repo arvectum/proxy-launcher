@@ -8,10 +8,15 @@
 $ErrorActionPreference = 'Stop'
 $taskName = 'ArvectumProxyLauncher'
 $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Arvectum Proxy Launcher.lnk'
+$startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Arvectum Proxy Launcher.lnk'
+$arpKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ArvectumProxyLauncher'
 $exe = Join-Path $AppDir 'Arvectum Proxy Launcher.exe'
-$internetBackup = Join-Path $AppDir 'proxy_internet_backup.json'
-$envBackup = Join-Path $AppDir 'proxy_env_backup.json'
+$stateDir = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
+$internetBackup = Join-Path $stateDir 'proxy_internet_backup.json'
+$envBackup = Join-Path $stateDir 'proxy_env_backup.json'
 $ownerMarker = Join-Path $AppDir '.arvectum-install-owner'
+$ownerMarkerValue = 'ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER'
+$legacyOwnerMarkerValue = 'ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1'
 
 if ($Install) {
     $sourceDirFull = [System.IO.Path]::GetFullPath($SourceDir)
@@ -30,7 +35,7 @@ if ($Install) {
         throw 'Installer failed: recovery backups remain after stopping the previous version.'
     }
     New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
-    foreach ($name in @('Arvectum Proxy Launcher.exe', 'install.bat', 'uninstall.bat', 'uninstall.ps1', 'restore_network.bat', 'INSTALL.txt')) {
+    foreach ($name in @('Arvectum Proxy Launcher.exe', 'install.bat', 'uninstall.bat', 'uninstall.ps1', 'restore_network.bat', 'INSTALL.txt', 'THIRD_PARTY_NOTICES.txt', 'RELEASE_NOTES_0.2.1.md')) {
         $sourceFile = Join-Path $sourceDirFull $name
         if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
             throw "Installer failed: required release file is missing: '$name'."
@@ -47,7 +52,7 @@ if ($Install) {
     if (-not (Test-Path -LiteralPath $shortcut -PathType Leaf)) {
         throw "Installer finalization failed: desktop shortcut was not created: '$shortcut'."
     }
-    Set-Content -LiteralPath $ownerMarker -Value 'ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1' -Encoding Ascii -NoNewline
+    Set-Content -LiteralPath $ownerMarker -Value $ownerMarkerValue -Encoding Ascii -NoNewline
     if (-not (Test-Path -LiteralPath $ownerMarker -PathType Leaf)) {
         throw 'Installer finalization failed: ownership marker was not created.'
     }
@@ -80,7 +85,7 @@ if (-not (Test-Path -LiteralPath $ownerMarker -PathType Leaf)) {
     throw 'Refusing uninstall: Arvectum ownership marker is missing.'
 }
 $markerValue = (Get-Content -LiteralPath $ownerMarker -Raw).Trim()
-if ($markerValue -ne 'ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1') {
+if ($markerValue -notin @($ownerMarkerValue, $legacyOwnerMarkerValue)) {
     throw 'Refusing uninstall: Arvectum ownership marker is invalid.'
 }
 
@@ -116,6 +121,10 @@ $runValue = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecover
 if ($runValue -and $runValue -match [regex]::Escape($exe)) {
     Remove-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue
 }
+$userAutostart = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
+if ($userAutostart -and $userAutostart -match [regex]::Escape($exe)) {
+    Remove-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue
+}
 Write-Host '       Done.'
 
 Write-Host '[3/3] Removing files and shortcut...'
@@ -134,6 +143,8 @@ if ($ownedProcesses) {
     Start-Sleep -Milliseconds 500
 }
 Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $startMenuShortcut -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $arpKey -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $fullAppDir -Recurse -Force
 if (Test-Path -LiteralPath $fullAppDir) { throw "Could not remove application folder: $fullAppDir" }
 Write-Host '       Done.'

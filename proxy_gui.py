@@ -62,6 +62,8 @@ def setup_brand(root):
     B["font_bold"] = (body, 10, "bold")
     B["font_small"] = (body, 9)
     B["font_h"] = (body, 12, "bold")
+    B["font_brand"] = (body, 20, "bold")
+    B["font_section"] = (body, 10, "bold")
     B["font_mono"] = (mono, 9)
     B["font_mono_bold"] = (mono, 10, "bold")
     B["title"] = body
@@ -85,6 +87,14 @@ def setup_brand(root):
               background=[("disabled", DISABLED_BG), ("active", MINT_LIGHT), ("pressed", "#00B893")],
               foreground=[("disabled", DISABLED_FG)],
               bordercolor=[("disabled", DISABLED_BG), ("active", MINT_LIGHT)])
+
+    style.configure("Navy.TButton",
+                    background=NAVY, foreground=WHITE, bordercolor=NAVY,
+                    focuscolor=WHITE, relief="flat", padding=(14, 8), font=B["font_bold"])
+    style.map("Navy.TButton",
+              background=[("disabled", DISABLED_BG), ("active", GRAPHITE), ("pressed", "#000C20")],
+              foreground=[("disabled", DISABLED_FG)],
+              bordercolor=[("disabled", DISABLED_BG), ("active", GRAPHITE)])
 
     style.configure("Ghost.TButton",
                     background=WHITE, foreground=NAVY, bordercolor=SOFT_GRAY,
@@ -214,14 +224,11 @@ def _autostart_target():
 
 
 def _header_title(root, title):
-    """Тёмная шапка окна (Deep Navy) с белым заголовком и мятной линией."""
-    hdr = tk.Frame(root, bg=NAVY)
-    tk.Label(hdr, text=title, bg=NAVY, fg=WHITE, font=B["font_h"]).pack(
-        side="left", padx=16, pady=(12, 8))
-    tk.Label(hdr, text=APP_NAME.upper(), bg=NAVY, fg=MINT, font=B["font_mono_bold"]).pack(
-        side="right", padx=16, pady=(12, 8))
+    """Однотонная фирменная шапка без декоративных линий."""
+    hdr = tk.Frame(root, bg=NAVY, padx=16, pady=12)
+    tk.Label(hdr, text=title, bg=NAVY, fg=WHITE, font=B["font_h"]).pack(side="left")
+    tk.Label(hdr, text=APP_NAME, bg=NAVY, fg=MINT, font=B["font_bold"]).pack(side="right")
     hdr.pack(fill="x")
-    tk.Frame(root, bg=MINT, height=3).pack(fill="x")
 
 
 class SettingsDialog(tk.Toplevel):
@@ -509,83 +516,130 @@ class Launcher:
         self._recovery_prompt_shown = False
         self._set_window_icon()
 
-        # ---------- шапка: логотип Arvectum ----------
-        banner = _load_photo("arvectum-banner.png", "arvectum-banner.gif")
-        if banner:
-            self._images.append(banner)
-            tk.Label(root, image=banner, bg=NAVY).pack(fill="x")
-        tk.Frame(root, bg=MINT, height=3).pack(fill="x")
+        # ---------- фирменная шапка ----------
+        # Не используем растровый banner: заголовок должен быть частью UI,
+        # а не картинкой. По брендбуку: PT Sans Bold, Mint на Deep Navy.
+        header = tk.Frame(root, bg=NAVY, padx=20, pady=16)
+        header.pack(fill="x")
+        tk.Label(
+            header, text=APP_NAME, bg=NAVY, fg=MINT,
+            font=B["font_brand"], anchor="w").pack(side="left")
+        tk.Label(
+            header, text="Windows · %s" % APP_VERSION, bg=NAVY, fg=MINT_LIGHT,
+            font=B["font_small"]).pack(side="right", pady=(5, 0))
 
-        body = tk.Frame(root, bg=WHITE, padx=18, pady=16)
+        body = tk.Frame(root, bg=WHITE, padx=20, pady=18)
         body.pack(fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=1)
 
-        # ---------- статус ----------
-        self.chip = tk.Label(body, text="", bg=SOFT_GRAY, fg=NAVY,
-                             font=B["font_bold"], padx=12, pady=5, cursor="hand2")
-        self.chip.grid(row=0, column=0, sticky="w")
+        # ---------- состояние ----------
+        status_card = tk.Frame(
+            body, bg=WHITE, padx=14, pady=12,
+            highlightbackground=SOFT_GRAY, highlightthickness=1)
+        status_card.grid(row=0, column=0, sticky="ew")
+        status_card.grid_columnconfigure(0, weight=1)
 
-        self.status_hint = tk.Label(
-            body, text="", bg=MINT_SOFT, fg=NAVY, font=B["font_small"],
-            justify="left", anchor="w", padx=10, pady=7)
-        self.status_hint.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        self.status_hint.grid_remove()
+        status_top = tk.Frame(status_card, bg=WHITE)
+        status_top.grid(row=0, column=0, sticky="ew")
+        tk.Label(
+            status_top, text="Состояние", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).pack(side="left")
+        self.chip = tk.Label(
+            status_top, text="", bg=SOFT_GRAY, fg=NAVY,
+            font=B["font_bold"], padx=12, pady=5)
+        self.chip.pack(side="right")
 
         current = core.load_settings()
-        ports_text = "HTTP  127.0.0.1:%s    ·    SOCKS5  127.0.0.1:%s    ·    PAC  127.0.0.1:%s" % (
+        ports_text = "HTTP 127.0.0.1:%s    ·    SOCKS5 127.0.0.1:%s    ·    PAC 127.0.0.1:%s" % (
             current.get("local_http_port", 8080), current.get("local_socks_port", 1080),
             current.get("local_pac_port", 8082))
-        tk.Label(body, text=ports_text,
-                 bg=WHITE, fg=GRAPHITE, font=B["font_mono"]).grid(
-            row=2, column=0, sticky="w", pady=(8, 14))
+        tk.Label(
+            status_card, text=ports_text, bg=WHITE, fg=GRAPHITE,
+            font=B["font_mono"]).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        # ---------- кнопки управления ----------
+        self.status_hint = tk.Label(
+            status_card, text="", bg=MINT_SOFT, fg=NAVY, font=B["font_small"],
+            justify="left", anchor="w", padx=10, pady=7)
+        self.status_hint.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        self.status_hint.grid_remove()
+
+        # ---------- основные действия ----------
+        tk.Label(
+            body, text="Управление", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).grid(row=1, column=0, sticky="w", pady=(16, 7))
+
         row1 = tk.Frame(body, bg=WHITE)
-        row1.grid(row=3, column=0, sticky="ew")
-        self.btn_on = ttk.Button(row1, text="Включить прокси", style="Mint.TButton", command=self.on)
+        row1.grid(row=2, column=0, sticky="ew")
+        self.btn_on = ttk.Button(
+            row1, text="Включить прокси", style="Mint.TButton", command=self.on)
         self.btn_on.pack(side="left", padx=(0, 6))
-        self.btn_off = ttk.Button(row1, text="Выключить прокси", style="Mint.TButton", command=self.off)
+        self.btn_off = ttk.Button(
+            row1, text="Выключить прокси", style="Navy.TButton", command=self.off)
         self.btn_off.pack(side="left", padx=6)
-        self.btn_check = ttk.Button(row1, text="Проверить", style="Ghost.TButton", command=self.check)
+        self.btn_check = ttk.Button(
+            row1, text="Проверить соединение", style="Ghost.TButton", command=self.check)
         self.btn_check.pack(side="left", padx=6)
+        self.btn_orphan_pac = ttk.Button(
+            row1, text="Удалить старый PAC и продолжить", style="Mint.TButton",
+            command=self.clear_orphaned_pac)
 
-        # ---------- адрес для проверки ----------
+        # ---------- URL диагностики ----------
         check_row = tk.Frame(body, bg=WHITE)
-        check_row.grid(row=4, column=0, sticky="ew", pady=(10, 0))
-        tk.Label(check_row, text="URL для проверки:", bg=WHITE, fg=GRAPHITE,
-                 font=B["font_small"]).pack(side="left", padx=(0, 6))
+        check_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        tk.Label(
+            check_row, text="URL проверки", bg=WHITE, fg=GRAPHITE,
+            font=B["font_small"]).pack(side="left", padx=(0, 8))
         self.check_url_var = tk.StringVar(value="https://api.ipify.org")
-        check_entry = tk.Entry(check_row, textvariable=self.check_url_var, width=34,
-                               bg=WHITE, fg=NAVY, relief="solid", bd=1,
-                               insertbackground=GRAPHITE, font=B["font_mono"])
-        check_entry.pack(side="left", fill="x", expand=True)
+        check_entry = tk.Entry(
+            check_row, textvariable=self.check_url_var, width=38,
+            bg=WHITE, fg=NAVY, relief="solid", bd=1,
+            insertbackground=GRAPHITE, font=B["font_mono"])
+        check_entry.pack(side="left", fill="x", expand=True, ipady=3)
         _bind_clipboard_paste(check_entry)
 
-        row2 = tk.Frame(body, bg=WHITE)
-        row2.grid(row=5, column=0, sticky="ew", pady=(10, 0))
-        ttk.Button(row2, text="Настройки прокси…", style="Ghost.TButton", command=self.settings).pack(
-            side="left", padx=(0, 6))
-        ttk.Button(row2, text="Исключения (no_proxy)…", style="Ghost.TButton",
-                   command=self.exceptions).pack(side="left", padx=6)
-        ttk.Button(row2, text="Журнал", style="Ghost.TButton", command=self.show_log).pack(side="left", padx=6)
+        # ---------- настройки и сервис ----------
+        tk.Label(
+            body, text="Настройки и сервис", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).grid(row=4, column=0, sticky="w", pady=(16, 7))
+
+        service = tk.Frame(body, bg=WHITE)
+        service.grid(row=5, column=0, sticky="ew")
+        service.grid_columnconfigure(0, weight=1)
+        left_tools = tk.Frame(service, bg=WHITE)
+        left_tools.grid(row=0, column=0, sticky="w")
+        ttk.Button(
+            left_tools, text="Настройки прокси…", style="Ghost.TButton",
+            command=self.settings).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            left_tools, text="Исключения…", style="Ghost.TButton",
+            command=self.exceptions).pack(side="left", padx=6)
+        ttk.Button(
+            left_tools, text="Журнал", style="Ghost.TButton",
+            command=self.show_log).pack(side="left", padx=6)
+
         self.btn_restore = ttk.Button(
-            row2, text="Восстановить настройки сети", style="Ghost.TButton",
+            service, text="Восстановить настройки сети", style="Ghost.TButton",
             command=self.restore_network)
-        self.btn_restore.pack(side="left", padx=6)
+        self.btn_restore.grid(row=0, column=1, sticky="e", padx=(12, 0))
 
         # ---------- автозапуск ----------
         self.auto_var = tk.BooleanVar(value=self._autostart_enabled())
-        ttk.Checkbutton(body, text="Запускать прокси при входе в Windows",
-                        variable=self.auto_var, command=self._toggle_autostart,
-                        style="Brand.TCheckbutton").grid(row=6, column=0, sticky="w", pady=(16, 0))
+        ttk.Checkbutton(
+            body, text="Запускать прокси при входе в Windows",
+            variable=self.auto_var, command=self._toggle_autostart,
+            style="Brand.TCheckbutton").grid(row=6, column=0, sticky="w", pady=(16, 0))
 
-        tk.Label(body, text="При закрытии окна прокси продолжает работать.",
-                 bg=WHITE, fg=SOFT_GRAY, font=B["font_small"]).grid(
+        tk.Label(
+            body, text="Окно можно закрыть — запущенный proxy продолжит работать в фоне.",
+            bg=WHITE, fg=GRAPHITE, font=B["font_small"]).grid(
             row=7, column=0, sticky="w", pady=(4, 0))
 
         # ---------- футер ----------
         tk.Frame(body, bg=SOFT_GRAY, height=1).grid(row=8, column=0, sticky="ew", pady=(16, 8))
-        tk.Label(body, text="ARVECTUM · %s · arvectum.com" % APP_VERSION, bg=WHITE, fg=SOFT_GRAY,
-                 font=B["font_mono"]).grid(row=9, column=0, sticky="w")
+        tk.Label(
+            body, text="ARVECTUM · %s · arvectum.com" % APP_VERSION,
+            bg=WHITE, fg=DISABLED_FG, font=B["font_mono"]).grid(
+            row=9, column=0, sticky="w")
 
         self.refresh_status()
         self._maybe_first_run()
@@ -610,10 +664,12 @@ class Launcher:
         running = core.is_running()
         enabled = core.system_proxy_enabled()
         pending = core.network_restore_pending()
+        orphaned_pac = core.orphaned_arvectum_pac()
 
         self.btn_check.state(["!disabled"])
         self.btn_restore.state(["!disabled"])
         self.btn_restore.configure(style="Ghost.TButton")
+        self.btn_orphan_pac.pack_forget()
         self.status_hint.grid_remove()
         if running and enabled:
             self.chip.config(text="  ПРОКСИ ВКЛЮЧЁН  ", bg=MINT, fg=NAVY)
@@ -632,6 +688,27 @@ class Launcher:
             self.btn_on.state(["disabled"])
             self.btn_off.state(["disabled"])
             self.btn_restore.configure(style="Mint.TButton")
+        elif orphaned_pac:
+            self.chip.config(text="  ОБНАРУЖЕН СТАРЫЙ PAC ARVECTUM  ", bg=MINT_LIGHT, fg=NAVY)
+            self.status_hint.config(
+                text="Windows использует локальный PAC Arvectum от предыдущего сеанса, "
+                     "но сам proxy engine не работает. Старую резервную копию найти "
+                     "не удалось. Можно безопасно удалить только неработающий PAC "
+                     "Arvectum, не изменяя остальные настройки Windows.")
+            self.status_hint.grid()
+            self.btn_on.state(["disabled"])
+            self.btn_off.state(["disabled"])
+            self.btn_check.state(["disabled"])
+            self.btn_orphan_pac.pack(side="left", padx=6)
+        elif core.stale_system_proxy():
+            self.chip.config(text="  ТРЕБУЕТСЯ ДИАГНОСТИКА СЕТИ  ", bg=MINT_LIGHT, fg=NAVY)
+            self.status_hint.config(
+                text="Windows всё ещё использует PAC Arvectum, но подтверждённый "
+                     "engine и резервная копия не найдены. Автоматический сброс "
+                     "небезопасен: откройте установленный Launcher или журнал.")
+            self.status_hint.grid()
+            self.btn_on.state(["disabled"])
+            self.btn_off.state(["disabled"])
         else:
             self.chip.config(text="  ВЫКЛЮЧЕН  ", bg=SOFT_GRAY, fg=NAVY)
             self.btn_on.state(["!disabled"])
@@ -721,6 +798,21 @@ class Launcher:
         _run_headless("--rollback")
         self.root.after(250, self._after_restore_network)
 
+    def clear_orphaned_pac(self):
+        self._set_busy("Удаление старого PAC…", MINT_LIGHT)
+        if core.clear_orphaned_arvectum_pac():
+            self.refresh_status()
+            messagebox.showinfo(
+                APP_NAME,
+                "Старый PAC Arvectum удалён. Остальные настройки Windows не изменялись. "
+                "Теперь можно снова включить прокси.")
+        else:
+            self.refresh_status()
+            messagebox.showerror(
+                APP_NAME,
+                "Старый PAC не был удалён: состояние сети изменилось или ownership "
+                "не удалось подтвердить. См. «Журнал».")
+
     def _after_restore_network(self, attempt=0):
         still_active = core.is_running() or core.network_restore_pending()
         if still_active and attempt < 32:
@@ -739,7 +831,7 @@ class Launcher:
 
     def _set_busy(self, text, color):
         self.chip.config(text="  %s  " % text, bg=color, fg=NAVY)
-        for b in (self.btn_on, self.btn_off, self.btn_check, self.btn_restore):
+        for b in (self.btn_on, self.btn_off, self.btn_check, self.btn_restore, self.btn_orphan_pac):
             b.state(["disabled"])
 
     # -- проверка -------------------------------------------------------------
@@ -760,6 +852,12 @@ class Launcher:
                     "Предыдущий сеанс proxy завершился некорректно.\n\n"
                     "Сначала нажмите «Восстановить настройки сети», дождитесь "
                     "успешного восстановления и затем снова включите прокси.")
+            elif core.stale_system_proxy():
+                messagebox.showwarning(
+                    APP_NAME,
+                    "Windows использует PAC Arvectum, но этот Launcher не может "
+                    "доказать владение предыдущим сеансом. Автоматический сброс "
+                    "не выполняется, чтобы не повредить настройки сети.")
             else:
                 messagebox.showinfo(APP_NAME, "Прокси не запущен. Нажмите «Включить прокси».")
             return
@@ -928,6 +1026,14 @@ class Launcher:
                 "Запись автозапуска Windows с именем ArvectumProxyLauncher уже "
                 "принадлежит другой команде. Она не будет перезаписана.")
             return False
+        existing_task = self._autostart_task_xml()
+        if existing_task is not None and not self._autostart_task_is_ours(existing_task):
+            self.auto_var.set(False)
+            messagebox.showerror(
+                APP_NAME,
+                "Задача Windows с именем ArvectumProxyLauncher уже существует, "
+                "но принадлежит другой команде. Она не будет перезаписана.")
+            return False
         target = _autostart_target()
         try:
             import winreg
@@ -977,6 +1083,10 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+    if not core._ensure_local_files():
+        return 1
+    if core.handoff_to_canonical_install():
+        return 0
     root = tk.Tk()
     app = Launcher(root)
     root.mainloop()

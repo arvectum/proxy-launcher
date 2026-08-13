@@ -29,37 +29,188 @@ import subprocess
 import sys
 import threading
 import time
+from urllib.parse import urlsplit
 
 
-APP_VERSION = "RC2.1"
+APP_VERSION = "0.2.1"
+
+_STATE_FILES = (
+    "proxy_settings.json", "no_proxy.txt", "proxy_core.pid", "proxy_core.log",
+    "proxy_internet_backup.json", "proxy_env_backup.json",
+)
+_STATE_READY = False
+_INSTALL_OWNER_MARKER = ".arvectum-install-owner"
+_INSTALL_OWNER_VALUE = "ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER"
+_LEGACY_INSTALL_OWNER_VALUES = {"ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1"}
 
 
-def app_dir():
-    """Каталог, где лежат настройки. Для скомпилированного exe — рядом с exe,
-    а не во временной папке PyInstaller."""
+def install_dir():
+    """Directory containing this executable/source; never stores mutable state."""
     if getattr(sys, "frozen", False):
         return os.path.dirname(os.path.realpath(sys.executable))
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def app_dir():
+    """Compatibility alias for callers needing the executable directory."""
+    return install_dir()
 
 
 def is_windows():
     return os.name == "nt"
 
 
+def data_dir():
+    """Canonical per-user persistent state, shared by every copy of the EXE."""
+    if is_windows():
+        base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+        return os.path.join(base, "Arvectum", "ProxyLauncher")
+    return install_dir()
+
+
+def runtime_dir():
+    return data_dir()
+
+
+def _legacy_state_dirs():
+    home = os.path.expanduser("~")
+    local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
+    candidates = [
+        install_dir(),
+        os.path.join(home, "Documents", "ArvectumProxyLauncher"),
+        os.path.join(local, "ArvectumProxyLauncher"),
+    ]
+    seen = set()
+    return [p for p in candidates if not (os.path.normcase(os.path.realpath(p)) in seen or seen.add(os.path.normcase(os.path.realpath(p))))]
+
+
+def canonical_install_exe():
+    """Return the owned installed EXE, if another copy is being launched."""
+    if not getattr(sys, "frozen", False):
+        return None
+    canonical_dir = os.path.join(os.path.expanduser("~"), "Documents", "ArvectumProxyLauncher")
+    # Existing accepted installations predating the marker are recognised only
+    # at this exact, documented location.  A marker is then written there;
+    # arbitrary Downloads/temp copies can never self-elect as canonical.
+    if os.path.normcase(os.path.realpath(install_dir())) == os.path.normcase(os.path.realpath(canonical_dir)):
+        try:
+            marker = os.path.join(canonical_dir, _INSTALL_OWNER_MARKER)
+            if not os.path.exists(marker):
+                with io.open(marker, "w", encoding="ascii") as f:
+                    f.write(_INSTALL_OWNER_VALUE)
+        except Exception:
+            pass
+        return None
+    candidates = [os.path.join(canonical_dir, "Arvectum Proxy Launcher.exe")]
+    for candidate in candidates:
+        marker = os.path.join(os.path.dirname(candidate), _INSTALL_OWNER_MARKER)
+        if os.path.isfile(candidate) and os.path.isfile(marker):
+            try:
+                with io.open(marker, "r", encoding="ascii") as f:
+                    marker_value = f.read().strip()
+                    owned = marker_value == _INSTALL_OWNER_VALUE or marker_value in _LEGACY_INSTALL_OWNER_VALUES
+                if owned and os.path.normcase(os.path.realpath(candidate)) != os.path.normcase(os.path.realpath(sys.executable)):
+                    return os.path.realpath(candidate)
+            except Exception:
+                continue
+    return None
+
+
+def handoff_to_canonical_install():
+    target = canonical_install_exe()
+    if not target:
+        return False
+    try:
+        subprocess.Popen([target], cwd=os.path.dirname(target),
+                         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        return True
+    except Exception:
+        return False
+
+
+def _copy_state_atomically(src, dst):
+    import shutil
+    tmp = dst + ".migrate.tmp"
+    shutil.copyfile(src, tmp)
+    with open(tmp, "rb") as f:
+        f.read(1)
+    os.replace(tmp, dst)
+
+
+def _valid_state_file(name, path):
+    if not os.path.isfile(path):
+        return False
+    if name in ("proxy_settings.json", "proxy_internet_backup.json", "proxy_env_backup.json", "proxy_core.pid"):
+        try:
+            with io.open(path, "r", encoding="utf-8") as f:
+                value = json.load(f)
+            return isinstance(value, dict) if name != "proxy_core.pid" else bool(value.get("pid"))
+        except Exception:
+            return False
+    return True
+
+
+def migration_error_path():
+    return os.path.join(data_dir(), "state_migration_conflict.json")
+
+
+def state_migration_blocked():
+    return os.path.exists(migration_error_path())
+
+
+def ensure_state_ready():
+    """Create stable data storage and import validated legacy files once.
+
+    Legacy copies are deliberately retained: a recovery backup is evidence and
+    must never be deleted until a later exact rollback succeeds.
+    """
+    global _STATE_READY
+    if _STATE_READY:
+        return not state_migration_blocked()
+    target = data_dir()
+    try:
+        os.makedirs(target, exist_ok=True)
+        for name in _STATE_FILES:
+            existing = os.path.join(target, name)
+            sources = []
+            for folder in _legacy_state_dirs():
+                candidate = os.path.join(folder, name)
+                if os.path.normcase(os.path.realpath(candidate)) == os.path.normcase(os.path.realpath(existing)):
+                    continue
+                if _valid_state_file(name, candidate):
+                    sources.append(candidate)
+            if not sources or os.path.exists(existing):
+                continue
+            # Two different recovery backups are ambiguous: preserve both and
+            # block destructive recovery instead of guessing an "original".
+            if name in ("proxy_internet_backup.json", "proxy_env_backup.json"):
+                blobs = {open(p, "rb").read() for p in sources}
+                if len(blobs) > 1:
+                    with io.open(migration_error_path(), "w", encoding="utf-8") as f:
+                        json.dump({"file": name, "sources": sources}, f, ensure_ascii=False)
+                    _STATE_READY = True
+                    return False
+            _copy_state_atomically(sources[0], existing)
+        _STATE_READY = True
+        return True
+    except Exception:
+        return False
+
+
 def settings_path():
-    return os.path.join(app_dir(), "proxy_settings.json")
+    return os.path.join(data_dir(), "proxy_settings.json")
 
 
 def no_proxy_path():
-    return os.path.join(app_dir(), "no_proxy.txt")
+    return os.path.join(data_dir(), "no_proxy.txt")
 
 
 def pid_path():
-    return os.path.join(app_dir(), "proxy_core.pid")
+    return os.path.join(runtime_dir(), "proxy_core.pid")
 
 
 def log_path():
-    return os.path.join(app_dir(), "proxy_core.log")
+    return os.path.join(runtime_dir(), "proxy_core.log")
 
 
 def _log(msg):
@@ -301,6 +452,10 @@ DEFAULT_NO_PROXY = [
     "::1",
     "*.local",
     "10.*",
+    "172.16.*", "172.17.*", "172.18.*", "172.19.*",
+    "172.20.*", "172.21.*", "172.22.*", "172.23.*",
+    "172.24.*", "172.25.*", "172.26.*", "172.27.*",
+    "172.28.*", "172.29.*", "172.30.*", "172.31.*",
     "192.168.*",
 ]
 
@@ -435,11 +590,11 @@ _PROXY_ENV_NAMES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
 
 
 def _env_backup_path():
-    return os.path.join(app_dir(), "proxy_env_backup.json")
+    return os.path.join(runtime_dir(), "proxy_env_backup.json")
 
 
 def _internet_backup_path():
-    return os.path.join(app_dir(), _INTERNET_BACKUP_PATH)
+    return os.path.join(runtime_dir(), _INTERNET_BACKUP_PATH)
 
 
 def _read_internet_settings():
@@ -464,6 +619,48 @@ def _read_internet_settings():
 def _valid_internet_backup(values):
     required = {"AutoConfigURL", "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoDetect"}
     return isinstance(values, dict) and required.issubset(values.keys())
+
+
+def _known_internet_backup_paths():
+    """All current and legacy locations which can prove a WinINET rollback."""
+    paths = [_internet_backup_path()]
+    paths.extend(os.path.join(folder, _INTERNET_BACKUP_PATH) for folder in _legacy_state_dirs())
+    seen = set()
+    return [path for path in paths if not (
+        os.path.normcase(os.path.realpath(path)) in seen or
+        seen.add(os.path.normcase(os.path.realpath(path))))]
+
+
+def _valid_internet_backup_at(path):
+    try:
+        with io.open(path, "r", encoding="utf-8") as f:
+            return _valid_internet_backup(json.load(f))
+    except Exception:
+        return False
+
+
+def _any_known_internet_backup_exists():
+    # An invalid/unknown backup is still evidence that destructive cleanup is
+    # ambiguous.  It must lead to NETWORK_DIAGNOSTIC, never orphan cleanup.
+    return any(os.path.exists(path) for path in _known_internet_backup_paths())
+
+
+def _exact_arvectum_pac_url(value, settings=None):
+    """Compare the current PAC with our URL structurally, never by substring."""
+    settings = settings or load_settings()
+    try:
+        actual = urlsplit(str(value or ""))
+        expected = urlsplit(pac_url(settings))
+        return bool(
+            actual.scheme.lower() == expected.scheme.lower() == "http" and
+            actual.hostname == expected.hostname == "127.0.0.1" and
+            actual.port == expected.port and
+            actual.path == expected.path and
+            not actual.query and not actual.fragment and
+            actual.username is None and actual.password is None
+        )
+    except (TypeError, ValueError):
+        return False
 
 
 def _save_internet_backup():
@@ -772,12 +969,13 @@ def _refresh_internet():
 
 
 def _ensure_local_files():
-    """При первом запуске скомпилированного exe копирует дефолтные
-    настройки из бандла PyInstaller рядом с exe (для редактирования)."""
+    """Initialize canonical state and copy bundled defaults into it."""
+    if not ensure_state_ready():
+        return False
     if not getattr(sys, "frozen", False) or not hasattr(sys, "_MEIPASS"):
-        return
+        return True
     for name in ("no_proxy.txt", "proxy_settings.json"):
-        target = os.path.join(app_dir(), name)
+        target = os.path.join(data_dir(), name)
         if not os.path.exists(target):
             src = os.path.join(sys._MEIPASS, name)
             try:
@@ -786,9 +984,15 @@ def _ensure_local_files():
                     shutil.copyfile(src, target)
             except Exception as e:
                 _log("ensure files error: %r" % e)
+                return False
+    return True
 
 
 _RECOVERY_RUN_VALUE = "ArvectumProxyLauncherRecovery"
+_RECOVERY_CURRENT_OWNED = "CURRENT_OWNED"
+_RECOVERY_LEGACY_ARVECTUM = "LEGACY_ARVECTUM"
+_RECOVERY_FOREIGN = "FOREIGN"
+_RECOVERY_MISSING = "MISSING"
 
 
 def _self_start_command():
@@ -801,6 +1005,101 @@ def _normalize_command(value):
     return " ".join(str(value or "").replace("'", '"').split()).strip().lower()
 
 
+def _known_legacy_recovery_dirs():
+    home = os.path.expanduser("~")
+    local = os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local")
+    candidates = [
+        install_dir(),
+        os.path.join(home, "Documents", "ArvectumProxyLauncher"),
+        os.path.join(local, "ArvectumProxyLauncher"),
+        os.path.join(local, "Arvectum", "ProxyLauncher"),
+    ]
+    return {os.path.normcase(os.path.realpath(path)) for path in candidates}
+
+
+def _recovery_command_target(command):
+    """Return the explicit quoted executable/batch target of a Run command."""
+    match = re.match(r'^\s*"([^"]+)"(?:\s+(.*))?\s*$', str(command or ""))
+    if not match:
+        return None, ""
+    return os.path.realpath(match.group(1)), (match.group(2) or "").strip()
+
+
+def classify_recovery_autostart(command):
+    """Classify the shared recovery Run value without heuristic substring checks."""
+    if command is None or not str(command).strip():
+        return _RECOVERY_MISSING
+    if _normalize_command(command) == _normalize_command(_self_start_command()):
+        return _RECOVERY_CURRENT_OWNED
+    target, args = _recovery_command_target(command)
+    if not target:
+        return _RECOVERY_FOREIGN
+    parent = os.path.normcase(os.path.realpath(os.path.dirname(target)))
+    name = os.path.basename(target).lower()
+    if parent not in _known_legacy_recovery_dirs():
+        return _RECOVERY_FOREIGN
+    if name == "arvectum proxy launcher.exe" and _normalize_command(args) == "--start":
+        return _RECOVERY_LEGACY_ARVECTUM
+    if name == "restore_network.bat" and not args:
+        return _RECOVERY_LEGACY_ARVECTUM
+    return _RECOVERY_FOREIGN
+
+
+def _recovery_legacy_process_active(command):
+    """Return True only if that exact legacy Run command is currently executing.
+
+    If process inspection fails, fail closed: do not replace a potentially live
+    legacy recovery owner.
+    """
+    target, _ = _recovery_command_target(command)
+    if not target or not os.path.exists(target):
+        return False
+    if not is_windows():
+        return True
+    try:
+        import ctypes
+        from ctypes import wintypes
+        # Use WMIC-free PowerShell only as a bounded read-only process query.
+        script = (
+            "$p=Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object "
+            "{ $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -ieq "
+            "[IO.Path]::GetFullPath($args[0]) -and $_.CommandLine -eq $args[1] }; "
+            "if($p){exit 10}else{exit 0}"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-Command", script, target, str(command)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+        )
+        return result.returncode != 0
+    except Exception as e:
+        _log("legacy recovery process inspection failed; migration blocked: %r" % e)
+        return True
+
+
+def _get_recovery_run_value():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+            return winreg.QueryValueEx(key, _RECOVERY_RUN_VALUE)[0]
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        _log("recovery autostart read error: %r" % e)
+        return False
+
+
+def _set_recovery_run_value(value):
+    try:
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, value)
+        return True
+    except Exception as e:
+        _log("recovery autostart write error: %r" % e)
+        return False
+
+
 def _enable_recovery_autostart():
     """Страховочный запуск после reboot, пока системный proxy активен.
 
@@ -810,23 +1109,38 @@ def _enable_recovery_autostart():
     """
     if not is_windows():
         return True
-    try:
-        import winreg
-        expected = _self_start_command()
-        path = "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
-            try:
-                current, _ = winreg.QueryValueEx(key, _RECOVERY_RUN_VALUE)
-            except FileNotFoundError:
-                current = None
-            if current and _normalize_command(current) != _normalize_command(expected):
-                _log("recovery autostart name is owned by another command; refusing overwrite")
-                return False
-            winreg.SetValueEx(key, _RECOVERY_RUN_VALUE, 0, winreg.REG_SZ, expected)
-        return True
-    except Exception as e:
-        _log("recovery autostart enable error: %r" % e)
+    expected = _self_start_command()
+    current = _get_recovery_run_value()
+    if current is False:
         return False
+    classification = classify_recovery_autostart(current)
+    if classification == _RECOVERY_FOREIGN:
+        _log("recovery autostart conflicts with a foreign command; refusing overwrite")
+        return False
+    if classification == _RECOVERY_LEGACY_ARVECTUM:
+        if _recovery_legacy_process_active(current):
+            _log("legacy Arvectum recovery autostart is active; migration blocked")
+            return False
+        _log("legacy Arvectum recovery autostart found: %s" % _normalize_command(current))
+        if not _set_recovery_run_value(expected):
+            return False
+        if classify_recovery_autostart(_get_recovery_run_value()) != _RECOVERY_CURRENT_OWNED:
+            _set_recovery_run_value(current)
+            _log("legacy Arvectum recovery autostart migration verification failed")
+            return False
+        if not os.path.exists(_recovery_command_target(current)[0]):
+            _log("stale legacy Arvectum recovery autostart migrated")
+        else:
+            _log("legacy Arvectum recovery autostart migrated to current installation")
+        return True
+    if classification in (_RECOVERY_MISSING, _RECOVERY_CURRENT_OWNED):
+        if not _set_recovery_run_value(expected):
+            return False
+        if classify_recovery_autostart(_get_recovery_run_value()) != _RECOVERY_CURRENT_OWNED:
+            _log("recovery autostart write verification failed")
+            return False
+        return True
+    return False
 
 
 def _disable_recovery_autostart():
@@ -883,17 +1197,29 @@ def disable_system_proxy():
     if not is_windows():
         _log("system proxy: (non-Windows) disabled")
         return True
+    was_active = system_proxy_enabled()
+    valid_backup = _valid_internet_backup_at(_internet_backup_path())
     ok = _restore_internet_backup()
     env_ok = _disable_client_proxy_env()
     # Если собственный PAC уже снят и env backup отсутствует/восстановлен,
     # страховочный Run-value больше не нужен. При неполном rollback оставляем
     # его, чтобы следующий вход в Windows не получил мёртвый localhost proxy.
     env_pending = os.path.exists(_env_backup_path())
-    if not system_proxy_enabled() and (env_ok or not env_pending):
+    still_active = system_proxy_enabled()
+    if not still_active and (env_ok or not env_pending):
         _disable_recovery_autostart()
     _refresh_internet()
-    _log("system proxy disabled")
-    return ok and (env_ok or not env_pending)
+    still_active = system_proxy_enabled()
+    if still_active:
+        if valid_backup:
+            _log("system proxy restore incomplete")
+        else:
+            _log("system proxy restore skipped: ownership unverified")
+    elif was_active or valid_backup:
+        _log("system proxy restored successfully")
+    else:
+        _log("system proxy already inactive")
+    return ok and (env_ok or not env_pending) and not still_active
 
 
 def system_proxy_enabled():
@@ -901,7 +1227,7 @@ def system_proxy_enabled():
         return False
     values = _read_internet_settings() or {}
     item = values.get("AutoConfigURL") or {}
-    return bool(item.get("exists") and str(item.get("value")) == pac_url(load_settings()))
+    return bool(item.get("exists") and _exact_arvectum_pac_url(item.get("value")))
 
 
 def network_restore_pending():
@@ -918,6 +1244,78 @@ def network_restore_pending():
         os.path.exists(_internet_backup_path())
         or os.path.exists(_env_backup_path())
     )
+
+
+def stale_system_proxy():
+    """PAC points at us, but no owned engine or provable rollback exists."""
+    return (system_proxy_enabled() and not is_running() and
+            not network_restore_pending() and not state_migration_blocked())
+
+
+def orphaned_arvectum_pac():
+    """True only for the narrowly proven, dead Arvectum localhost PAC case."""
+    if not is_windows() or state_migration_blocked():
+        return False
+    values = _read_internet_settings()
+    item = (values or {}).get("AutoConfigURL") or {}
+    if not item.get("exists") or not _exact_arvectum_pac_url(item.get("value")):
+        return False
+    if proxy_listener_active() or is_running():
+        return False
+    if _any_known_internet_backup_exists():
+        return False
+    # A non-canonical copy should hand off to the owned Documents install;
+    # never let it clean state while that canonical instance is available.
+    if canonical_install_exe():
+        return False
+    return True
+
+
+def _write_orphaned_pac_snapshot(values):
+    try:
+        os.makedirs(data_dir(), exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S") + "-%d" % int(time.time() * 1000 % 1000)
+        path = os.path.join(data_dir(), "orphaned_arvectum_pac_%s.json" % stamp)
+        snapshot = {
+            "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "reason": "orphaned_arvectum_pac",
+            "internet_settings": values,
+            "expected_pac_url": pac_url(load_settings()),
+        }
+        with io.open(path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False, indent=2)
+        return path
+    except Exception as e:
+        _log("orphan PAC diagnostic snapshot error: %r" % e)
+        return None
+
+
+def clear_orphaned_arvectum_pac():
+    """Delete only a re-verified dead Arvectum AutoConfigURL entry.
+
+    This is deliberately not a network reset and it never alters environment
+    variables.  A changed registry value is treated as a race and aborts.
+    """
+    if not orphaned_arvectum_pac():
+        _log("orphan PAC cleanup skipped: ownership conditions are not proven")
+        return False
+    values = _read_internet_settings()
+    item = (values or {}).get("AutoConfigURL") or {}
+    if not item.get("exists") or not _exact_arvectum_pac_url(item.get("value")):
+        _log("orphan PAC cleanup aborted: AutoConfigURL changed before mutation")
+        return False
+    if not _write_orphaned_pac_snapshot(values):
+        _log("orphan PAC cleanup aborted: diagnostic snapshot was not written")
+        return False
+    if not _reg_del("AutoConfigURL"):
+        _log("orphan PAC cleanup incomplete: AutoConfigURL delete failed")
+        return False
+    _refresh_internet()
+    if system_proxy_enabled():
+        _log("orphan PAC cleanup incomplete: PAC is still active")
+        return False
+    _log("orphan Arvectum PAC removed safely")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -1343,6 +1741,28 @@ def _windows_process_creation_time(pid):
         return None
 
 
+def _windows_process_executable_path(pid):
+    if not is_windows():
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not handle:
+            return None
+        try:
+            size = wintypes.DWORD(32768)
+            buffer = ctypes.create_unicode_buffer(size.value)
+            if not ctypes.windll.kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+                return None
+            return os.path.realpath(buffer.value)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return None
+
+
 def _read_pid():
     try:
         with io.open(pid_path(), "r", encoding="utf-8") as f:
@@ -1352,7 +1772,8 @@ def _read_pid():
         except Exception:
             data = None
         if isinstance(data, dict) and data.get("pid"):
-            return {"pid": int(data["pid"]), "created": data.get("created")}
+            return {"pid": int(data["pid"]), "created": data.get("created"),
+                    "exe_path": data.get("exe_path"), "identity": data.get("identity")}
         # Старый формат содержал только PID. Он небезопасен для taskkill после
         # перезагрузки/PID reuse, поэтому читаем его как непроверяемый.
         return {"pid": int(raw), "created": None}
@@ -1376,13 +1797,20 @@ def is_running():
     if not isinstance(record, dict) or not record.get("pid") or record.get("created") is None:
         return False
     actual = _windows_process_creation_time(int(record["pid"]))
-    return actual is not None and int(actual) == int(record["created"])
+    if actual is None or int(actual) != int(record["created"]):
+        return False
+    recorded_path = record.get("exe_path")
+    actual_path = _windows_process_executable_path(int(record["pid"]))
+    return bool(recorded_path and actual_path and
+                os.path.normcase(os.path.realpath(recorded_path)) == os.path.normcase(os.path.realpath(actual_path)))
 
 
 def _write_pid():
     try:
         pid = os.getpid()
-        record = {"pid": pid, "created": _windows_process_creation_time(pid)}
+        record = {"pid": pid, "created": _windows_process_creation_time(pid),
+                  "exe_path": os.path.realpath(sys.executable),
+                  "identity": os.path.normcase(os.path.realpath(install_dir()))}
         with io.open(pid_path(), "w", encoding="utf-8") as f:
             json.dump(record, f)
     except Exception as e:
@@ -1510,6 +1938,12 @@ def _cmd_status():
 
 
 def main():
+    if not _ensure_local_files():
+        print("state initialization failed")
+        return 1
+    if handoff_to_canonical_install():
+        print("opened canonical installed launcher")
+        return 0
     action = sys.argv[1][2:] if len(sys.argv) > 1 and sys.argv[1].startswith("--") else ("start" if len(sys.argv) == 1 else None)
     if action == "start":
         return _cmd_start()

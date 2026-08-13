@@ -19,10 +19,13 @@ class AutostartOwnershipTests(unittest.TestCase):
     def test_foreign_task_conflict_resets_checkbox(self):
         launcher = gui.Launcher.__new__(gui.Launcher)
         launcher.auto_var = _BoolVar(True)
+        launcher._autostart_run_value = mock.Mock(return_value=None)
+        launcher._autostart_run_is_ours = mock.Mock(return_value=False)
         launcher._autostart_task_xml = mock.Mock(return_value="foreign task xml")
         launcher._autostart_task_is_ours = mock.Mock(return_value=False)
 
-        with mock.patch.object(gui.messagebox, "showerror"):
+        with mock.patch.object(gui.core, "load_settings", return_value={"upstream": [{"host": "test.invalid"}]}), \
+             mock.patch.object(gui.messagebox, "showerror"):
             launcher._toggle_autostart()
 
         self.assertFalse(launcher.auto_var.get())

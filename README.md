@@ -28,7 +28,7 @@
 - Пока proxy включён, создаётся временный recovery-autostart в `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Он защищает от reboot/crash, когда PAC мог бы остаться на localhost без работающего core. При нормальном выключении запись удаляется.
 - CLI `--stop`/`--rollback` теперь возвращает ошибку, если WinINET/env восстановлены не полностью.
 - `uninstall.bat` не удаляет приложение и backup-файлы, пока rollback не подтверждён как успешный. Это защищает от потери recovery-данных при сбое восстановления сети.
-- RC2.1 добавляет owner marker каталога установки и проверку reparse-point/имени каталога перед рекурсивным удалением; installer/uninstaller удаляют scheduled task только при подтверждённой принадлежности этому EXE.
+- Установщик и uninstaller используют owner marker каталога установки и проверку reparse-point/имени каталога перед рекурсивным удалением.
 - GUI показывает незавершённый rollback как отдельное состояние, выделяет восстановление сети, объясняет следующий шаг при «Проверить» и предлагает recovery сразу при открытии приложения.
 - Исправлены имена EXE, пути helper BAT и проверки `errorlevel` в CMD-скриптах.
 - Cold-start ожидание увеличено, чтобы one-file PyInstaller/антивирус не давали ложную ошибку на первом запуске.
@@ -45,7 +45,7 @@ py -3 -m py_compile proxy_core.py proxy_gui.py
 py -3 -m unittest -v tests.test_proxy_core
 ```
 
-Текущий набор RC2.1: 37 unit/smoke/static release tests.
+Проверки качества выполняются перед каждой release-сборкой.
 
 Сборка:
 
@@ -57,7 +57,7 @@ build_exe.bat
 
 ## Ограничения текущей частной сборки
 
-- Upstream host/port остаются обычными настройками. Логин и пароль на Windows сохраняются единым `credentials_dpapi` blob (Windows DPAPI, current-user scope); plaintext `username`/`password` из RC2 автоматически мигрирует при первом чтении RC2.1. Если DPAPI не может защитить credentials, приложение не записывает их открытым текстом.
+- Upstream host/port остаются обычными настройками. Логин и пароль на Windows сохраняются единым `credentials_dpapi` blob (Windows DPAPI, current-user scope). Если DPAPI не может защитить credentials, приложение не записывает их открытым текстом.
 - Code signing в исходном комплекте не выполняется. Неподписанный EXE может получить SmartScreen/Unknown publisher. Это не исправляется Python-патчем: для релиза без предупреждений нужен сертификат подписи кода и подписанный installer/EXE.
 - Failover между несколькими upstream сейчас в первую очередь транспортный: если TCP-соединение с первым upstream установилось, но сам proxy вернул 407/5xx, автоматический переход на следующий upstream не гарантирован. Для текущей поставки с одним рабочим upstream это не блокер; для публичного multi-proxy режима нужен отдельный hardening.
 - WinHTTP-level proxy (`netsh winhttp`) не меняется. Приложения, которые игнорируют WinINET/PAC и proxy environment, могут требовать отдельной интеграции.
