@@ -16,6 +16,33 @@ class _BoolVar:
 
 
 class AutostartOwnershipTests(unittest.TestCase):
+    def test_portable_fallback_detects_noncanonical_frozen_executable(self):
+        with mock.patch.object(gui.os, "name", "nt"), \
+             mock.patch.object(gui.sys, "frozen", True, create=True), \
+             mock.patch.object(gui.sys, "executable", r"C:\Users\Test\Downloads\Arvectum Proxy Launcher.exe"), \
+             mock.patch.object(gui.core, "stable_app_exe",
+                               return_value=r"C:\Users\Test\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe"):
+            self.assertTrue(gui._portable_fallback_active())
+
+    def test_canonical_frozen_executable_is_not_portable_fallback(self):
+        canonical = r"C:\Users\Test\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe"
+        with mock.patch.object(gui.os, "name", "nt"), \
+             mock.patch.object(gui.sys, "frozen", True, create=True), \
+             mock.patch.object(gui.sys, "executable", canonical), \
+             mock.patch.object(gui.core, "stable_app_exe", return_value=canonical):
+            self.assertFalse(gui._portable_fallback_active())
+
+    def test_autostart_enable_is_refused_in_portable_fallback(self):
+        launcher = gui.Launcher.__new__(gui.Launcher)
+        launcher.auto_var = _BoolVar(True)
+        with mock.patch.object(gui.core, "load_settings",
+                               return_value={"upstream": [{"host": "test.invalid"}]}), \
+             mock.patch.object(gui, "_portable_fallback_active", return_value=True), \
+             mock.patch.object(gui.messagebox, "showwarning") as warning:
+            self.assertFalse(launcher._enable_autostart())
+        self.assertFalse(launcher.auto_var.get())
+        warning.assert_called_once()
+
     def test_foreign_task_conflict_resets_checkbox(self):
         launcher = gui.Launcher.__new__(gui.Launcher)
         launcher.auto_var = _BoolVar(True)

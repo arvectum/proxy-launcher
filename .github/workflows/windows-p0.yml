@@ -2,9 +2,14 @@ name: Windows P0 portable
 
 on:
   push:
-    branches: [main]
+    branches:
+      - master
+      - 'release/**'
+      - 'fix/**'
   pull_request:
-    branches: [main]
+    branches:
+      - master
+      - 'release/**'
   workflow_dispatch:
 
 jobs:
@@ -12,15 +17,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install build dependency
-        run: python -m pip install --upgrade pip pyinstaller
+        run: python -m pip install --upgrade pip pyinstaller==6.22.0
+
       - name: Compile and test
         run: |
           python -m py_compile proxy_core.py proxy_gui.py
           python -m unittest discover -s tests -v
+
       - name: Build portable executable
         run: >
           python -m PyInstaller --noconfirm --clean --onefile --windowed
@@ -31,6 +40,21 @@ jobs:
           --add-data "proxy_settings.json;."
           --add-data "assets;assets"
           proxy_gui.py
+
+      - name: Windows Documents execution smoke
+        shell: pwsh
+        run: |
+          $canonicalDir = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher'
+          New-Item -ItemType Directory -Path $canonicalDir -Force | Out-Null
+          $canonicalExe = Join-Path $canonicalDir 'Arvectum Proxy Launcher.exe'
+          Copy-Item -LiteralPath 'dist/Arvectum Proxy Launcher.exe' -Destination $canonicalExe -Force
+          $builtHash = (Get-FileHash -LiteralPath 'dist/Arvectum Proxy Launcher.exe' -Algorithm SHA256).Hash
+          $canonicalHash = (Get-FileHash -LiteralPath $canonicalExe -Algorithm SHA256).Hash
+          if ($builtHash -ne $canonicalHash) { throw 'Canonical Documents copy hash mismatch' }
+          $p = Start-Process -FilePath $canonicalExe -ArgumentList '--status' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Documents EXE smoke failed with exit code $($p.ExitCode)" }
+          Write-Host "Documents execution smoke PASS; SHA256=$canonicalHash"
+
       - name: Package and verify artifact
         shell: pwsh
         run: |
@@ -38,12 +62,17 @@ jobs:
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           Copy-Item 'dist/Arvectum Proxy Launcher.exe' "$out/Arvectum Proxy Launcher.exe"
           Copy-Item 'release/README_PORTABLE_P0.txt' "$out/README.txt"
+          Copy-Item 'qa/diagnose_app_control.ps1' "$out/diagnose_app_control.ps1"
+          Copy-Item 'qa/run_p01_native_qa_v2.ps1' "$out/run_p01_native_qa_v2.ps1"
           $hash = (Get-FileHash "$out/Arvectum Proxy Launcher.exe" -Algorithm SHA256).Hash
           Set-Content "$out/SHA256.txt" "Arvectum Proxy Launcher.exe  SHA256  $hash" -Encoding ascii
           Compress-Archive -Path "$out/*" -DestinationPath 'artifact/Arvectum-Proxy-Launcher-Windows-P0.zip'
           Expand-Archive 'artifact/Arvectum-Proxy-Launcher-Windows-P0.zip' -DestinationPath 'artifact/verify'
-          if ((Get-FileHash 'artifact/verify/Arvectum Proxy Launcher.exe' -Algorithm SHA256).Hash -ne $hash) { throw 'Artifact hash mismatch' }
+          if ((Get-FileHash 'artifact/verify/Arvectum Proxy Launcher.exe' -Algorithm SHA256).Hash -ne $hash) {
+              throw 'Artifact hash mismatch'
+          }
           Get-Content "$out/SHA256.txt"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Arvectum-Proxy-Launcher-Windows-P0

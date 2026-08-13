@@ -3,6 +3,10 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+HAS_INSTALLER_TRACK = (
+    (ROOT / "installer" / "ArvectumProxyLauncher.iss").is_file()
+    and (ROOT / "installer" / "upgrade_helper.ps1").is_file()
+)
 
 
 class ReleaseScriptTests(unittest.TestCase):
@@ -155,7 +159,7 @@ class ReleaseScriptTests(unittest.TestCase):
     def test_release_version_is_visible_in_gui(self):
         core_text = self.read("proxy_core.py")
         gui_text = self.read("proxy_gui.py")
-        self.assertIn('APP_VERSION = "0.2.3 P0.1"', core_text)
+        self.assertIn('APP_VERSION = "0.2.3 P0.2"', core_text)
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
 
@@ -170,6 +174,7 @@ class ReleaseScriptTests(unittest.TestCase):
         for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.3', '0.2.3.0'):
             self.assertIn(value, version)
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
     def test_inno_setup_is_self_contained_and_hash_verifies_payload(self):
         text = self.read("installer/ArvectumProxyLauncher.iss")
         self.assertIn("Uninstallable=yes", text)
@@ -183,6 +188,7 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("application_sha256", helper)
         self.assertIn("upgrade_helper_sha256", helper)
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
     def test_upgrade_helper_has_preflight_transaction_and_session_logging(self):
         text = self.read("installer/upgrade_helper.ps1")
         self.assertIn("=== INSTALL SESSION START", text)
@@ -196,6 +202,7 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("arvectum-proxy-launcher-windows", text)
         self.assertNotIn("& (Join-Path $SourceDir", text)
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
     def test_inno_uninstall_uses_embedded_rollback_helper(self):
         text = self.read("installer/ArvectumProxyLauncher.iss")
         helper = self.read("installer/uninstall_helper.ps1")
@@ -217,6 +224,13 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("winreg.SetValueEx", text)
         self.assertIn("_autostart_task_is_ours", text)
         self.assertIn("принадлежит другой команде", text)
+
+    def test_portable_fallback_does_not_repair_run_to_unconfirmed_canonical(self):
+        text = self.read("proxy_gui.py")
+        self.assertIn("portable_fallback = _portable_fallback_active()", text)
+        self.assertIn("canonical execution was not confirmed", text)
+        self.assertIn("core.repair_portable_run_entries()", text)
+        self.assertIn("Автозапуск временно отключён", text)
 
     def test_recovery_run_value_is_ownership_checked(self):
         text = self.read("proxy_core.py")

@@ -217,8 +217,31 @@ def _run_headless(mode):
     )
 
 
+def _portable_fallback_active():
+    """True while a frozen GUI remains on a non-canonical executable.
+
+    A failed canonical handoff must not make the already-running portable GUI
+    unusable, and must never redirect autostart to an executable whose launch
+    was not confirmed.
+    """
+    if not (os.name == "nt" and getattr(sys, "frozen", False)):
+        return False
+    try:
+        current = os.path.normcase(os.path.realpath(sys.executable))
+        canonical = os.path.normcase(os.path.realpath(core.stable_app_exe()))
+        return current != canonical
+    except Exception:
+        return True
+
+
 def _autostart_target():
     if getattr(sys, "frozen", False):
+        if _portable_fallback_active():
+            raise RuntimeError(
+                "Автозапуск временно недоступен: постоянная копия Launcher "
+                "не была подтверждена как запускаемая Windows. Текущий portable "
+                "Launcher можно использовать вручную."
+            )
         target = core.managed_executable()
         if not target:
             raise RuntimeError(core.self_heal_error() or "Не удалось подготовить постоянную копию Launcher.")
@@ -626,11 +649,16 @@ class Launcher:
         self.btn_restore.grid(row=0, column=1, sticky="e", padx=(12, 0))
 
         # ---------- автозапуск ----------
-        self.auto_var = tk.BooleanVar(value=self._autostart_enabled())
-        ttk.Checkbutton(
+        portable_fallback = _portable_fallback_active()
+        self.auto_var = tk.BooleanVar(
+            value=False if portable_fallback else self._autostart_enabled())
+        self.autostart_check = ttk.Checkbutton(
             body, text="Запускать прокси при входе в Windows",
             variable=self.auto_var, command=self._toggle_autostart,
-            style="Brand.TCheckbutton").grid(row=6, column=0, sticky="w", pady=(16, 0))
+            style="Brand.TCheckbutton")
+        self.autostart_check.grid(row=6, column=0, sticky="w", pady=(16, 0))
+        if portable_fallback:
+            self.autostart_check.state(["disabled"])
 
         tk.Label(
             body, text="Окно можно закрыть — запущенный proxy продолжит работать в фоне.",
@@ -1019,6 +1047,16 @@ class Launcher:
         if not configured:
             messagebox.showwarning(APP_NAME, "Сначала настройте внешний прокси, затем включайте автозапуск.")
             return False
+        if _portable_fallback_active():
+            self.auto_var.set(False)
+            messagebox.showwarning(
+                APP_NAME,
+                "Автозапуск временно недоступен: Windows не запустила "
+                "постоянную копию Launcher. Текущую portable-версию можно "
+                "использовать вручную; не переносите её и не удаляйте, пока "
+                "proxy работает."
+            )
+            return False
         existing_run = self._autostart_run_value()
         if existing_run is not None and not self._autostart_run_is_ours(existing_run):
             self.auto_var.set(False)
@@ -1035,8 +1073,8 @@ class Launcher:
                 "Задача Windows с именем ArvectumProxyLauncher уже существует, "
                 "но принадлежит другой команде. Она не будет перезаписана.")
             return False
-        target = _autostart_target()
         try:
+            target = _autostart_target()
             import winreg
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH) as key:
                 winreg.SetValueEx(key, AUTOSTART_RUN_VALUE, 0, winreg.REG_SZ, target)
@@ -1076,12 +1114,13 @@ class Launcher:
 
 
 def main():
-    # A portable launch first moves itself to the permanent AppData location.
-    # If the handoff fails, the original GUI remains available and the failure
-    # is recorded by core instead of silently closing the application.
+    # A portable launch first tries the permanent Documents location.
+    # If Windows refuses that handoff, the already-running portable GUI remains
+    # a valid manual P0 fallback for the current session.
     if core.handoff_to_stable_copy(sys.argv[1:]):
         return 0
     handoff_error = core.self_heal_error()
+    portable_fallback = _portable_fallback_active()
     if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):
         sys.argv = [sys.argv[0], sys.argv[1]]
         return core.main()
@@ -1092,13 +1131,26 @@ def main():
         pass
     if not core._ensure_local_files():
         return 1
-    core.repair_portable_run_entries()
+    if portable_fallback:
+        core._log(
+            "portable fallback active; Run entries left unchanged because "
+            "canonical execution was not confirmed"
+        )
+    else:
+        core.repair_portable_run_entries()
     root = tk.Tk()
     if handoff_error:
         messagebox.showerror(
             APP_NAME,
             handoff_error + "\n\nLauncher оставлен открытым из текущей папки. "
             "Закройте старую копию приложения и повторите запуск.",
+        )
+    elif portable_fallback:
+        messagebox.showwarning(
+            APP_NAME,
+            "Не удалось запустить постоянную копию Launcher в Documents.\n\n"
+            "Текущая portable-версия продолжит работать в этом сеансе. "
+            "Автозапуск временно отключён: запускайте этот EXE вручную."
         )
     app = Launcher(root)
     root.mainloop()
