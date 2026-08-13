@@ -589,7 +589,7 @@ class Launcher:
         tk.Label(
             check_row, text="URL проверки", bg=WHITE, fg=GRAPHITE,
             font=B["font_small"]).pack(side="left", padx=(0, 8))
-        self.check_url_var = tk.StringVar(value="https://api.ipify.org")
+        self.check_url_var = tk.StringVar(value="https://arvectum.com")
         check_entry = tk.Entry(
             check_row, textvariable=self.check_url_var, width=38,
             bg=WHITE, fg=NAVY, relief="solid", bd=1,

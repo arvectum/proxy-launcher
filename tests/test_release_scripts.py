@@ -31,22 +31,23 @@ class ReleaseScriptTests(unittest.TestCase):
 
     def test_installer_does_not_unconditionally_delete_same_named_task(self):
         text = self.read("install.bat")
-        self.assertIn('uninstall.ps1" -Install', text)
+        self.assertIn('install.ps1', text)
         self.assertNotIn('schtasks /Delete', text)
 
     def test_python_fallback_installs_powershell_uninstaller(self):
         text = self.read("install.bat")
-        self.assertIn("uninstall.ps1", text)
+        self.assertIn("install.ps1", text)
 
     def test_exe_installer_copies_install_instructions_and_requires_marker(self):
         text = self.read("install.bat")
-        self.assertIn('-SourceDir "%~dp0."', text)
-        self.assertIn('uninstall.ps1" -Install', text)
+        self.assertIn('-SourceDir "%~dp0"', text)
+        self.assertIn('install.ps1" -AppDir', text)
         uninstall = self.read("uninstall.ps1")
         self.assertIn('if ($Install)', uninstall)
         self.assertIn('Installer finalization failed', uninstall)
         self.assertIn("'INSTALL.txt'", uninstall)
         self.assertIn("'uninstall.ps1'", uninstall)
+        self.assertIn("'install.ps1'", uninstall)
 
     def test_p03_installer_stages_verifies_and_atomically_replaces_exe(self):
         text = self.read("uninstall.ps1")
@@ -74,10 +75,50 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("legacy user autostart migrated", text)
         self.assertNotIn("taskkill /IM", text)
 
+    def test_p04_installer_stops_only_proven_active_legacy_recovery(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("function Get-RecoveryRunClassification", text)
+        self.assertIn("function Get-LegacyOwnedProcesses", text)
+        self.assertIn("function Stop-LegacyRecoveryProcess", text)
+        self.assertIn("legacy recovery --stop result", text)
+        self.assertIn("legacy Arvectum recovery process did not exit", text)
+        self.assertIn("active legacy Arvectum recovery process cannot be safely stopped", text)
+        self.assertIn("Test-ExactPath $_.ExecutablePath $parsed.path", text)
+        self.assertNotIn('taskkill /IM "Arvectum Proxy Launcher.exe" /F', text)
+
+    def test_p04_legacy_temp_zip_patterns_and_stale_cleanup_are_strict(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("arvectum-proxy-launcher-windows-(?:rc2", text)
+        self.assertIn("STALE_LEGACY_ARVECTUM", text)
+        self.assertIn("stale legacy Arvectum recovery autostart removed", text)
+        self.assertIn("FOREIGN_OR_UNKNOWN", text)
+        self.assertIn("conflicting recovery autostart is not owned by Arvectum", text)
+
+    def test_p04_checks_legacy_recovery_before_generic_backup_block(self):
+        text = self.read("uninstall.ps1")
+        migration = text.index("Migrate-LegacyRunValues $exeForInstall")
+        backup_block = text.index("recovery backups remain after stopping the previous version")
+        self.assertLess(migration, backup_block)
+        self.assertIn("Test-LegacyRecoveryBackupsRemain", text)
+
+    def test_p04_interactive_installer_uses_utf8_and_keeps_failure_visible(self):
+        text = self.read("install.bat")
+        self.assertIn("chcp 65001 >nul", text)
+        self.assertIn("install.ps1", text)
+        wrapper = self.read("install.ps1")
+        self.assertIn("Installation did not complete", wrapper)
+        self.assertIn("Reason:", wrapper)
+        self.assertIn("install.log", wrapper)
+
+    def test_p04_release_note_is_required_by_installer(self):
+        text = self.read("uninstall.ps1")
+        self.assertIn("RELEASE_NOTES_0.2.2_P0.4.md", text)
+
     def test_interactive_install_keeps_console_open_with_diagnostic(self):
         text = self.read("install.bat")
-        self.assertIn("Обновление не завершено", text)
-        self.assertIn("install.log", text)
+        wrapper = self.read("install.ps1")
+        self.assertIn("Installation did not complete", wrapper)
+        self.assertIn("install.log", wrapper)
         self.assertIn("if not defined ARVECTUM_NONINTERACTIVE pause", text)
 
     def test_uninstaller_requires_owner_marker_before_recursive_remove(self):
@@ -117,6 +158,10 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn('APP_VERSION = "0.2.2"', core_text)
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
+
+    def test_default_connection_check_uses_arvectum_site(self):
+        gui_text = self.read("proxy_gui.py")
+        self.assertIn('tk.StringVar(value="https://arvectum.com")', gui_text)
 
     def test_windows_version_resource_is_required(self):
         build = self.read("build_exe.bat")

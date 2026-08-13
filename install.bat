@@ -1,13 +1,8 @@
 @echo off
-setlocal
+setlocal EnableExtensions
+chcp 65001 >nul
 if not defined ARVECTUM_APP_DIR set "ARVECTUM_APP_DIR=%USERPROFILE%\Documents\ArvectumProxyLauncher"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1" -Install -AppDir "%ARVECTUM_APP_DIR%" -SourceDir "%~dp0." -NonInteractive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" -AppDir "%ARVECTUM_APP_DIR%" -SourceDir "%~dp0"
 set "RC=%ERRORLEVEL%"
-if not "%RC%"=="0" (
-    echo.
-    echo Обновление не завершено. Предыдущая версия Launcher не была заменена.
-    echo Настройки сети не изменены. Пришлите файл install.log из:
-    echo %LOCALAPPDATA%\Arvectum\ProxyLauncher
-    if not defined ARVECTUM_NONINTERACTIVE pause
-)
+if not "%RC%"=="0" if not defined ARVECTUM_NONINTERACTIVE pause
 exit /b %RC%

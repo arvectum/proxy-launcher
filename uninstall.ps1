@@ -62,36 +62,106 @@ function Get-QuotedCommandTarget([string]$command) {
     return $null
 }
 
-function Test-LegacyArvectumCommand([string]$command, [string]$canonicalExe) {
+function Get-RecoveryRunClassification([string]$command, [string]$canonicalExe) {
+    if (-not $command) { return 'NONE' }
     $parsed = Get-QuotedCommandTarget $command
-    if (-not $parsed -or (Test-ExactPath $parsed.path $canonicalExe)) { return $false }
+    if (-not $parsed) { return 'FOREIGN_OR_UNKNOWN' }
+    if (Test-ExactPath $parsed.path $canonicalExe) {
+        if ([IO.Path]::GetFileName($parsed.path) -ieq 'Arvectum Proxy Launcher.exe' -and $parsed.args -ieq '--start') {
+            return 'CANONICAL_ARVECTUM'
+        }
+        return 'FOREIGN_OR_UNKNOWN'
+    }
     $leaf = [IO.Path]::GetFileName($parsed.path)
     $folder = [IO.Path]::GetDirectoryName($parsed.path)
     $documents = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher'
     $oldLocal = Join-Path $env:LOCALAPPDATA 'ArvectumProxyLauncher'
     $stable = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
     $knownFolder = @($documents, $oldLocal, $stable) | Where-Object { Test-ExactPath $_ $folder }
-    $tempZip = $parsed.path -match '(?i)\\temp\\[^\\]*arvectum-proxy-launcher-windows(?:-rc2(?:\.1\.1)?(?:-client)?)?\.zip(?:\.[^\\]+)?\\'
-    if ($leaf -ieq 'Arvectum Proxy Launcher.exe' -and $parsed.args -ieq '--start' -and ($knownFolder -or $tempZip)) { return $true }
-    if ($leaf -ieq 'restore_network.bat' -and -not $parsed.args -and $knownFolder) { return $true }
+    $tempZip = $parsed.path -match '(?i)\\temp\\[^\\]*arvectum-proxy-launcher-windows-(?:rc2(?:\.1(?:\.1)?)?|0\.2\.1(?:-p0(?:\.\d+)?)?)(?:-client)?\.zip(?:\.[^\\]+)?\\'
+    if ($leaf -ieq 'Arvectum Proxy Launcher.exe' -and $parsed.args -ieq '--start' -and ($knownFolder -or $tempZip)) { return 'LEGACY_ARVECTUM' }
+    if ($leaf -ieq 'restore_network.bat' -and -not $parsed.args -and $knownFolder) { return 'LEGACY_ARVECTUM' }
+    return 'FOREIGN_OR_UNKNOWN'
+}
+
+function Test-LegacyArvectumCommand([string]$command, [string]$canonicalExe) {
+    return (Get-RecoveryRunClassification $command $canonicalExe) -eq 'LEGACY_ARVECTUM'
+}
+
+function Get-LegacyOwnedProcesses([string]$command) {
+    $parsed = Get-QuotedCommandTarget $command
+    if (-not $parsed) { return @() }
+    return @(Get-CimInstance Win32_Process -Filter "Name='Arvectum Proxy Launcher.exe'" -ErrorAction SilentlyContinue | Where-Object {
+        if (-not $_.ExecutablePath -or -not (Test-ExactPath $_.ExecutablePath $parsed.path)) { return $false }
+        $processCommand = Get-QuotedCommandTarget $_.CommandLine
+        return $processCommand -and (Test-ExactPath $processCommand.path $parsed.path) -and $processCommand.args -ieq '--start'
+    })
+}
+
+function Test-LegacyRecoveryBackupsRemain([string]$legacyExe) {
+    $legacyDir = [IO.Path]::GetDirectoryName($legacyExe)
+    $oldLocal = Join-Path $env:LOCALAPPDATA 'ArvectumProxyLauncher'
+    $documents = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher'
+    $backupNames = @('proxy_internet_backup.json', 'proxy_env_backup.json')
+    foreach ($dir in @($legacyDir, $oldLocal, $documents, $stateDir) | Select-Object -Unique) {
+        foreach ($name in $backupNames) {
+            if (Test-Path -LiteralPath (Join-Path $dir $name)) { return $true }
+        }
+    }
     return $false
 }
 
-function Test-LegacyCommandActive([string]$command) {
+function Stop-LegacyRecoveryProcess([string]$command, [string]$canonicalExe) {
+    $classification = Get-RecoveryRunClassification $command $canonicalExe
+    Write-InstallLog "legacy recovery Run classification: $classification; command: $command"
+    if ($classification -eq 'FOREIGN_OR_UNKNOWN') {
+        throw 'INSTALL FAILED: conflicting recovery autostart is not owned by Arvectum.'
+    }
+    if ($classification -ne 'LEGACY_ARVECTUM') { return $classification }
+
     $parsed = Get-QuotedCommandTarget $command
-    if (-not $parsed -or -not (Test-Path -LiteralPath $parsed.path)) { return $false }
-    return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.ExecutablePath -and (Test-ExactPath $_.ExecutablePath $parsed.path) -and $_.CommandLine -eq $command
-    }).Count -gt 0
+    $processes = @(Get-LegacyOwnedProcesses $command)
+    foreach ($process in $processes) {
+        Write-InstallLog "legacy recovery process PID/path: $($process.ProcessId) $($process.ExecutablePath)"
+    }
+    if ($processes.Count -eq 0) {
+        Write-InstallLog 'stale legacy Arvectum recovery autostart removed'
+        return 'STALE_LEGACY_ARVECTUM'
+    }
+    if (-not (Test-Path -LiteralPath $parsed.path -PathType Leaf)) {
+        Write-InstallLog 'UPDATE BLOCKED: active legacy recovery process has no executable available for graceful stop'
+        throw 'UPDATE BLOCKED: active legacy Arvectum recovery process cannot be safely stopped.'
+    }
+
+    & $parsed.path --stop
+    $stopResult = $LASTEXITCODE
+    Write-InstallLog "legacy recovery --stop result: $stopResult"
+    if ($null -ne $stopResult -and $stopResult -ne 0) {
+        throw 'UPDATE BLOCKED: legacy Arvectum recovery stop failed.'
+    }
+    $deadline = (Get-Date).AddSeconds(10)
+    while (@(Get-LegacyOwnedProcesses $command).Count -gt 0 -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 250
+    }
+    if (@(Get-LegacyOwnedProcesses $command).Count -gt 0) {
+        Write-InstallLog 'UPDATE BLOCKED: exact legacy recovery process is still active after --stop'
+        throw 'UPDATE BLOCKED: legacy Arvectum recovery process did not exit.'
+    }
+    if (Test-LegacyRecoveryBackupsRemain $parsed.path) {
+        Write-InstallLog 'UPDATE BLOCKED: legacy recovery backups remain after --stop'
+        throw 'UPDATE BLOCKED: legacy Arvectum recovery is incomplete.'
+    }
+    Write-InstallLog 'legacy recovery process exited and network recovery completed'
+    return 'STOPPED_LEGACY_ARVECTUM'
 }
 
 function Migrate-LegacyRunValues([string]$canonicalExe) {
     $runPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     $recovery = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
-    if ($recovery -and (Test-LegacyArvectumCommand $recovery $canonicalExe)) {
-        if (Test-LegacyCommandActive $recovery) { throw 'INSTALL FAILED: legacy Arvectum recovery process is still active.' }
+    $recoveryResult = Stop-LegacyRecoveryProcess $recovery $canonicalExe
+    if ($recovery -and $recoveryResult -in @('STALE_LEGACY_ARVECTUM', 'STOPPED_LEGACY_ARVECTUM')) {
         Remove-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction Stop
-        Write-InstallLog 'legacy recovery Run value removed after successful stop'
+        Write-InstallLog 'legacy recovery Run value removed after successful shutdown or stale cleanup'
     }
     $autostart = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
     if ($autostart -and (Test-LegacyArvectumCommand $autostart $canonicalExe)) {
@@ -105,7 +175,7 @@ if ($Install) {
     $sourceExe = Join-Path $sourceDirFull 'Arvectum Proxy Launcher.exe'
     $exeForInstall = Join-Path $AppDir 'Arvectum Proxy Launcher.exe'
     if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) { throw "INSTALL FAILED: release executable is missing: '$sourceExe'." }
-    $releaseFiles = @('install.bat', 'uninstall.bat', 'uninstall.ps1', 'restore_network.bat', 'INSTALL.txt', 'THIRD_PARTY_NOTICES.txt', 'RELEASE_NOTES_0.2.2.md')
+    $releaseFiles = @('install.bat', 'install.ps1', 'uninstall.bat', 'uninstall.ps1', 'restore_network.bat', 'INSTALL.txt', 'THIRD_PARTY_NOTICES.txt', 'RELEASE_NOTES_0.2.2_P0.4.md')
     foreach ($name in $releaseFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $sourceDirFull $name) -PathType Leaf)) {
             throw "INSTALL FAILED: required release file is missing: '$name'."
@@ -124,6 +194,9 @@ if ($Install) {
         & $exeForInstall --stop
         if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw 'UPDATE BLOCKED: previous version could not safely stop and roll back network settings.' }
     }
+    # Resolve a proven legacy recovery process before judging backup state;
+    # its own --stop is responsible for exact rollback of legacy network state.
+    Migrate-LegacyRunValues $exeForInstall
     if ((Test-Path -LiteralPath $internetBackup) -or (Test-Path -LiteralPath $envBackup)) {
         throw 'UPDATE BLOCKED: recovery backups remain after stopping the previous version.'
     }
@@ -133,10 +206,8 @@ if ($Install) {
         while (-not (Test-FileUnlocked $exeForInstall) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
         if (-not (Test-FileUnlocked $exeForInstall)) { throw 'INSTALL FAILED: previous Launcher is still running.' }
     }
-    # Legacy Run cleanup is intentionally done only after safe rollback and
-    # exact GUI close, but before file replacement so a blocked migration never
-    # leaves a partially upgraded application directory.
-    Migrate-LegacyRunValues $exeForInstall
+    # Legacy Run cleanup completed before backup validation; replacement starts
+    # only after both legacy and canonical network recovery are safe.
     try {
         if (Test-Path -LiteralPath $oldExe) { Remove-Item $oldExe -Force }
         if (Test-Path -LiteralPath $exeForInstall) { Move-Item -LiteralPath $exeForInstall -Destination $oldExe -Force }
