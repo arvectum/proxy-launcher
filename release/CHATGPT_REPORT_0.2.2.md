@@ -12,7 +12,7 @@
 
 - Product: Arvectum Proxy Launcher for Windows 0.2.2.
 - EXE: `Arvectum Proxy Launcher.exe`.
-- Application EXE SHA256: `A47DCC23C1E0BF638F7CDC4D14E462491F72E891A41EA6517C92309CBEB7CA4E`.
+- Application EXE SHA256: `BA66908EDB73175AC51221A82F817A4C41BDB07AD65998E4244916DF242BF780`.
 - File/Product version: `0.2.2.0` / `0.2.2`.
 - New multi-resolution Arvectum icon is embedded in the EXE and used by the
   desktop shortcut.
