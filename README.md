@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/arvectum-banner.png" alt="Arvectum Proxy Launcher" width="720">
+  <img src="assets/arvectum-banner.png" width="720">
 </p>
 
 <h1 align="center">Arvectum Proxy Launcher</h1>
