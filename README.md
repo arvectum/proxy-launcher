@@ -1,29 +1,409 @@
-# Arvectum Proxy Launcher
+<p align="center">
+  <img src="assets/arvectum-banner.png" alt="Arvectum Proxy Launcher" width="720">
+</p>
 
-Cross-platform proxy launcher (Windows, macOS, Linux) with local HTTP, HTTPS CONNECT, SOCKS5 and PAC support.
+<h1 align="center">Arvectum Proxy Launcher</h1>
 
-Windows proxy launcher with local HTTP, HTTPS CONNECT, SOCKS5 and PAC support.
+<p align="center">
+  Кроссплатформенное приложение для безопасного управления системным прокси,<br>
+  исключениями <code>no_proxy</code> и восстановлением сетевой конфигурации.
+</p>
 
-## Client release
+<p align="center">
+  <strong>Windows · macOS · Linux</strong> · Python · MIT License
+</p>
 
-The final client package is [release/Arvectum-Proxy-Launcher-Windows.zip](release/Arvectum-Proxy-Launcher-Windows.zip).
+---
 
-- ZIP SHA256: `C7E1CE047A274F309E3C9A7AF5CE82526161276070752AFD5CFFF35201AA6117`
-- EXE SHA256: `E5044CE284A8B1FFEA2EB2288597CD338B7B248967E2FF8440D1C4A51367B1E5`
+## О проекте
 
-Unpack the archive and run `install.bat`. The installer places the application in `Documents\ArvectumProxyLauncher`, which is compatible with the Device Guard policy verified during acceptance.
+**Arvectum Proxy Launcher** — графическое приложение для управления системным прокси без ручного редактирования сетевых настроек операционной системы.
 
-Proxy credentials and runtime data are intentionally not versioned. Configure the upstream proxy on first launch.
+Launcher принимает данные внешнего proxy-сервера, поднимает локальные HTTP и SOCKS5 endpoints, формирует PAC-конфигурацию и автоматически применяет её к системе.
 
-## Development
+Адреса, добавленные в `no_proxy`, направляются напрямую, минуя внешний прокси.
 
-Run `build_exe.bat` on Windows to compile and test the one-file EXE. The `tests/` directory contains proxy-core regression tests.
+Приложение также сохраняет исходное состояние сетевых настроек перед их изменением и позволяет восстановить его при выключении прокси, сбое или удалении Launcher.
 
-Интерфейс для управления системным прокси, с проверкой и настройкой исключений
+> Arvectum Proxy Launcher не предоставляет собственный VPN или proxy-сервис. Для работы необходим доступ к внешнему proxy-серверу.
 
+---
 
-## macOS and Linux releases
-- [release/windows-proxy-macos.zip](release/windows-proxy-macos.zip)
-- [release/windows-proxy-linux.zip](release/windows-proxy-linux.zip)
+## Возможности
 
-Unpack and run `install.command` (macOS) or `install.sh` (Linux).
+* управление системным прокси через графический интерфейс;
+* Windows, macOS и Linux;
+* локальный HTTP proxy;
+* локальный SOCKS5 proxy;
+* автоматическая PAC-конфигурация;
+* поддержка внешних proxy-серверов с авторизацией;
+* несколько upstream-прокси с последовательным failover;
+* управление исключениями `no_proxy`;
+* автоматический обход localhost и локальных сетей;
+* применение изменений `no_proxy` без перезапуска;
+* проверка внешнего IP и доступности соединения;
+* журнал работы и диагностика;
+* автозапуск прокси при входе в систему;
+* резервное копирование исходных сетевых настроек;
+* безопасное восстановление системной конфигурации;
+* recovery-механизм после сбоя или перезагрузки.
+
+---
+
+## Как это работает
+
+```text
+┌─────────────────────────┐
+│      Приложения ОС      │
+│ браузер · Telegram · API│
+└────────────┬────────────┘
+             │
+         System PAC
+             │
+             ▼
+┌─────────────────────────┐
+│ Arvectum Proxy Launcher │
+│                         │
+│ HTTP    127.0.0.1:8080  │
+│ SOCKS5  127.0.0.1:1080  │
+│ PAC     127.0.0.1:8082  │
+└────────────┬────────────┘
+             │
+       ┌─────┴─────┐
+       │           │
+       ▼           ▼
+   no_proxy      Остальной
+    DIRECT         трафик
+       │           │
+       ▼           ▼
+    Интернет    Upstream proxy
+                       │
+                       ▼
+                    Интернет
+```
+
+По умолчанию напрямую обрабатываются:
+
+```text
+localhost
+127.0.0.1
+::1
+*.local
+10.*
+192.168.*
+```
+
+Пользовательские исключения можно добавлять и удалять через интерфейс Launcher.
+
+---
+
+## Поддерживаемые платформы
+
+| Платформа | Системная интеграция    | Статус |
+| --------- | ----------------------- | ------ |
+| Windows   | WinINET / PAC           | ✅      |
+| macOS     | `networksetup` / PAC    | ✅      |
+| Linux     | GNOME `gsettings` / PAC | ✅      |
+
+> Поддержка Linux в текущей реализации ориентирована на окружения, использующие `gsettings`, в первую очередь GNOME.
+
+---
+
+## Установка
+
+### Windows
+
+Готовый архив находится в каталоге [`release`](release/):
+
+[`Arvectum-Proxy-Launcher-Windows.zip`](release/Arvectum-Proxy-Launcher-Windows.zip)
+
+1. Скачайте и распакуйте архив.
+2. Запустите `install.bat`.
+3. Откройте **Arvectum Proxy Launcher**.
+4. Укажите внешний proxy-сервер.
+5. Нажмите **«Включить прокси»**.
+6. Выполните проверку соединения.
+
+Установщик размещает приложение в пользовательском каталоге и создаёт ярлык.
+
+### macOS
+
+Архив для macOS находится в [`release`](release/).
+
+После распаковки:
+
+```bash
+chmod +x install.command
+./install.command
+```
+
+Исходники и конфигурация устанавливаются в:
+
+```text
+~/Library/Application Support/ArvectumProxyLauncher
+```
+
+### Linux
+
+После распаковки архива:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+Приложение устанавливается в пользовательский каталог:
+
+```text
+~/.local/share/
+```
+
+---
+
+## Первый запуск
+
+### 1. Настройте внешний прокси
+
+Откройте:
+
+**Настройки прокси → Добавить**
+
+Укажите:
+
+* IP-адрес или hostname;
+* порт;
+* логин;
+* пароль.
+
+Можно добавить несколько серверов. Launcher будет использовать их по порядку и переключаться на следующий при невозможности установить соединение.
+
+### 2. Настройте исключения
+
+Откройте:
+
+**Исключения (`no_proxy`)**
+
+Добавьте сервисы, которые должны работать напрямую.
+
+Например:
+
+```text
+example.local
+api.example.com
+127.0.0.1
+192.168.*
+```
+
+Можно вставлять URL целиком — Launcher нормализует адрес автоматически.
+
+### 3. Включите прокси
+
+Нажмите:
+
+**Включить прокси**
+
+Launcher запустит локальный proxy-engine и применит PAC к системным настройкам.
+
+### 4. Проверьте соединение
+
+Кнопка **«Проверить»** позволяет проверить текущий внешний IP через указанный URL.
+
+---
+
+## Восстановление сети
+
+Перед изменением системного прокси Launcher сохраняет исходную сетевую конфигурацию.
+
+При штатном выключении прокси исходные настройки восстанавливаются.
+
+Если произошёл сбой, используйте:
+
+**Восстановить настройки сети**
+
+Также в поставку входят отдельные recovery-скрипты:
+
+```text
+restore_network.bat    Windows
+restore_network.sh     macOS / Linux
+```
+
+Не удаляйте recovery-файлы вручную, если восстановление сети ещё не завершено.
+
+---
+
+## Безопасность
+
+Arvectum Proxy Launcher изменяет системную сетевую конфигурацию, поэтому механизмы восстановления являются частью основной архитектуры приложения.
+
+### Credentials
+
+В текущей версии настройки upstream-прокси хранятся локально в:
+
+```text
+proxy_settings.json
+```
+
+В том числе файл может содержать логин и пароль proxy-сервера.
+
+Поэтому:
+
+* не публикуйте свой `proxy_settings.json`;
+* не добавляйте реальные credentials в Issues или запросы на слияние;
+* не отправляйте диагностические материалы без предварительной проверки на наличие секретов.
+
+Усиление механизма локального хранения credentials планируется отдельно.
+
+### Сообщение об уязвимости
+
+Не создавайте публичный Issue для ещё не исправленной уязвимости.
+
+Используйте приватный адрес:
+
+**[security@arvectum.com](mailto:security@arvectum.com)**
+
+Полная политика безопасности:
+
+[`SECURITY.md`](.gitverse/SECURITY.md)
+
+---
+
+## Структура проекта
+
+```text
+Proxy-launcher/
+├── assets/                  # фирменная графика и иконки
+├── release/                 # готовые сборки
+├── tests/                   # автоматические тесты
+├── .gitverse/               # community-файлы и CI/CD
+│
+├── proxy_gui.py             # графический интерфейс
+├── proxy_core.py            # proxy-engine и системная интеграция
+├── proxy_settings.json      # настройки proxy
+├── no_proxy.txt             # пользовательские исключения
+│
+├── build_exe.bat            # сборка Windows
+├── build_macos.command      # сборка macOS
+├── build_linux.sh           # сборка Linux
+│
+├── install.bat
+├── install.command
+├── install.sh
+│
+├── restore_network.bat
+├── restore_network.sh
+│
+├── README.md
+└── LICENSE
+```
+
+---
+
+## Запуск из исходников
+
+Требуется **Python 3** с Tkinter.
+
+```bash
+python proxy_gui.py
+```
+
+Proxy-engine также можно запускать отдельно:
+
+```bash
+python proxy_core.py --start
+python proxy_core.py --status
+python proxy_core.py --stop
+```
+
+---
+
+## Проверка кода
+
+Компиляционная проверка:
+
+```bash
+python -m py_compile proxy_core.py proxy_gui.py
+```
+
+Запуск тестов:
+
+```bash
+python -m unittest -v tests.test_proxy_core
+```
+
+Изменения, затрагивающие системный proxy или recovery, должны дополнительно проверяться непосредственно на соответствующей операционной системе.
+
+---
+
+## Сборка
+
+### Windows
+
+```text
+build_exe.bat
+```
+
+Скрипт выполняет:
+
+1. `py_compile`;
+2. автоматические тесты;
+3. проверку PyInstaller;
+4. сборку one-file EXE.
+
+Результат:
+
+```text
+dist/Arvectum Proxy Launcher.exe
+```
+
+### macOS
+
+```bash
+chmod +x build_macos.command
+./build_macos.command
+```
+
+### Linux
+
+```bash
+chmod +x build_linux.sh
+./build_linux.sh
+```
+
+Сборки создаются с помощью PyInstaller.
+
+---
+
+## Участие в разработке
+
+Предложения, сообщения об ошибках и запросы на слияние приветствуются.
+
+Перед отправкой изменений ознакомьтесь с:
+
+* [`CONTRIBUTING.md`](.gitverse/CONTRIBUTING.md)
+* [`CODE_OF_CONDUCT.md`](.gitverse/CODE_OF_CONDUCT.md)
+* [`SECURITY.md`](.gitverse/SECURITY.md)
+
+Для ошибок, не связанных с безопасностью, используйте Issues GitVerse.
+
+---
+
+## Лицензия
+
+Проект распространяется на условиях **MIT License**.
+
+См. [`LICENSE`](LICENSE).
+
+---
+
+## Arvectum
+
+**Arvectum Proxy Launcher** — проект компании **ООО «Арвектум»**.
+
+Сайт: [arvectum.com](https://arvectum.com)
+
+---
+
+<p align="center">
+  <strong>ARVECTUM</strong><br>
+  Инструменты для автоматизации и безопасной работы с данными
+</p>
