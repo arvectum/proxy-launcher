@@ -20,12 +20,38 @@ See [RELEASE_POLICY.md](RELEASE_POLICY.md) for canonical release, versioning, ta
 
 ## Build and test
 
+### Canonical Windows Clean Build
+
+Prerequisites: Windows x64 with Python 3.12.10 x64.
+
+To run a fully isolated, clean, reproducible build:
+
+PowerShell (pwsh):
+```powershell
+pwsh -NoProfile -File .\tools\clean_build_windows.ps1
+```
+
+Windows PowerShell:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\clean_build_windows.ps1
+```
+
+Or via compatibility wrapper:
+```cmd
+build_exe.bat
+```
+
+Build outputs:
+* `out/Arvectum-Proxy-Launcher-0.2.3-windows-x64-portable.zip` — canonical portable package
+* `out/SHA256SUMS.txt` — external SHA-256 package checksum manifest
+* `out/build-result.json` — build metadata and provenance manifest
+
+### Source Testing
+
 ```powershell
 python -m py_compile proxy_core.py proxy_gui.py
 python -m unittest discover -s tests -v
 ```
-
-On Windows, run `build_exe.bat` to build the portable executable. CI builds the portable artifact, validates a copy launched from the canonical Documents path, verifies SHA-256, and uploads the ZIP as a GitHub Actions artifact.
 
 ## Configuration and recovery
 
