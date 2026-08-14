@@ -159,7 +159,8 @@ class ReleaseScriptTests(unittest.TestCase):
     def test_release_version_is_visible_in_gui(self):
         core_text = self.read("proxy_core.py")
         gui_text = self.read("proxy_gui.py")
-        self.assertIn('APP_VERSION = "0.2.3 P0.2"', core_text)
+        self.assertIn('APP_VERSION = "0.2.3"', core_text)
+        self.assertIn('ENGINEERING_MILESTONE = "P0.2"', core_text)
         self.assertIn('APP_VERSION = core.APP_VERSION', gui_text)
         self.assertIn('ARVECTUM · %s · arvectum.com', gui_text)
 

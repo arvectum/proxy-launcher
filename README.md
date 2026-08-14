@@ -4,9 +4,19 @@ Arvectum Proxy Launcher is a local proxy launcher with a Windows graphical clien
 
 ## Current canonical status
 
-Windows **0.2.3 P0.2** is the verified release track. It uses a canonical executable handoff in `%USERPROFILE%\Documents\ArvectumProxyLauncher`, keeps mutable state in `%LOCALAPPDATA%\Arvectum\ProxyLauncher`, protects saved upstream passwords with current-user Windows DPAPI, and includes rollback/recovery and process-ownership safeguards.
+Windows **0.2.3** is the verified release track. It uses a canonical executable handoff in `%USERPROFILE%\Documents\ArvectumProxyLauncher`, keeps mutable state in `%LOCALAPPDATA%\Arvectum\ProxyLauncher`, protects saved upstream passwords with current-user Windows DPAPI, and includes rollback/recovery and process-ownership safeguards.
 
 macOS and Linux scripts and packaging assets are retained for further integration. They are not currently CI-verified against the Windows 0.2.3 safety architecture, so they must not be represented as production-ready releases.
+
+## Versioning and releases
+
+See [RELEASE_POLICY.md](RELEASE_POLICY.md) for canonical release, versioning, tag, artifact naming, and checksum policies.
+
+* **Current product version:** `0.2.3` (canonical SemVer).
+* **Engineering milestone:** `P0.2` (internal planning milestone, not part of the product version).
+* **Verified platform track:** Windows `0.2.3` is verified; macOS and Linux remain in progress.
+* **Release distribution:** Official releases are published to **GitHub Releases**.
+* **CI artifacts:** GitHub Actions builds provide QA and pre-release verification packages.
 
 ## Build and test
 
