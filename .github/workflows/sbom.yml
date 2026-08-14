@@ -1,0 +1,118 @@
+name: SBOM
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cyclonedx-sbom:
+    name: CycloneDX SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up build Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version-file: BUILD_PYTHON_VERSION
+
+      - name: Install CycloneDX SBOM generator
+        run: python -m pip install --disable-pip-version-check --no-cache-dir cyclonedx-bom==7.3.1
+
+      - name: Generate validated reproducible CycloneDX SBOM
+        run: |
+          set -euo pipefail
+          mkdir -p sbom
+          cyclonedx-py requirements requirements-build.lock.txt \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file sbom/arvectum-proxy-launcher-build.cdx.json \
+            --output-reproducible \
+            --validate
+
+      - name: Verify SBOM covers locked build dependencies
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          lock_path = Path('requirements-build.lock.txt')
+          sbom_path = Path('sbom/arvectum-proxy-launcher-build.cdx.json')
+
+          def normalize(name: str) -> str:
+              return re.sub(r'[-_.]+', '-', name).lower()
+
+          expected = {}
+          for raw in lock_path.read_text(encoding='utf-8').splitlines():
+              line = raw.strip()
+              if not line or line.startswith('#'):
+                  continue
+              match = re.fullmatch(r'([A-Za-z0-9_.-]+)==([^\s;]+)', line)
+              if not match:
+                  raise SystemExit(f'Unsupported lock entry for SBOM verification: {line!r}')
+              expected[normalize(match.group(1))] = match.group(2)
+
+          document = json.loads(sbom_path.read_text(encoding='utf-8'))
+          if document.get('bomFormat') != 'CycloneDX':
+              raise SystemExit('SBOM bomFormat is not CycloneDX')
+          if document.get('specVersion') != '1.6':
+              raise SystemExit(f"Unexpected CycloneDX specVersion: {document.get('specVersion')!r}")
+
+          components = {}
+          for component in document.get('components', []):
+              name = component.get('name')
+              version = component.get('version')
+              if name and version:
+                  components[normalize(name)] = str(version)
+
+          missing = []
+          mismatched = []
+          for name, version in expected.items():
+              actual = components.get(name)
+              if actual is None:
+                  missing.append(f'{name}=={version}')
+              elif actual != version:
+                  mismatched.append(f'{name}: expected {version}, got {actual}')
+
+          if missing or mismatched:
+              if missing:
+                  print('Missing locked components:', ', '.join(missing))
+              if mismatched:
+                  print('Version mismatches:', '; '.join(mismatched))
+              raise SystemExit(1)
+
+          print(f'SBOM verification PASS: {len(expected)} locked components covered')
+          PY
+
+      - name: Create SBOM checksum
+        run: |
+          cd sbom
+          sha256sum arvectum-proxy-launcher-build.cdx.json > arvectum-proxy-launcher-build.cdx.json.sha256
+          sha256sum -c arvectum-proxy-launcher-build.cdx.json.sha256
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0
+        with:
+          name: arvectum-proxy-launcher-sbom-${{ github.sha }}
+          path: |
+            sbom/arvectum-proxy-launcher-build.cdx.json
+            sbom/arvectum-proxy-launcher-build.cdx.json.sha256
+          if-no-files-found: error
+          retention-days: 30
