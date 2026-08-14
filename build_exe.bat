@@ -16,7 +16,7 @@ exit /b 1
 
 :python_ready
 echo [1/4] Compiling sources...
-%PY_CMD% -m py_compile proxy_core.py proxy_gui.py
+%PY_CMD% -m py_compile proxy_core.py proxy_gui.py tests\test_proxy_core.py tests\test_release_scripts.py
 if errorlevel 1 (
     echo Python compile check failed. Build aborted.
     pause
@@ -24,7 +24,7 @@ if errorlevel 1 (
 )
 
 echo [2/4] Running unit tests...
-%PY_CMD% -m unittest -v tests.test_proxy_core
+%PY_CMD% -m unittest discover -v
 if errorlevel 1 (
     echo Tests failed. Build aborted.
     pause
@@ -45,9 +45,9 @@ if errorlevel 1 (
 
 echo [4/4] Building one-file EXE...
 %PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name "Arvectum Proxy Launcher" ^
+    --version-file "version_info.txt" ^
     --icon "assets\arvectum.ico" ^
     --add-data "no_proxy.txt;." ^
-    --add-data "proxy_settings.json;." ^
     --add-data "assets;assets" ^
     proxy_gui.py
 

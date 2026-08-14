@@ -1,60 +1,29 @@
-============================================
-Arvectum Proxy Launcher (Windows)
-============================================
+Arvectum Proxy Launcher 0.2.3 P0.2
+====================================
 
-РЕКОМЕНДУЕМАЯ КЛИЕНТСКАЯ УСТАНОВКА
-  1) В папке поставки должны лежать:
-       * Arvectum Proxy Launcher.exe
-       * install.bat
-       * uninstall.bat
-       * restore_network.bat
-       * INSTALL.txt
-  2) Двойной клик по install.bat.
-     EXE будет скопирован в:
-       %LOCALAPPDATA%\ArvectumProxyLauncher
-     На рабочем столе появится ярлык.
-  3) В открывшемся окне введите внешний прокси:
-       IP/host, порт, логин, пароль
-  4) Нажмите «Включить прокси», затем «Проверить».
-  5) Только после успешной проверки при необходимости включите
-     «Запускать прокси при входе в Windows».
+WINDOWS PORTABLE INSTALLATION
 
-ВАЖНО
-  * Автозапуск НЕ включается установщиком до настройки upstream.
-  * При включении приложение сохраняет исходные WinINET-настройки и
-    HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY; при выключении восстанавливает их.
-  * Пока proxy включён, приложение ставит временный recovery-autostart в HKCU Run.
-    Он нужен для защиты после reboot/crash и удаляется при нормальном выключении.
-  * Исключения no_proxy применяются в PAC и внутри локального HTTP/SOCKS proxy.
-    Добавление/удаление исключений также синхронизирует активный NO_PROXY.
-  * Логин/пароль upstream пока хранятся локально в proxy_settings.json открытым
-    текстом. Для частной доверенной поставки это текущее ограничение.
-  * Неподписанный EXE может вызвать SmartScreen/Unknown publisher.
+1. Download a Windows artifact from GitHub Releases or GitHub Actions.
+2. Unpack it into a separate folder and start the supplied launcher/install helper.
+3. The launcher uses the canonical executable location:
+     %USERPROFILE%\Documents\ArvectumProxyLauncher
+4. Persistent configuration, logs, and recovery data are stored in:
+     %LOCALAPPDATA%\Arvectum\ProxyLauncher
 
-АВАРИЙНОЕ ВОССТАНОВЛЕНИЕ
-  * В приложении: «Восстановить сеть».
-  * Либо запустите restore_network.bat из папки поставки.
-  * Если recovery сообщает ошибку, НЕ удаляйте папку
-      %LOCALAPPDATA%\ArvectumProxyLauncher
-    и не удаляйте proxy_*_backup.json вручную. Повторите восстановление и
-    сохраните proxy_core.log для диагностики.
+USAGE
 
-УДАЛЕНИЕ
-  * Запустите uninstall.bat.
-  * Uninstaller сначала подтверждает успешное восстановление сети.
-  * Если rollback не завершён, удаление отменяется и recovery-файлы сохраняются.
+1. Open the launcher and configure the upstream proxy.
+2. Enable the proxy and confirm connectivity.
+3. Enable autostart only after a successful check.
 
-СБОРКА ИЗ ИСХОДНИКОВ
-  build_exe.bat выполняет py_compile + 16 unit/smoke tests, затем собирает
-  one-file EXE через PyInstaller.
-  Итог:
-    dist\Arvectum Proxy Launcher.exe
+SAFETY AND RECOVERY
 
+* Installation never enables autostart before an upstream is configured.
+* Upstream passwords use current-user Windows DPAPI and are not stored in plaintext.
+* Before changing WinINET and proxy environment settings, the launcher preserves the existing state and will retain recovery data if rollback is incomplete.
+* Use the launcher’s recovery UI first. `restore_network.bat` is an emergency helper when the launcher is unavailable.
+* Do not delete state or recovery files manually while proxy operation or recovery is in progress.
 
-=== MACOS / LINUX INSTALLATION ===
+MACOS / LINUX
 
-1. Unpack the zip archive.
-2. Open Terminal.
-3. Run: ./install.command (macOS) or ./install.sh (Linux).
-4. The application will be installed in 'Library/Application Support' (macOS) or '.local/share' (Linux).
-5. Autostart will be configured if selected in the UI.
+The repository retains macOS/Linux scripts for continued development, but the Windows 0.2.3 safety architecture has not been validated on those platforms. They are not production release instructions at this time.

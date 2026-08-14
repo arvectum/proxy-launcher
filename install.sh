@@ -21,7 +21,6 @@ if [ -d assets ]; then
     cp -f assets/* "$APP_DIR/assets/" 2>/dev/null
 fi
 [ -f "$APP_DIR/no_proxy.txt" ]        || cp -f no_proxy.txt "$APP_DIR/" 2>/dev/null
-[ -f "$APP_DIR/proxy_settings.json" ] || cp -f proxy_settings.json "$APP_DIR/" 2>/dev/null
 echo "        Готово."
 
 # ---------- 2. Python + Tkinter ----------

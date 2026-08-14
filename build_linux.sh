@@ -12,7 +12,6 @@ fi
 "$PY" -m PyInstaller --noconfirm --clean --onefile --windowed \
     --name "Arvectum Proxy Launcher" \
     --add-data "no_proxy.txt:." \
-    --add-data "proxy_settings.json:." \
     --add-data "assets:assets" \
     --exclude-module "distutils" \
     proxy_gui.py

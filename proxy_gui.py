@@ -29,7 +29,10 @@ import proxy_core as core
 # ---------------------------------------------------------------------------
 
 APP_NAME = "Arvectum Proxy Launcher"
-TASK_NAME = "ArvectumProxyLauncher"
+APP_VERSION = core.APP_VERSION
+TASK_NAME = "ArvectumProxyLauncher"  # legacy scheduled-task name
+AUTOSTART_RUN_VALUE = "ArvectumProxyLauncher"
+AUTOSTART_RUN_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 NAVY = "#001432"          # Deep Navy
 MINT = "#00C8A0"          # Mint Primary
@@ -59,6 +62,8 @@ def setup_brand(root):
     B["font_bold"] = (body, 10, "bold")
     B["font_small"] = (body, 9)
     B["font_h"] = (body, 12, "bold")
+    B["font_brand"] = (body, 20, "bold")
+    B["font_section"] = (body, 10, "bold")
     B["font_mono"] = (mono, 9)
     B["font_mono_bold"] = (mono, 10, "bold")
     B["title"] = body
@@ -82,6 +87,14 @@ def setup_brand(root):
               background=[("disabled", DISABLED_BG), ("active", MINT_LIGHT), ("pressed", "#00B893")],
               foreground=[("disabled", DISABLED_FG)],
               bordercolor=[("disabled", DISABLED_BG), ("active", MINT_LIGHT)])
+
+    style.configure("Navy.TButton",
+                    background=NAVY, foreground=WHITE, bordercolor=NAVY,
+                    focuscolor=WHITE, relief="flat", padding=(14, 8), font=B["font_bold"])
+    style.map("Navy.TButton",
+              background=[("disabled", DISABLED_BG), ("active", GRAPHITE), ("pressed", "#000C20")],
+              foreground=[("disabled", DISABLED_FG)],
+              bordercolor=[("disabled", DISABLED_BG), ("active", GRAPHITE)])
 
     style.configure("Ghost.TButton",
                     background=WHITE, foreground=NAVY, bordercolor=SOFT_GRAY,
@@ -204,113 +217,44 @@ def _run_headless(mode):
     )
 
 
+def _portable_fallback_active():
+    """True while a frozen GUI remains on a non-canonical executable.
+
+    A failed canonical handoff must not make the already-running portable GUI
+    unusable, and must never redirect autostart to an executable whose launch
+    was not confirmed.
+    """
+    if not (os.name == "nt" and getattr(sys, "frozen", False)):
+        return False
+    try:
+        current = os.path.normcase(os.path.realpath(sys.executable))
+        canonical = os.path.normcase(os.path.realpath(core.stable_app_exe()))
+        return current != canonical
+    except Exception:
+        return True
+
+
 def _autostart_target():
     if getattr(sys, "frozen", False):
-        return '"%s"' % os.path.realpath(sys.executable) + " --start"
+        if _portable_fallback_active():
+            raise RuntimeError(
+                "Автозапуск временно недоступен: постоянная копия Launcher "
+                "не была подтверждена как запускаемая Windows. Текущий portable "
+                "Launcher можно использовать вручную."
+            )
+        target = core.managed_executable()
+        if not target:
+            raise RuntimeError(core.self_heal_error() or "Не удалось подготовить постоянную копию Launcher.")
+        return '"%s" --start' % target
     return '"%s" "%s" --start' % (sys.executable, os.path.join(core.app_dir(), "proxy_core.py"))
 
 
 def _header_title(root, title):
-    """Тёмная шапка окна (Deep Navy) с белым заголовком и мятной линией."""
-    hdr = tk.Frame(root, bg=NAVY)
-    tk.Label(hdr, text=title, bg=NAVY, fg=WHITE, font=B["font_h"]).pack(
-        side="left", padx=16, pady=(12, 8))
-    tk.Label(hdr, text=APP_NAME.upper(), bg=NAVY, fg=MINT, font=B["font_mono_bold"]).pack(
-        side="right", padx=16, pady=(12, 8))
+    """Однотонная фирменная шапка без декоративных линий."""
+    hdr = tk.Frame(root, bg=NAVY, padx=16, pady=12)
+    tk.Label(hdr, text=title, bg=NAVY, fg=WHITE, font=B["font_h"]).pack(side="left")
+    tk.Label(hdr, text=APP_NAME, bg=NAVY, fg=MINT, font=B["font_bold"]).pack(side="right")
     hdr.pack(fill="x")
-    tk.Frame(root, bg=MINT, height=3).pack(fill="x")
-
-
-def _launch_agent_path():
-    return os.path.expanduser("~/Library/LaunchAgents/com.arvectum.proxylauncher.plist")
-
-
-def _autostart_desktop_path():
-    return os.path.expanduser("~/.config/autostart/arvectum-proxy.desktop")
-
-
-def _autostart_command():
-    """Команда (argv) автозапуска прокси-движка при входе в систему."""
-    if getattr(sys, "frozen", False):
-        return [os.path.realpath(sys.executable), "--start"]
-    return [sys.executable, os.path.join(core.app_dir(), "proxy_core.py"), "--start"]
-
-
-def _enable_launch_agent():
-    path = _launch_agent_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    cmd = _autostart_command()
-    plist = (
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
-        "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
-        "<plist version=\"1.0\">\n<dict>\n"
-        "    <key>Label</key>\n    <string>com.arvectum.proxylauncher</string>\n"
-        "    <key>ProgramArguments</key>\n    <array>\n"
-        + "".join("        <string>%s</string>\n" % a.replace("&", "&amp;")
-                  .replace("<", "&lt;").replace(">", "&gt;") for a in cmd)
-        + "    </array>\n"
-        "    <key>RunAtLoad</key>\n    <true/>\n"
-        "    <key>ProcessType</key>\n    <string>Background</string>\n"
-        "</dict>\n</plist>\n"
-    )
-    with io.open(path, "w", encoding="utf-8") as f:
-        f.write(plist)
-    _launchctl_load(path)
-
-
-def _disable_launch_agent():
-    path = _launch_agent_path()
-    if os.path.exists(path):
-        _launchctl_unload(path)
-        try:
-            os.remove(path)
-        except Exception:
-            pass
-
-
-def _launchctl_load(path):
-    try:
-        subprocess.run(["launchctl", "unload", path], capture_output=True)
-    except Exception:
-        pass
-    try:
-        subprocess.run(["launchctl", "load", path], capture_output=True)
-    except Exception:
-        pass
-
-
-def _launchctl_unload(path):
-    try:
-        subprocess.run(["launchctl", "unload", path], capture_output=True)
-    except Exception:
-        pass
-
-
-def _enable_autostart_desktop():
-    path = _autostart_desktop_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    cmd = _autostart_command()
-    exec_args = " ".join('"%s"' % a if " " in a else a for a in cmd)
-    desktop = (
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=Arvectum Proxy Launcher\n"
-        "Comment=Autostart Arvectum proxy on login\n"
-        "Exec=%s\n"
-        "Terminal=false\n"
-        "X-GNOME-Autostart-enabled=true\n" % exec_args
-    )
-    with io.open(path, "w", encoding="utf-8") as f:
-        f.write(desktop)
-
-
-def _disable_autostart_desktop():
-    try:
-        os.remove(_autostart_desktop_path())
-    except Exception:
-        pass
-
 
 
 class SettingsDialog(tk.Toplevel):
@@ -595,79 +539,142 @@ class Launcher:
         core._ensure_local_files()
         setup_brand(root)
         self._images = []
+        self._recovery_prompt_shown = False
         self._set_window_icon()
 
-        # ---------- шапка: логотип Arvectum ----------
-        banner = _load_photo("arvectum-banner.png", "arvectum-banner.gif")
-        if banner:
-            self._images.append(banner)
-            tk.Label(root, image=banner, bg=NAVY).pack(fill="x")
-        tk.Frame(root, bg=MINT, height=3).pack(fill="x")
+        # ---------- фирменная шапка ----------
+        # Не используем растровый banner: заголовок должен быть частью UI,
+        # а не картинкой. По брендбуку: PT Sans Bold, Mint на Deep Navy.
+        header = tk.Frame(root, bg=NAVY, padx=20, pady=16)
+        header.pack(fill="x")
+        tk.Label(
+            header, text=APP_NAME, bg=NAVY, fg=MINT,
+            font=B["font_brand"], anchor="w").pack(side="left")
+        tk.Label(
+            header, text="Windows · %s" % APP_VERSION, bg=NAVY, fg=MINT_LIGHT,
+            font=B["font_small"]).pack(side="right", pady=(5, 0))
 
-        body = tk.Frame(root, bg=WHITE, padx=18, pady=16)
+        body = tk.Frame(root, bg=WHITE, padx=20, pady=18)
         body.pack(fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=1)
 
-        # ---------- статус ----------
-        self.chip = tk.Label(body, text="", bg=SOFT_GRAY, fg=NAVY,
-                             font=B["font_bold"], padx=12, pady=5, cursor="hand2")
-        self.chip.grid(row=0, column=0, sticky="w")
+        # ---------- состояние ----------
+        status_card = tk.Frame(
+            body, bg=WHITE, padx=14, pady=12,
+            highlightbackground=SOFT_GRAY, highlightthickness=1)
+        status_card.grid(row=0, column=0, sticky="ew")
+        status_card.grid_columnconfigure(0, weight=1)
+
+        status_top = tk.Frame(status_card, bg=WHITE)
+        status_top.grid(row=0, column=0, sticky="ew")
+        tk.Label(
+            status_top, text="Состояние", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).pack(side="left")
+        self.chip = tk.Label(
+            status_top, text="", bg=SOFT_GRAY, fg=NAVY,
+            font=B["font_bold"], padx=12, pady=5)
+        self.chip.pack(side="right")
 
         current = core.load_settings()
-        ports_text = "HTTP  127.0.0.1:%s    ·    SOCKS5  127.0.0.1:%s    ·    PAC  127.0.0.1:%s" % (
+        ports_text = "HTTP 127.0.0.1:%s    ·    SOCKS5 127.0.0.1:%s    ·    PAC 127.0.0.1:%s" % (
             current.get("local_http_port", 8080), current.get("local_socks_port", 1080),
             current.get("local_pac_port", 8082))
-        tk.Label(body, text=ports_text,
-                 bg=WHITE, fg=GRAPHITE, font=B["font_mono"]).grid(
-            row=1, column=0, sticky="w", pady=(8, 14))
+        tk.Label(
+            status_card, text=ports_text, bg=WHITE, fg=GRAPHITE,
+            font=B["font_mono"]).grid(row=1, column=0, sticky="w", pady=(8, 0))
 
-        # ---------- кнопки управления ----------
+        self.status_hint = tk.Label(
+            status_card, text="", bg=MINT_SOFT, fg=NAVY, font=B["font_small"],
+            justify="left", anchor="w", padx=10, pady=7)
+        self.status_hint.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        self.status_hint.grid_remove()
+
+        # ---------- основные действия ----------
+        tk.Label(
+            body, text="Управление", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).grid(row=1, column=0, sticky="w", pady=(16, 7))
+
         row1 = tk.Frame(body, bg=WHITE)
         row1.grid(row=2, column=0, sticky="ew")
-        self.btn_on = ttk.Button(row1, text="Включить прокси", style="Mint.TButton", command=self.on)
+        self.btn_on = ttk.Button(
+            row1, text="Включить прокси", style="Mint.TButton", command=self.on)
         self.btn_on.pack(side="left", padx=(0, 6))
-        self.btn_off = ttk.Button(row1, text="Выключить прокси", style="Mint.TButton", command=self.off)
+        self.btn_off = ttk.Button(
+            row1, text="Выключить прокси", style="Navy.TButton", command=self.off)
         self.btn_off.pack(side="left", padx=6)
-        ttk.Button(row1, text="Проверить", style="Ghost.TButton", command=self.check).pack(side="left", padx=6)
+        self.btn_check = ttk.Button(
+            row1, text="Проверить соединение", style="Ghost.TButton", command=self.check)
+        self.btn_check.pack(side="left", padx=6)
+        self.btn_orphan_pac = ttk.Button(
+            row1, text="Удалить старый PAC и продолжить", style="Mint.TButton",
+            command=self.clear_orphaned_pac)
 
-        # ---------- адрес для проверки ----------
+        # ---------- URL диагностики ----------
         check_row = tk.Frame(body, bg=WHITE)
         check_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        tk.Label(check_row, text="URL для проверки:", bg=WHITE, fg=GRAPHITE,
-                 font=B["font_small"]).pack(side="left", padx=(0, 6))
-        self.check_url_var = tk.StringVar(value="https://api.ipify.org")
-        check_entry = tk.Entry(check_row, textvariable=self.check_url_var, width=34,
-                               bg=WHITE, fg=NAVY, relief="solid", bd=1,
-                               insertbackground=GRAPHITE, font=B["font_mono"])
-        check_entry.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            check_row, text="URL проверки", bg=WHITE, fg=GRAPHITE,
+            font=B["font_small"]).pack(side="left", padx=(0, 8))
+        self.check_url_var = tk.StringVar(value="https://arvectum.com")
+        check_entry = tk.Entry(
+            check_row, textvariable=self.check_url_var, width=38,
+            bg=WHITE, fg=NAVY, relief="solid", bd=1,
+            insertbackground=GRAPHITE, font=B["font_mono"])
+        check_entry.pack(side="left", fill="x", expand=True, ipady=3)
         _bind_clipboard_paste(check_entry)
 
-        row2 = tk.Frame(body, bg=WHITE)
-        row2.grid(row=4, column=0, sticky="ew", pady=(10, 0))
-        ttk.Button(row2, text="Настройки прокси…", style="Ghost.TButton", command=self.settings).pack(
-            side="left", padx=(0, 6))
-        ttk.Button(row2, text="Исключения (no_proxy)…", style="Ghost.TButton",
-                   command=self.exceptions).pack(side="left", padx=6)
-        ttk.Button(row2, text="Журнал", style="Ghost.TButton", command=self.show_log).pack(side="left", padx=6)
-        ttk.Button(row2, text="Восстановить настройки сети", style="Ghost.TButton",
-                   command=self.restore_network).pack(side="left", padx=6)
+        # ---------- настройки и сервис ----------
+        tk.Label(
+            body, text="Настройки и сервис", bg=WHITE, fg=GRAPHITE,
+            font=B["font_section"]).grid(row=4, column=0, sticky="w", pady=(16, 7))
+
+        service = tk.Frame(body, bg=WHITE)
+        service.grid(row=5, column=0, sticky="ew")
+        service.grid_columnconfigure(0, weight=1)
+        left_tools = tk.Frame(service, bg=WHITE)
+        left_tools.grid(row=0, column=0, sticky="w")
+        ttk.Button(
+            left_tools, text="Настройки прокси…", style="Ghost.TButton",
+            command=self.settings).pack(side="left", padx=(0, 6))
+        ttk.Button(
+            left_tools, text="Исключения…", style="Ghost.TButton",
+            command=self.exceptions).pack(side="left", padx=6)
+        ttk.Button(
+            left_tools, text="Журнал", style="Ghost.TButton",
+            command=self.show_log).pack(side="left", padx=6)
+
+        self.btn_restore = ttk.Button(
+            service, text="Восстановить настройки сети", style="Ghost.TButton",
+            command=self.restore_network)
+        self.btn_restore.grid(row=0, column=1, sticky="e", padx=(12, 0))
 
         # ---------- автозапуск ----------
-        self.auto_var = tk.BooleanVar(value=self._autostart_enabled())
-        ttk.Checkbutton(body, text="Запускать прокси автоматически при входе в систему",
-                        variable=self.auto_var, command=self._toggle_autostart,
-                        style="Brand.TCheckbutton").grid(row=5, column=0, sticky="w", pady=(16, 0))
+        portable_fallback = _portable_fallback_active()
+        self.auto_var = tk.BooleanVar(
+            value=False if portable_fallback else self._autostart_enabled())
+        self.autostart_check = ttk.Checkbutton(
+            body, text="Запускать прокси при входе в Windows",
+            variable=self.auto_var, command=self._toggle_autostart,
+            style="Brand.TCheckbutton")
+        self.autostart_check.grid(row=6, column=0, sticky="w", pady=(16, 0))
+        if portable_fallback:
+            self.autostart_check.state(["disabled"])
 
-        tk.Label(body, text="При закрытии окна прокси продолжает работать.",
-                 bg=WHITE, fg=SOFT_GRAY, font=B["font_small"]).grid(
-            row=6, column=0, sticky="w", pady=(4, 0))
+        tk.Label(
+            body, text="Окно можно закрыть — запущенный proxy продолжит работать в фоне.",
+            bg=WHITE, fg=GRAPHITE, font=B["font_small"]).grid(
+            row=7, column=0, sticky="w", pady=(4, 0))
 
         # ---------- футер ----------
-        tk.Frame(body, bg=SOFT_GRAY, height=1).grid(row=7, column=0, sticky="ew", pady=(16, 8))
-        tk.Label(body, text="ARVECTUM · arvectum.com", bg=WHITE, fg=SOFT_GRAY,
-                 font=B["font_mono"]).grid(row=8, column=0, sticky="w")
+        tk.Frame(body, bg=SOFT_GRAY, height=1).grid(row=8, column=0, sticky="ew", pady=(16, 8))
+        tk.Label(
+            body, text="ARVECTUM · %s · arvectum.com" % APP_VERSION,
+            bg=WHITE, fg=DISABLED_FG, font=B["font_mono"]).grid(
+            row=9, column=0, sticky="w")
 
         self.refresh_status()
         self._maybe_first_run()
+        self.root.after(200, self._maybe_prompt_recovery)
 
     def _set_window_icon(self):
         try:
@@ -686,14 +693,16 @@ class Launcher:
 
     def refresh_status(self):
         running = core.is_running()
-        owned = core.owns_running_proxy()
         enabled = core.system_proxy_enabled()
         pending = core.network_restore_pending()
-        if running and enabled and not owned:
-            self.chip.config(text="  ДРУГОЙ ЭКЗЕМПЛЯР ПРОКСИ АКТИВЕН  ", bg=MINT_LIGHT, fg=NAVY)
-            self.btn_on.state(["disabled"])
-            self.btn_off.state(["disabled"])
-        elif running and enabled:
+        orphaned_pac = core.orphaned_arvectum_pac()
+
+        self.btn_check.state(["!disabled"])
+        self.btn_restore.state(["!disabled"])
+        self.btn_restore.configure(style="Ghost.TButton")
+        self.btn_orphan_pac.pack_forget()
+        self.status_hint.grid_remove()
+        if running and enabled:
             self.chip.config(text="  ПРОКСИ ВКЛЮЧЁН  ", bg=MINT, fg=NAVY)
             self.btn_on.state(["disabled"])
             self.btn_off.state(["!disabled"])
@@ -702,10 +711,35 @@ class Launcher:
             self.btn_on.state(["!disabled"])
             self.btn_off.state(["!disabled"])
         elif pending:
-            self.chip.config(text="  НУЖНО ВОССТАНОВИТЬ СЕТЬ  ", bg=MINT_LIGHT, fg=NAVY)
+            self.chip.config(text="  ТРЕБУЕТСЯ ВОССТАНОВЛЕНИЕ СЕТИ  ", bg=MINT_LIGHT, fg=NAVY)
+            self.status_hint.config(
+                text="Предыдущий сеанс proxy завершился некорректно. "
+                     "Сначала восстановите сеть, затем снова включите прокси.")
+            self.status_hint.grid()
             self.btn_on.state(["disabled"])
-            # Повторное «Выключить» безопасно повторяет rollback.
-            self.btn_off.state(["!disabled"])
+            self.btn_off.state(["disabled"])
+            self.btn_restore.configure(style="Mint.TButton")
+        elif orphaned_pac:
+            self.chip.config(text="  ОБНАРУЖЕН СТАРЫЙ PAC ARVECTUM  ", bg=MINT_LIGHT, fg=NAVY)
+            self.status_hint.config(
+                text="Windows использует локальный PAC Arvectum от предыдущего сеанса, "
+                     "но сам proxy engine не работает. Старую резервную копию найти "
+                     "не удалось. Можно безопасно удалить только неработающий PAC "
+                     "Arvectum, не изменяя остальные настройки Windows.")
+            self.status_hint.grid()
+            self.btn_on.state(["disabled"])
+            self.btn_off.state(["disabled"])
+            self.btn_check.state(["disabled"])
+            self.btn_orphan_pac.pack(side="left", padx=6)
+        elif core.stale_system_proxy():
+            self.chip.config(text="  ТРЕБУЕТСЯ ДИАГНОСТИКА СЕТИ  ", bg=MINT_LIGHT, fg=NAVY)
+            self.status_hint.config(
+                text="Windows всё ещё использует PAC Arvectum, но подтверждённый "
+                     "engine и резервная копия не найдены. Автоматический сброс "
+                     "небезопасен: откройте установленный Launcher или журнал.")
+            self.status_hint.grid()
+            self.btn_on.state(["disabled"])
+            self.btn_off.state(["disabled"])
         else:
             self.chip.config(text="  ВЫКЛЮЧЕН  ", bg=SOFT_GRAY, fg=NAVY)
             self.btn_on.state(["!disabled"])
@@ -713,19 +747,27 @@ class Launcher:
 
     # -- действия ------------------------------------------------------------
 
+    def _maybe_prompt_recovery(self):
+        if self._recovery_prompt_shown:
+            return
+        if core.is_running() or not core.network_restore_pending():
+            return
+        self._recovery_prompt_shown = True
+        if messagebox.askyesno(
+                APP_NAME,
+                "Предыдущий сеанс proxy завершился некорректно.\n\n"
+                "Чтобы Windows не осталась с устаревшими настройками proxy, "
+                "сначала нужно восстановить исходные настройки сети.\n\n"
+                "Восстановить сеть сейчас?",
+                icon="warning"):
+            self.restore_network(confirm=False)
+
     def on(self):
         s = core.load_settings()
         ok = any((u.get("host") or "").strip() for u in s.get("upstream") or [])
         if not ok:
             messagebox.showwarning(APP_NAME, "Сначала укажи IP/порт/логин/пароль внешнего прокси в «Настройки прокси».")
             self.settings()
-            return
-        if core.is_running() and not core.owns_running_proxy():
-            messagebox.showwarning(
-                APP_NAME,
-                "На этих localhost-портах уже работает другой экземпляр Launcher. "
-                "Откройте его для управления, не выключайте proxy из этой копии.")
-            self.refresh_status()
             return
         if core.is_running():
             if core.system_proxy_enabled():
@@ -747,8 +789,8 @@ class Launcher:
             messagebox.showinfo(
                 APP_NAME,
                 "Прокси подключен.\nСистемный proxy установлен.\n\n"
-                "Перезапустите приложения (браузеры, мессенджеры), чтобы "
-                "они подхватили новые настройки системного прокси.")
+                "Для корректной работы приложений через proxy полностью "
+                "закройте их через Диспетчер задач и запустите заново.")
         elif attempt < 40:
             # One-file PyInstaller + антивирус на первом запуске могут
             # стартовать заметно дольше нескольких секунд.
@@ -757,12 +799,6 @@ class Launcher:
             messagebox.showerror(APP_NAME, "Не удалось запустить прокси. Подробности в «Журнал».")
 
     def off(self):
-        if core.is_running() and not core.owns_running_proxy():
-            messagebox.showwarning(
-                APP_NAME,
-                "Этот экземпляр не владеет активным proxy и не будет менять его настройки.")
-            self.refresh_status()
-            return
         self._set_busy("Остановка…", SOFT_GRAY)
         _run_headless("--stop")
         self.root.after(250, self._after_stop)
@@ -779,24 +815,34 @@ class Launcher:
             messagebox.showerror(
                 APP_NAME,
                 "Прокси остановлен, но настройки сети восстановлены не полностью. "
-                "Не удаляйте приложение: нажмите «Восстановить сеть» ещё раз и проверьте «Журнал».")
+                "Не удаляйте приложение: нажмите «Восстановить настройки сети» ещё раз и проверьте «Журнал».")
         else:
             messagebox.showinfo(APP_NAME, "Прокси выключен, исходные настройки сети восстановлены.")
 
-    def restore_network(self):
-        if core.is_running() and not core.owns_running_proxy():
-            messagebox.showwarning(
+    def restore_network(self, confirm=True):
+        if confirm and not messagebox.askyesno(
                 APP_NAME,
-                "Этот экземпляр не владеет активным proxy и не будет выполнять rollback.")
-            self.refresh_status()
-            return
-        if not messagebox.askyesno(
-                APP_NAME,
-                "Восстановить настройки сети и остановить прокси?",
+                "Восстановить исходные настройки сети Windows и остановить proxy?",
                 icon="warning"):
             return
+        self._set_busy("Восстановление сети…", MINT_LIGHT)
         _run_headless("--rollback")
         self.root.after(250, self._after_restore_network)
+
+    def clear_orphaned_pac(self):
+        self._set_busy("Удаление старого PAC…", MINT_LIGHT)
+        if core.clear_orphaned_arvectum_pac():
+            self.refresh_status()
+            messagebox.showinfo(
+                APP_NAME,
+                "Старый PAC Arvectum удалён. Остальные настройки Windows не изменялись. "
+                "Теперь можно снова включить прокси.")
+        else:
+            self.refresh_status()
+            messagebox.showerror(
+                APP_NAME,
+                "Старый PAC не был удалён: состояние сети изменилось или ownership "
+                "не удалось подтвердить. См. «Журнал».")
 
     def _after_restore_network(self, attempt=0):
         still_active = core.is_running() or core.network_restore_pending()
@@ -812,11 +858,11 @@ class Launcher:
                 "Восстановление сети не завершено. Файлы резервной копии сохранены; "
                 "повторите восстановление и не удаляйте приложение до успешного результата.")
         else:
-            messagebox.showinfo(APP_NAME, "Настройки сети восстановлены. Proxy остановлен.")
+            messagebox.showinfo(APP_NAME, "Сеть восстановлена. Теперь можно снова включить прокси.")
 
     def _set_busy(self, text, color):
         self.chip.config(text="  %s  " % text, bg=color, fg=NAVY)
-        for b in (self.btn_on, self.btn_off):
+        for b in (self.btn_on, self.btn_off, self.btn_check, self.btn_restore, self.btn_orphan_pac):
             b.state(["disabled"])
 
     # -- проверка -------------------------------------------------------------
@@ -831,7 +877,20 @@ class Launcher:
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
         if not core.is_running():
-            messagebox.showinfo(APP_NAME, "Прокси не запущен.")
+            if core.network_restore_pending():
+                messagebox.showwarning(
+                    APP_NAME,
+                    "Предыдущий сеанс proxy завершился некорректно.\n\n"
+                    "Сначала нажмите «Восстановить настройки сети», дождитесь "
+                    "успешного восстановления и затем снова включите прокси.")
+            elif core.stale_system_proxy():
+                messagebox.showwarning(
+                    APP_NAME,
+                    "Windows использует PAC Arvectum, но этот Launcher не может "
+                    "доказать владение предыдущим сеансом. Автоматический сброс "
+                    "не выполняется, чтобы не повредить настройки сети.")
+            else:
+                messagebox.showinfo(APP_NAME, "Прокси не запущен. Нажмите «Включить прокси».")
             return
         self._set_busy("Проверка…", MINT_LIGHT)
         threading.Thread(target=self._do_check, args=(port, url), daemon=True).start()
@@ -876,7 +935,12 @@ class Launcher:
         dlg = SettingsDialog(self.root, settings)
         dlg.wait_window()
         if dlg.result:
-            core.save_settings(dlg.result)
+            if not core.save_settings(dlg.result):
+                messagebox.showerror(
+                    APP_NAME,
+                    "Не удалось безопасно сохранить настройки proxy. "
+                    "Пароль не записан в открытом виде. Подробности в «Журнал».")
+                return
             self._maybe_restart_after_settings()
 
     def _maybe_restart_after_settings(self):
@@ -911,7 +975,7 @@ class Launcher:
         path = core.log_path()
         if os.path.exists(path):
             try:
-                os.startfile(path) if os.name == "nt" else subprocess.run(["open", path] if core.is_macos() else ["xdg-open", path])
+                os.startfile(path) if os.name == "nt" else subprocess.run(["open", path])
             except Exception as e:
                 messagebox.showerror(APP_NAME, "Не удалось открыть журнал: %s" % e)
         else:
@@ -919,42 +983,123 @@ class Launcher:
 
     # -- автозапуск -------------------------------------------------------------
 
+    def _autostart_run_value(self):
+        """Return the per-user Run value, or None when it is absent/unreadable."""
+        if os.name != "nt":
+            return None
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH) as key:
+                value, _ = winreg.QueryValueEx(key, AUTOSTART_RUN_VALUE)
+                return str(value or "")
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return None
+
+    def _autostart_run_is_ours(self, value=None):
+        value = self._autostart_run_value() if value is None else value
+        if not value:
+            return False
+        return core.is_owned_arvectum_start_command(value)
+
+    def _autostart_task_xml(self):
+        try:
+            result = subprocess.run(
+                ["schtasks", "/Query", "/TN", TASK_NAME, "/XML"],
+                capture_output=True, text=True)
+            if result.returncode != 0:
+                return None
+            return result.stdout or ""
+        except Exception:
+            return None
+
+    def _autostart_task_is_ours(self, xml=None):
+        xml = self._autostart_task_xml() if xml is None else xml
+        if xml is None:
+            return False
+        if getattr(sys, "frozen", False):
+            identity = os.path.realpath(sys.executable)
+        else:
+            identity = os.path.realpath(os.path.join(core.app_dir(), "proxy_core.py"))
+        return identity.lower() in xml.lower()
+
     def _autostart_enabled(self):
-        if core.is_windows():
-            try:
-                result = subprocess.run(["schtasks", "/Query", "/TN", TASK_NAME], capture_output=True, text=True)
-                return result.returncode == 0
-            except Exception: return False
-        if core.is_macos(): return os.path.exists(_launch_agent_path())
-        if core.is_linux(): return os.path.exists(_autostart_desktop_path())
-        return False
+        # Current versions use HKCU\\...\\Run: no elevation is required and this
+        # works even when Task Scheduler creation is restricted by Windows policy.
+        return self._autostart_run_is_ours() or self._autostart_task_is_ours()
 
     def _toggle_autostart(self):
         if self.auto_var.get():
-            self._enable_autostart()
+            if not self._enable_autostart():
+                # A checkbutton flips its variable before invoking command.
+                # Keep the visible state truthful when enabling was refused
+                # (for example, a foreign task has the same name).
+                self.auto_var.set(False)
+                return
         else:
             self._disable_autostart()
         self.auto_var.set(self._autostart_enabled())
 
     def _enable_autostart(self):
+        settings = core.load_settings()
+        configured = any((u.get("host") or "").strip() for u in settings.get("upstream") or [])
+        if not configured:
+            messagebox.showwarning(APP_NAME, "Сначала настройте внешний прокси, затем включайте автозапуск.")
+            return False
+        if _portable_fallback_active():
+            self.auto_var.set(False)
+            messagebox.showwarning(
+                APP_NAME,
+                "Автозапуск временно недоступен: Windows не запустила "
+                "постоянную копию Launcher. Текущую portable-версию можно "
+                "использовать вручную; не переносите её и не удаляйте, пока "
+                "proxy работает."
+            )
+            return False
+        existing_run = self._autostart_run_value()
+        if existing_run is not None and not self._autostart_run_is_ours(existing_run):
+            self.auto_var.set(False)
+            messagebox.showerror(
+                APP_NAME,
+                "Запись автозапуска Windows с именем ArvectumProxyLauncher уже "
+                "принадлежит другой команде. Она не будет перезаписана.")
+            return False
+        existing_task = self._autostart_task_xml()
+        if existing_task is not None and not self._autostart_task_is_ours(existing_task):
+            self.auto_var.set(False)
+            messagebox.showerror(
+                APP_NAME,
+                "Задача Windows с именем ArvectumProxyLauncher уже существует, "
+                "но принадлежит другой команде. Она не будет перезаписана.")
+            return False
         try:
-            if core.is_windows():
-                target = _autostart_target()
-                result = subprocess.run(["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/TR", target, "/SC", "ONLOGON", "/RL", "LIMITED"], capture_output=True, text=True)
-                if result.returncode != 0: raise RuntimeError(result.stderr or result.stdout or "Access denied")
-            elif core.is_macos(): _enable_launch_agent()
-            elif core.is_linux(): _enable_autostart_desktop()
-            messagebox.showinfo(APP_NAME, "Автозапуск включен.")
+            target = _autostart_target()
+            import winreg
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH) as key:
+                winreg.SetValueEx(key, AUTOSTART_RUN_VALUE, 0, winreg.REG_SZ, target)
+            messagebox.showinfo(APP_NAME, "Прокси будет запускаться автоматически при входе в Windows.")
+            return True
         except Exception as e:
+            self.auto_var.set(False)
             messagebox.showerror(APP_NAME, "Не удалось включить автозапуск: %s" % e)
+            return False
 
     def _disable_autostart(self):
         try:
-            if core.is_windows():
-                subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME], capture_output=True, text=True)
-            elif core.is_macos(): _disable_launch_agent()
-            elif core.is_linux(): _disable_autostart_desktop()
-        except Exception: pass
+            import winreg
+            current = self._autostart_run_value()
+            if self._autostart_run_is_ours(current):
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_RUN_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                    winreg.DeleteValue(key, AUTOSTART_RUN_VALUE)
+                return
+            # Compatibility cleanup for tasks created by releases before RC2.1.
+            xml = self._autostart_task_xml()
+            if xml is not None and self._autostart_task_is_ours(xml):
+                subprocess.run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME],
+                               capture_output=True, text=True)
+        except Exception:
+            pass
 
     # -- прочее --------------------------------------------------------------------
 
@@ -969,6 +1114,13 @@ class Launcher:
 
 
 def main():
+    # A portable launch first tries the permanent Documents location.
+    # If Windows refuses that handoff, the already-running portable GUI remains
+    # a valid manual P0 fallback for the current session.
+    if core.handoff_to_stable_copy(sys.argv[1:]):
+        return 0
+    handoff_error = core.self_heal_error()
+    portable_fallback = _portable_fallback_active()
     if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):
         sys.argv = [sys.argv[0], sys.argv[1]]
         return core.main()
@@ -977,7 +1129,29 @@ def main():
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+    if not core._ensure_local_files():
+        return 1
+    if portable_fallback:
+        core._log(
+            "portable fallback active; Run entries left unchanged because "
+            "canonical execution was not confirmed"
+        )
+    else:
+        core.repair_portable_run_entries()
     root = tk.Tk()
+    if handoff_error:
+        messagebox.showerror(
+            APP_NAME,
+            handoff_error + "\n\nLauncher оставлен открытым из текущей папки. "
+            "Закройте старую копию приложения и повторите запуск.",
+        )
+    elif portable_fallback:
+        messagebox.showwarning(
+            APP_NAME,
+            "Не удалось запустить постоянную копию Launcher в Documents.\n\n"
+            "Текущая portable-версия продолжит работать в этом сеансе. "
+            "Автозапуск временно отключён: запускайте этот EXE вручную."
+        )
     app = Launcher(root)
     root.mainloop()
     return 0

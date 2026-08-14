@@ -1,0 +1,22 @@
+Arvectum Proxy Launcher 0.2.2 — Third-Party Notices
+=====================================================
+
+This notice covers components bundled by the Windows PyInstaller build.
+
+Python
+Copyright © Python Software Foundation. Licensed under the Python Software
+Foundation License, Version 2. See https://docs.python.org/3/license.html.
+
+Tcl/Tk
+Copyright © Tcl/Tk contributors. Tcl/Tk is distributed under a BSD-style
+license. See https://www.tcl.tk/software/tcltk/license.html.
+
+PyInstaller
+Copyright © PyInstaller Development Team. GPL-2.0-or-later with a special
+exception permitting distribution of bundled applications. See
+https://pyinstaller.org/en/stable/license.html.
+
+OpenSSL and libffi
+The build inventory did not identify standalone OpenSSL or libffi binaries in
+the one-file application payload. They are therefore not claimed as bundled
+components by this release.
