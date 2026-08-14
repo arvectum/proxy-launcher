@@ -204,12 +204,67 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertNotIn("& (Join-Path $SourceDir", text)
 
     @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
-    def test_inno_uninstall_uses_embedded_rollback_helper(self):
+    def test_inno_uninstall_uses_installed_rollback_helper(self):
         text = self.read("installer/ArvectumProxyLauncher.iss")
         helper = self.read("installer/uninstall_helper.ps1")
-        self.assertIn("uninstall_helper.ps1", text)
+        self.assertIn("RunInstalledUninstallHelper", text)
+        self.assertIn("InitializeUninstall(): Boolean", text)
+        self.assertIn("{app}\\uninstall_helper.ps1", text)
+        self.assertNotIn("RunEmbeddedHelper('uninstall_helper.ps1'", text)
+        self.assertNotIn("ExtractTemporaryFile('uninstall_helper.ps1')", text)
         self.assertIn("Network rollback", helper)
-        self.assertIn("--rollback", helper)
+        self.assertIn("Start-Process", helper)
+        self.assertIn("-PassThru", helper)
+        self.assertIn("-Wait", helper)
+        self.assertIn("$rollback.ExitCode", helper)
+
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_inno_uninstall_deletes_only_exact_owned_payload_files(self):
+        text = self.read("installer/ArvectumProxyLauncher.iss")
+        self.assertIn("[UninstallDelete]", text)
+        for name in ("Arvectum Proxy Launcher.exe", "Arvectum Proxy Launcher.exe.new", "Arvectum Proxy Launcher.exe.old", ".arvectum-install-owner"):
+            self.assertIn('Name: "{app}\\' + name + '"', text)
+
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_verified_payload_placement_is_in_primary_files_phase(self):
+        text = self.read("installer/ArvectumProxyLauncher.iss")
+        self.assertIn("AfterInstall: InstallVerifiedPayload", text)
+        install = text[text.index("procedure InstallVerifiedPayload"):text.index("procedure CurStepChanged")]
+        post_install = text[text.index("procedure CurStepChanged"):]
+        self.assertIn("RunEmbeddedHelper('upgrade_helper.ps1'", install)
+        self.assertIn("RaiseException(ErrorText)", install)
+        self.assertNotIn("RunEmbeddedHelper('upgrade_helper.ps1'", post_install)
+
+    def test_installer_workflow_waits_for_gui_processes(self):
+        text = self.read(".github/workflows/windows-installer.yml")
+        self.assertIn("Start-Process", text)
+        self.assertIn("-PassThru -Wait", text)
+        self.assertIn("$p.ExitCode", text)
+        self.assertNotIn("& $setup", text)
+        self.assertNotIn("& $exe --status", text)
+        self.assertNotIn("& $uninstaller", text)
+
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_upgrade_helper_hashing_is_independent_of_get_filehash_cmdlet(self):
+        text = self.read("installer/upgrade_helper.ps1")
+        self.assertIn("System.Security.Cryptography.SHA256", text)
+        self.assertNotIn("Get-FileHash", text)
+
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_upgrade_helper_initializes_gui_exit_code_under_strict_mode(self):
+        text = self.read("installer/upgrade_helper.ps1")
+        rollback = text[text.index("function Invoke-PreviousRollback"):text.index("try {\n  Write-InstallLog")]
+        self.assertIn("$global:LASTEXITCODE = 0", rollback)
+        self.assertLess(rollback.index("$global:LASTEXITCODE = 0"), rollback.index("& $ExistingExe --stop"))
+
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_uninstall_helper_waits_for_gui_rollback_under_strict_mode(self):
+        text = self.read("installer/uninstall_helper.ps1")
+        self.assertIn("Start-Process", text)
+        self.assertIn("-PassThru", text)
+        self.assertIn("-Wait", text)
+        self.assertIn("$rollback.ExitCode", text)
+        self.assertNotIn("& $exe --rollback", text)
 
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
