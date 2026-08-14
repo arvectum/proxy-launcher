@@ -1,0 +1,88 @@
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class ReleaseAutomationTests(unittest.TestCase):
+    def read(self, name: str) -> str:
+        return (ROOT / name).read_text(encoding="utf-8-sig")
+
+    def test_release_workflow_file_exists(self):
+        self.assertTrue((ROOT / ".github" / "workflows" / "release.yml").is_file())
+
+    def test_triggers_configuration(self):
+        workflow = self.read(".github/workflows/release.yml")
+        self.assertIn("push:", workflow)
+        self.assertIn("tags:", workflow)
+        self.assertIn("- 'v*.*.*'", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("pull_request:", workflow)
+        self.assertIn("branches:", workflow)
+        self.assertIn("- main", workflow)
+
+    def test_reusable_workflow_call_and_no_build_duplication(self):
+        windows_p0 = self.read(".github/workflows/windows-p0.yml")
+        release = self.read(".github/workflows/release.yml")
+
+        self.assertIn("workflow_call:", windows_p0)
+        self.assertIn("uses: ./.github/workflows/windows-p0.yml", release)
+        self.assertNotIn("PyInstaller", release)
+        self.assertNotIn("Documents execution smoke", release)
+
+    def test_permissions_are_least_privilege(self):
+        release = self.read(".github/workflows/release.yml")
+        # Global permissions must be read-only
+        top_perms = release.split("jobs:")[0]
+        self.assertIn("permissions:", top_perms)
+        self.assertIn("contents: read", top_perms)
+        self.assertNotIn("contents: write", top_perms)
+
+        # Publish job must be the only place with contents: write
+        publish_section = release.split("\n  publish:\n")[1]
+        self.assertIn("contents: write", publish_section)
+        self.assertNotIn("secrets.PAT", release)
+        self.assertNotIn("secrets.GITHUB_TOKEN", release)
+        self.assertIn("github.token", release)
+
+    def test_tag_equality_and_ancestry_and_ci_guards(self):
+        release = self.read(".github/workflows/release.yml")
+        self.assertIn('EXPECTED_TAG="v${VERSION}"', release)
+        self.assertIn('if [ "$TAG_NAME" != "$EXPECTED_TAG" ]', release)
+        self.assertIn("git merge-base --is-ancestor", release)
+        self.assertIn("origin/main", release)
+        self.assertIn('gh api "repos/${{ github.repository }}/actions/runs', release)
+        self.assertIn("Windows P0 portable", release)
+        self.assertIn('.conclusion == "success"', release)
+
+    def test_publish_job_structural_protection(self):
+        release = self.read(".github/workflows/release.yml")
+        publish_section = release.split("\n  publish:\n")[1]
+        self.assertIn("github.event_name == 'push'", publish_section)
+        self.assertIn("github.ref_type == 'tag'", publish_section)
+        self.assertIn("needs.validate.outputs.should_publish == 'true'", publish_section)
+
+    def test_download_artifact_and_public_checksum_and_gh_release_create(self):
+        release = self.read(".github/workflows/release.yml")
+        self.assertIn("actions/download-artifact@v4", release)
+        self.assertIn("sha256sum \"$ZIP_NAME\" > SHA256SUMS.txt", release)
+        self.assertIn("gh release create", release)
+        self.assertIn("--verify-tag", release)
+        self.assertIn("--generate-notes", release)
+        self.assertIn("--prerelease", release)
+        self.assertNotIn("--clobber", release)
+
+    def test_duplicate_release_guard(self):
+        release = self.read(".github/workflows/release.yml")
+        self.assertIn('gh release view "$TAG"', release)
+        self.assertIn('gh release view "$TAG_NAME"', release)
+
+    def test_workflow_dispatch_and_pr_cannot_publish(self):
+        release = self.read(".github/workflows/release.yml")
+        self.assertIn('echo "should_publish=false"', release)
+        self.assertIn("refs/heads/main", release)
+
+
+if __name__ == "__main__":
+    unittest.main()

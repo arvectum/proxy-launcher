@@ -1,0 +1,192 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/windows-p0.yml'
+      - 'VERSION'
+      - 'RELEASE_POLICY.md'
+      - 'tests/test_release_automation.py'
+      - 'tests/test_version_policy.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    name: Validate release context
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      expected_tag: ${{ steps.parse.outputs.expected_tag }}
+      artifact_name: ${{ steps.parse.outputs.artifact_name }}
+      zip_name: ${{ steps.parse.outputs.zip_name }}
+      prerelease: ${{ steps.parse.outputs.prerelease }}
+      should_publish: ${{ steps.parse.outputs.should_publish }}
+    steps:
+      - name: Checkout full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate VERSION and context
+        id: parse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f VERSION ]; then
+            echo "::error::VERSION file is missing"
+            exit 1
+          fi
+
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          SEMVER_REGEX='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          if [[ ! "$VERSION" =~ $SEMVER_REGEX ]]; then
+            echo "::error::VERSION '$VERSION' is not valid SemVer"
+            exit 1
+          fi
+
+          EXPECTED_TAG="v${VERSION}"
+          ARTIFACT_NAME="Arvectum-Proxy-Launcher-${VERSION}-windows-x64-portable"
+          ZIP_NAME="${ARTIFACT_NAME}.zip"
+
+          PRERELEASE="false"
+          if [[ "$VERSION" =~ - ]]; then
+            PRERELEASE="true"
+          fi
+
+          echo "Canonical product version: $VERSION"
+          echo "Expected tag: $EXPECTED_TAG"
+          echo "Prerelease: $PRERELEASE"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "expected_tag=${EXPECTED_TAG}" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+          # Evaluate trigger context and guards
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${{ github.ref_name }}"
+            if [ "$TAG_NAME" != "$EXPECTED_TAG" ]; then
+              echo "::error::Pushed tag '$TAG_NAME' does not match expected tag '$EXPECTED_TAG' for VERSION '$VERSION'"
+              exit 1
+            fi
+
+            # Check that tag commit is an ancestor of main
+            git fetch origin main --no-tags
+            if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+              echo "::error::Tag commit ${{ github.sha }} is not an ancestor of origin/main"
+              exit 1
+            fi
+
+            # Check prior green canonical main CI
+            RUNS_JSON="$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&branch=main&event=push" --jq '.workflow_runs')"
+            SUCCESSFUL_RUN="$(echo "$RUNS_JSON" | jq -e '.[] | select((.path == ".github/workflows/windows-p0.yml" or .name == "Windows P0 portable") and .conclusion == "success")' || true)"
+            if [ -z "$SUCCESSFUL_RUN" ]; then
+              echo "::error::Commit ${{ github.sha }} does not have a successful push run on main for Windows P0 portable"
+              exit 1
+            fi
+
+            # Check duplicate release
+            if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+              echo "::error::GitHub Release for tag '$TAG_NAME' already exists; immutable release policy forbids overwrite"
+              exit 1
+            fi
+
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+              echo "::error::workflow_dispatch dry-run is only permitted on refs/heads/main"
+              exit 1
+            fi
+            echo "Manual workflow_dispatch dry-run on main: validation PASSED (publish disabled)"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pull request validation: PASSED (publish disabled)"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build Windows portable
+    needs: validate
+    uses: ./.github/workflows/windows-p0.yml
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - validate
+      - build
+    if: github.event_name == 'push' && github.ref_type == 'tag' && needs.validate.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.validate.outputs.artifact_name }}
+          path: release-stage
+
+      - name: Verify artifact package and calculate public SHA256SUMS
+        run: |
+          set -euo pipefail
+          ZIP_NAME="${{ needs.validate.outputs.zip_name }}"
+          if [ ! -f "release-stage/${ZIP_NAME}" ]; then
+            echo "::error::Expected release package 'release-stage/${ZIP_NAME}' not found"
+            ls -la release-stage/
+            exit 1
+          fi
+
+          cd release-stage
+          sha256sum "$ZIP_NAME" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Guard against duplicate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.validate.outputs.expected_tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release '$TAG' already exists"
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.validate.outputs.expected_tag }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          PRERELEASE="${{ needs.validate.outputs.prerelease }}"
+          ZIP_NAME="${{ needs.validate.outputs.zip_name }}"
+
+          EXTRA_FLAGS=()
+          if [ "$PRERELEASE" = "true" ]; then
+            EXTRA_FLAGS+=("--prerelease" "--latest=false")
+          fi
+
+          gh release create "$TAG" \
+            "release-stage/${ZIP_NAME}" \
+            "release-stage/SHA256SUMS.txt" \
+            --title "Arvectum Proxy Launcher ${VERSION}" \
+            --verify-tag \
+            --generate-notes \
+            "${EXTRA_FLAGS[@]}"

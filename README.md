@@ -15,8 +15,8 @@ See [RELEASE_POLICY.md](RELEASE_POLICY.md) for canonical release, versioning, ta
 * **Current product version:** `0.2.3` (canonical SemVer).
 * **Engineering milestone:** `P0.2` (internal planning milestone, not part of the product version).
 * **Verified platform track:** Windows `0.2.3` is verified; macOS and Linux remain in progress.
-* **Release distribution:** Official releases are published to **GitHub Releases**.
-* **CI artifacts:** GitHub Actions builds provide QA and pre-release verification packages.
+* **Release distribution:** Official releases are created by release automation on verified SemVer tags (`vX.Y.Z`) and published to **GitHub Releases**.
+* **CI artifacts:** GitHub Actions builds provide QA and pre-release verification packages. Manual release workflow runs execute as dry-runs only.
 
 ## Build and test
 

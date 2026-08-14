@@ -49,7 +49,7 @@ Engineering milestones and backlog markers (such as `P0`, `P0.2`, `P0.4`, `RC2`,
 2. Release tags must point directly to a commit on `main` that has green CI status.
 3. If an issue is discovered after tagging/releasing, do not modify the tag; issue a new `PATCH` release.
 
-## 5. Canonical Release Pipeline
+## 5. Canonical Release Pipeline and Automation
 
 Canonical distribution flow:
 ```text
@@ -59,11 +59,21 @@ source change
   -> green CI
   -> version consistency validation
   -> Git tag (vX.Y.Z)
-  -> CI release build
-  -> SHA256SUMS.txt generation
-  -> GitHub Release
+  -> GitHub Release workflow (.github/workflows/release.yml)
+  -> canonical Windows build & smoke QA
+  -> public SHA256SUMS.txt generation
+  -> GitHub Release publication
 ```
 
+* **Workflow definition:** `.github/workflows/release.yml`.
+* **Real publication triggers:** Only pushes of matching SemVer tags (`v*.*.*`) can trigger publication.
+* **Tag consistency:** Pushed tag must strictly equal `v${VERSION}` (where `${VERSION}` is read from `VERSION`).
+* **Main ancestry:** Tagged commit must be an ancestor of `origin/main`.
+* **Prior green main CI:** Tagged commit must have a preceding successful push run on `main` for the canonical Windows workflow.
+* **Manual runs & PRs:** `workflow_dispatch` and `pull_request` triggers run validation and reusable Windows builds in safe dry-run mode and **never** publish releases.
+* **Assets published:** Canonical versioned Windows portable ZIP (`Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-portable.zip`) and external checksum manifest (`SHA256SUMS.txt`).
+* **Prerelease handling:** SemVer prerelease identifiers (e.g. `0.2.4-rc.1`) are automatically flagged as GitHub prereleases.
+* **Immutability:** Existing GitHub Releases cannot be overwritten or clobbered (`--clobber` is prohibited). Duplicate release attempts fail.
 * **Developer workstation builds:** Binaries built on developer workstations are strictly for local testing and debugging. They are not canonical release artifacts.
 * **CI Artifacts vs. GitHub Releases:** GitHub Actions artifacts are temporary QA and pre-release test builds. GitHub Releases is the canonical public binary distribution channel.
 

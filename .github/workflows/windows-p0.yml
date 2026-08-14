@@ -11,6 +11,7 @@ on:
       - main
       - 'release/**'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build:
