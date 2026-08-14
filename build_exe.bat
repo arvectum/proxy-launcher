@@ -48,7 +48,6 @@ echo [4/4] Building one-file EXE...
     --version-file "version_info.txt" ^
     --icon "assets\arvectum.ico" ^
     --add-data "no_proxy.txt;." ^
-    --add-data "proxy_settings.json;." ^
     --add-data "assets;assets" ^
     proxy_gui.py
 

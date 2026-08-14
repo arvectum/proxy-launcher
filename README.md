@@ -1,65 +1,32 @@
-# Arvectum Proxy Launcher — Windows client
+# Arvectum Proxy Launcher
 
-Локальный Windows-прокси с графическим лаунчером. Приложение поднимает HTTP proxy, SOCKS5 и PAC на `127.0.0.1`, направляет обычный трафик через внешний HTTP proxy клиента и пропускает домены из `no_proxy.txt` напрямую.
+Arvectum Proxy Launcher is a local proxy launcher with a Windows graphical client. It exposes local HTTP, SOCKS5 and PAC endpoints and routes normal traffic through a configured upstream HTTP proxy; `no_proxy.txt` entries go direct.
 
-## Рекомендуемый сценарий поставки
+## Current canonical status
 
-Клиенту передаётся готовый `Arvectum Proxy Launcher.exe` вместе с `install.bat`, `uninstall.bat`, `uninstall.ps1`, `restore_network.bat` и `INSTALL.txt`. `install.bat` предпочитает EXE-версию, копирует её в `%USERPROFILE%\Documents\ArvectumProxyLauncher` и создаёт ярлык. Для готового EXE Python на клиентском компьютере не нужен.
+Windows **0.2.3 P0.2** is the verified release track. It uses a canonical executable handoff in `%USERPROFILE%\Documents\ArvectumProxyLauncher`, keeps mutable state in `%LOCALAPPDATA%\Arvectum\ProxyLauncher`, protects saved upstream passwords with current-user Windows DPAPI, and includes rollback/recovery and process-ownership safeguards.
 
-Автозапуск установщик намеренно не включает. Сначала нужно заполнить внешний proxy, включить его и проверить соединение; после этого автозапуск можно включить галочкой в GUI.
+macOS and Linux scripts and packaging assets are retained for further integration. They are not currently CI-verified against the Windows 0.2.3 safety architecture, so they must not be represented as production-ready releases.
 
-## Порты по умолчанию
+## Build and test
 
-- HTTP proxy: `127.0.0.1:8080`
-- SOCKS5: `127.0.0.1:1080`
-- PAC: `http://127.0.0.1:8082/proxy.pac`
-
-## Исправления release-candidate
-
-- `no_proxy` применяется не только в PAC, но и внутри HTTP/SOCKS движка. Исключения работают для клиентов, которые используют `HTTP_PROXY/HTTPS_PROXY` или локальный SOCKS и игнорируют PAC.
-- Доменное сопоставление гранично-безопасно: `zakupki.gov.ru` и его поддомены совпадают, `evilzakupki.gov.ru` — нет.
-- Изменение списка исключений синхронизирует активный `NO_PROXY`; удалённое исключение не остаётся «залипшим» до перезапуска. Исходный пользовательский `NO_PROXY` при этом сохраняется.
-- Перед изменением WinINET требуется корректная резервная копия. Если backup создать нельзя, системный proxy не включается.
-- На время работы PAC устанавливается `ProxyEnable=0`, поэтому старый ручной `ProxyServer` пользователя не включается параллельно с PAC. Исходное значение потом восстанавливается.
-- Пользовательские `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` резервируются и восстанавливаются.
-- Остановка больше не делает безусловный `taskkill /F` по старому PID. PID хранится вместе с Windows process creation time; при несовпадении или невозможности подтвердить идентичность процесс не завершается.
-- `is_running()` проверяет собственный PAC endpoint, а не просто занятый TCP-порт.
-- Запуск без настроенного upstream завершается до изменения сети.
-- Пока proxy включён, создаётся временный recovery-autostart в `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. Он защищает от reboot/crash, когда PAC мог бы остаться на localhost без работающего core. При нормальном выключении запись удаляется.
-- CLI `--stop`/`--rollback` теперь возвращает ошибку, если WinINET/env восстановлены не полностью.
-- `uninstall.bat` не удаляет приложение и backup-файлы, пока rollback не подтверждён как успешный. Это защищает от потери recovery-данных при сбое восстановления сети.
-- Установщик и uninstaller используют owner marker каталога установки и проверку reparse-point/имени каталога перед рекурсивным удалением.
-- GUI показывает незавершённый rollback как отдельное состояние, выделяет восстановление сети, объясняет следующий шаг при «Проверить» и предлагает recovery сразу при открытии приложения.
-- Исправлены имена EXE, пути helper BAT и проверки `errorlevel` в CMD-скриптах.
-- Cold-start ожидание увеличено, чтобы one-file PyInstaller/антивирус не давали ложную ошибку на первом запуске.
-- `build_exe.bat` выполняет compile gate и unit tests до PyInstaller.
-
-## Исключения
-
-`no_proxy.txt` содержит по одному домену/маске на строку. Всегда напрямую идут как минимум `localhost`, `127.0.0.1`, `::1`, `*.local`, `10.*`, `192.168.*`. Домены можно добавлять/удалять через GUI; PAC, внутренний HTTP/SOCKS router и активный `NO_PROXY` обновляются без перезапуска.
-
-## Проверка исходников
-
-```bat
-py -3 -m py_compile proxy_core.py proxy_gui.py
-py -3 -m unittest -v tests.test_proxy_core
+```powershell
+python -m py_compile proxy_core.py proxy_gui.py
+python -m unittest discover -s tests -v
 ```
 
-Проверки качества выполняются перед каждой release-сборкой.
+On Windows, run `build_exe.bat` to build the portable executable. CI builds the portable artifact, validates a copy launched from the canonical Documents path, verifies SHA-256, and uploads the ZIP as a GitHub Actions artifact.
 
-Сборка:
+## Configuration and recovery
 
-```bat
-build_exe.bat
-```
+User runtime configuration is created on first use under LocalAppData and is deliberately excluded from Git. No `proxy_settings.json` is bundled in source or CI artifacts. The application supplies safe defaults programmatically; enter upstream host and credentials in the GUI. Passwords are stored through DPAPI, never as plaintext settings on Windows.
 
-`build_exe.bat` сам выполняет compile/test gates и прерывает сборку при ошибке.
+Do not manually remove recovery files while the proxy is active. Use the launcher’s recovery action or `restore_network.bat` if the GUI is unavailable.
 
-## Ограничения текущей частной сборки
+## Releases
 
-- Upstream host/port остаются обычными настройками. Логин и пароль на Windows сохраняются единым `credentials_dpapi` blob (Windows DPAPI, current-user scope). Если DPAPI не может защитить credentials, приложение не записывает их открытым текстом.
-- Code signing в исходном комплекте не выполняется. Неподписанный EXE может получить SmartScreen/Unknown publisher. Это не исправляется Python-патчем: для релиза без предупреждений нужен сертификат подписи кода и подписанный installer/EXE.
-- Failover между несколькими upstream сейчас в первую очередь транспортный: если TCP-соединение с первым upstream установилось, но сам proxy вернул 407/5xx, автоматический переход на следующий upstream не гарантирован. Для текущей поставки с одним рабочим upstream это не блокер; для публичного multi-proxy режима нужен отдельный hardening.
-- WinHTTP-level proxy (`netsh winhttp`) не меняется. Приложения, которые игнорируют WinINET/PAC и proxy environment, могут требовать отдельной интеграции.
+The `release/` directory contains only supporting documentation. Obtain executables from GitHub Releases or CI artifacts; historical ZIPs remain reachable through Git history but are not canonical release inputs.
 
-Финальный EXE обязательно собирать и принимать на реальной Windows-машине: Linux/macOS не могут подтвердить поведение WinINET, `schtasks`, PyInstaller Windows bootloader и точный rollback реестра.
+## License and contribution
+
+See [LICENSE](LICENSE), [SECURITY](SECURITY), [CONTRIBUTING](CONTRIBUTING), and [CODE_OF_CONDUCT](CODE_OF_CONDUCT).
