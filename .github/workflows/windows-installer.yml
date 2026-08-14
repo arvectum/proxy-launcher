@@ -6,6 +6,10 @@ on:
     branches: [main, 'release/**']
   workflow_dispatch:
   workflow_call:
+    outputs:
+      artifact_name:
+        description: Canonical installer artifact name
+        value: ${{ jobs.installer.outputs.artifact_name }}
 jobs:
   installer:
     runs-on: windows-latest

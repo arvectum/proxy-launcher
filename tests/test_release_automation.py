@@ -31,6 +31,22 @@ class ReleaseAutomationTests(unittest.TestCase):
         self.assertNotIn("PyInstaller", release)
         self.assertNotIn("Documents execution smoke", release)
 
+    def test_installer_reusable_workflow_exports_artifact_name(self):
+        installer = self.read(".github/workflows/windows-installer.yml")
+        release = self.read(".github/workflows/release.yml")
+
+        workflow_call = installer.split("\n  workflow_call:\n", 1)[1].split("\njobs:\n", 1)[0]
+        self.assertIn("outputs:", workflow_call)
+        self.assertIn("artifact_name:", workflow_call)
+        self.assertIn(
+            "value: ${{ jobs.installer.outputs.artifact_name }}",
+            workflow_call,
+        )
+        self.assertIn(
+            "name: ${{ needs.installer.outputs.artifact_name }}",
+            release,
+        )
+
     def test_permissions_are_least_privilege(self):
         release = self.read(".github/workflows/release.yml")
         # Global permissions must be read-only
