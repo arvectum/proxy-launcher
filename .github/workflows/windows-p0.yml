@@ -3,12 +3,12 @@ name: Windows P0 portable
 on:
   push:
     branches:
-      - master
+      - main
       - 'release/**'
       - 'fix/**'
   pull_request:
     branches:
-      - master
+      - main
       - 'release/**'
   workflow_dispatch:
 

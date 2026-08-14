@@ -3,13 +3,13 @@ name: Простой пример использования GitVerse CI/CD
 # Управляет триггерами запуска workflow
 on:
 
-  # Запускает workflow при пушах или пул реквестах, но только для ветки master
+  # Запускает workflow при пушах или пул реквестах, но только для ветки main
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
   # Позволяет запускать этот workflow вручную c вкладки CI/CD
   workflow_dispatch:
