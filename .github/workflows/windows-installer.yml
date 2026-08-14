@@ -29,11 +29,13 @@ jobs:
         shell: pwsh
         run: |
           $setup = '${{ steps.installer.outputs.setup_path }}'
-          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-fresh.log
+          if ($LASTEXITCODE) { Get-Content installer-fresh.log; throw 'fresh installer failed' }
           $exe = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe'
           if (-not (Test-Path -LiteralPath $exe)) { throw 'fresh install did not create installed EXE' }
           & $exe --status; if ($LASTEXITCODE) { throw 'fresh install status failed' }
-          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-upgrade.log
+          if ($LASTEXITCODE) { Get-Content installer-upgrade.log; throw 'upgrade installer failed' }
           & $exe --status; if ($LASTEXITCODE) { throw 'upgrade status failed' }
           $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
           & $uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART

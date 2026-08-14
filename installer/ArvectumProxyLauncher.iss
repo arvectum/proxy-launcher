@@ -30,6 +30,7 @@ CloseApplications=no
 ; All required files are compiled into the setup executable; no portable folder is consulted at install time.
 Source: "{#PayloadDir}\Arvectum Proxy Launcher.exe"; Flags: dontcopy
 Source: "{#PayloadDir}\build_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PayloadDir}\build_manifest.json"; Flags: dontcopy
 Source: "{#PayloadDir}\upgrade_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\uninstall_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\upgrade_helper.ps1"; Flags: dontcopy
