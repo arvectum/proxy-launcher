@@ -31,6 +31,7 @@ jobs:
           function Dump-InstallerDiagnostics {
             if (Test-Path installer-fresh.log) { Get-Content installer-fresh.log }
             if (Test-Path installer-upgrade.log) { Get-Content installer-upgrade.log }
+            if (Test-Path installer-uninstall.log) { Get-Content installer-uninstall.log }
             $appLog = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher\install.log'
             if (Test-Path $appLog) { Get-Content $appLog }
           }
@@ -49,7 +50,8 @@ jobs:
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "upgrade status failed with exit code $($p.ExitCode)" }
           $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
-          $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -PassThru -Wait
+          $uninstallLog = Join-Path $PWD 'installer-uninstall.log'
+          $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$uninstallLog") -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "uninstaller failed with exit code $($p.ExitCode)" }
           if (Test-Path -LiteralPath $exe) { Dump-InstallerDiagnostics; throw 'uninstall did not remove installed EXE' }
       - uses: actions/upload-artifact@v4

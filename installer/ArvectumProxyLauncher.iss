@@ -34,8 +34,13 @@ Source: "{#PayloadDir}\build_manifest.json"; Flags: dontcopy
 Source: "{#PayloadDir}\upgrade_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\uninstall_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\upgrade_helper.ps1"; Flags: dontcopy
-Source: "{#PayloadDir}\uninstall_helper.ps1"; Flags: dontcopy
 Source: "..\INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
+
+[UninstallDelete]
+Type: files; Name: "{app}\Arvectum Proxy Launcher.exe"
+Type: files; Name: "{app}\Arvectum Proxy Launcher.exe.new"
+Type: files; Name: "{app}\Arvectum Proxy Launcher.exe.old"
+Type: files; Name: "{app}\.arvectum-install-owner"
 
 [Icons]
 Name: "{autoprograms}\Arvectum Proxy Launcher"; Filename: "{app}\Arvectum Proxy Launcher.exe"; WorkingDir: "{app}"
@@ -85,11 +90,29 @@ begin
   end;
 end;
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+function RunInstalledUninstallHelper(var ErrorText: String): Boolean;
+var
+  PowerShell, HelperPath: String;
+  ExitCode: Integer;
+begin
+  HelperPath := ExpandConstant('{app}\uninstall_helper.ps1');
+  if not FileExists(HelperPath) then begin
+    ErrorText := 'InstallFailure: installed uninstall helper is missing.';
+    Result := False;
+    exit;
+  end;
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Result := Exec(PowerShell, '-NoProfile -ExecutionPolicy Bypass -File "' + HelperPath + '" -InstallRoot "' + ExpandConstant('{app}') + '"', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  if (not Result) or (ExitCode <> 0) then begin
+    ErrorText := 'InstallFailure: installed uninstall helper failed with exit code ' + IntToStr(ExitCode);
+    Result := False;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
 var ErrorText: String;
 begin
-  if CurUninstallStep = usUninstall then begin
-    if not RunEmbeddedHelper('uninstall_helper.ps1', '-InstallRoot "' + ExpandConstant('{app}') + '"', ErrorText) then
-      RaiseException(ErrorText);
-  end;
+  Result := RunInstalledUninstallHelper(ErrorText);
+  if not Result then
+    MsgBox(ErrorText, mbError, MB_OK);
 end;
