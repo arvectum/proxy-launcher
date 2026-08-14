@@ -7,8 +7,8 @@ $LogPath = Join-Path $StateRoot 'install.log'
 New-Item -ItemType Directory -Force -Path $StateRoot | Out-Null
 function Write-InstallLog([string]$Message) { Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) $Message" -Encoding utf8 }
 function Get-Sha256([string]$Path) {
-  # Get-FileHash is not present on every Windows PowerShell host used by Setup.
-  # Use the .NET cryptography API so payload verification remains identical.
+  # Use the .NET cryptography API so payload verification is available on every
+  # Windows PowerShell host used by Setup.
   $sha256 = [System.Security.Cryptography.SHA256]::Create()
   try {
     $bytes = [IO.File]::ReadAllBytes($Path)
