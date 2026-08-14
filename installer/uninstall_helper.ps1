@@ -7,6 +7,7 @@ try {
   $exe = Join-Path $InstallRoot 'Arvectum Proxy Launcher.exe'
   if (Test-Path -LiteralPath $exe) {
     # Network rollback must complete before any destructive uninstall work.
+    $global:LASTEXITCODE = 0
     & $exe --rollback
     if ($LASTEXITCODE -ne 0) { throw 'Network rollback was not confirmed; uninstall stopped safely.' }
     Get-CimInstance Win32_Process -Filter "Name='Arvectum Proxy Launcher.exe'" | Where-Object { Test-ExactPath $_.ExecutablePath $exe } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }

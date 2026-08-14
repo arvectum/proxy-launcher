@@ -243,6 +243,11 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("$global:LASTEXITCODE = 0", rollback)
         self.assertLess(rollback.index("$global:LASTEXITCODE = 0"), rollback.index("& $ExistingExe --stop"))
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_uninstall_helper_initializes_gui_exit_code_under_strict_mode(self):
+        text = self.read("installer/uninstall_helper.ps1")
+        self.assertLess(text.index("$global:LASTEXITCODE = 0"), text.index("& $exe --rollback"))
+
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
         self.assertIn("ArvectumProxyLauncher'", text)
