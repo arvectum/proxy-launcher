@@ -19,7 +19,7 @@ Copy-Item -LiteralPath (Join-Path $root 'installer\uninstall_helper.ps1') -Desti
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 $manifest = [ordered]@{ product='Arvectum Proxy Launcher'; version=$version; platform='windows-x64'; format='setup'; source_commit=(git rev-parse HEAD).Trim(); application_sha256=(Hash (Join-Path $payload 'Arvectum Proxy Launcher.exe')); upgrade_helper_sha256=(Hash (Join-Path $payload 'upgrade_helper.ps1')); uninstall_helper_sha256=(Hash (Join-Path $payload 'uninstall_helper.ps1')) }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $payload 'build_manifest.json') -Encoding utf8
-if (-not $IsccPath) { $IsccPath = @("$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1 }
+if (-not $IsccPath) { $IsccPath = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1 }
 if (-not $IsccPath) { throw 'Inno Setup 6.7.1 ISCC.exe was not found.' }
 & $IsccPath "/DAppVersion=$version" "/DPayloadDir=$payload" 'installer\ArvectumProxyLauncher.iss'
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed' }
