@@ -47,6 +47,10 @@ _LEGACY_INSTALL_OWNER_VALUES = {"ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1"}
 _LAUNCHER_EXE_NAME = "Arvectum Proxy Launcher.exe"
 _USER_AUTOSTART_RUN_VALUE = "ArvectumProxyLauncher"
 _LAST_SELF_HEAL_ERROR = ""
+# SOCKS5 reply BND.ADDR field per RFC 1928. "0.0.0.0" here is protocol data
+# serialized into the response packet, not a socket bind to all interfaces,
+# so Bandit B104 (hardcoded_bind_all_interfaces) does not apply.
+_SOCKS5_REPLY_BIND_ADDR = socket.inet_aton("0.0.0.0")  # nosec B104
 
 
 def install_dir():
@@ -1744,7 +1748,7 @@ class ProxyCore:
                         continue
 
             if upstream is None:
-                client.sendall(b"\x05\x03\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+                client.sendall(b"\x05\x03\x00\x01" + _SOCKS5_REPLY_BIND_ADDR + struct.pack(">H", 0))
                 return
             if not host_bypasses_proxy(host):
                 resp = b""
@@ -1755,9 +1759,9 @@ class ProxyCore:
                     resp += chunk
                 if b"200" not in resp:
                     upstream.close()
-                    client.sendall(b"\x05\x03\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+                    client.sendall(b"\x05\x03\x00\x01" + _SOCKS5_REPLY_BIND_ADDR + struct.pack(">H", 0))
                     return
-            client.sendall(b"\x05\x00\x00\x01" + socket.inet_aton("0.0.0.0") + struct.pack(">H", 0))
+            client.sendall(b"\x05\x00\x00\x01" + _SOCKS5_REPLY_BIND_ADDR + struct.pack(">H", 0))
             self._relay(upstream, client, self._stop)
         except Exception:
             pass
