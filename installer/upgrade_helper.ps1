@@ -6,7 +6,17 @@ $StateRoot = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
 $LogPath = Join-Path $StateRoot 'install.log'
 New-Item -ItemType Directory -Force -Path $StateRoot | Out-Null
 function Write-InstallLog([string]$Message) { Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) $Message" -Encoding utf8 }
-function Get-Sha256([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Get-Sha256([string]$Path) {
+  # Get-FileHash is not present on every Windows PowerShell host used by Setup.
+  # Use the .NET cryptography API so payload verification remains identical.
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    ([BitConverter]::ToString($sha256.ComputeHash($bytes)) -replace '-', '').ToLowerInvariant()
+  } finally {
+    $sha256.Dispose()
+  }
+}
 function Test-ExactPath([string]$Candidate, [string]$Expected) { $Candidate -and ([IO.Path]::GetFullPath($Candidate) -ieq [IO.Path]::GetFullPath($Expected)) }
 function Stop-OwnedProcess([string]$Exe) {
   Get-CimInstance Win32_Process -Filter "Name='Arvectum Proxy Launcher.exe'" | Where-Object { Test-ExactPath $_.ExecutablePath $Exe } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }

@@ -230,6 +230,12 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertNotIn("& $exe --status", text)
         self.assertNotIn("& $uninstaller", text)
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_upgrade_helper_hashing_is_independent_of_get_filehash_cmdlet(self):
+        text = self.read("installer/upgrade_helper.ps1")
+        self.assertIn("System.Security.Cryptography.SHA256", text)
+        self.assertNotIn("Get-FileHash", text)
+
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
         self.assertIn("ArvectumProxyLauncher'", text)
