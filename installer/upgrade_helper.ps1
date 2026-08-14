@@ -30,6 +30,10 @@ function Assert-RecoverySafe {
 }
 function Invoke-PreviousRollback([string]$ExistingExe) {
   if (Test-Path -LiteralPath $ExistingExe) {
+    # GUI-subsystem launchers do not always create LASTEXITCODE in Windows
+    # PowerShell. Initialise it so StrictMode never mistakes a successful stop
+    # for an unbound-variable error.
+    $global:LASTEXITCODE = 0
     & $ExistingExe --stop
     if ($LASTEXITCODE -ne 0) { throw 'previous version did not complete network rollback' }
     Stop-OwnedProcess $ExistingExe
