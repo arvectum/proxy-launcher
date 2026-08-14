@@ -41,7 +41,7 @@ Name: "{autoprograms}\Arvectum Proxy Launcher"; Filename: "{app}\Arvectum Proxy 
 Name: "{autodesktop}\Arvectum Proxy Launcher"; Filename: "{app}\Arvectum Proxy Launcher.exe"; WorkingDir: "{app}"
 
 [Code]
-function RunEmbeddedHelper(const Helper, const Arguments: String; var ErrorText: String): Boolean;
+function RunEmbeddedHelper(const Helper, Arguments: String; var ErrorText: String): Boolean;
 var
   PowerShell, HelperPath: String;
   ExitCode: Integer;
