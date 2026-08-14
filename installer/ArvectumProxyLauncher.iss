@@ -28,7 +28,7 @@ CloseApplications=no
 
 [Files]
 ; All required files are compiled into the setup executable; no portable folder is consulted at install time.
-Source: "{#PayloadDir}\Arvectum Proxy Launcher.exe"; Flags: dontcopy
+Source: "{#PayloadDir}\Arvectum Proxy Launcher.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; AfterInstall: InstallVerifiedPayload
 Source: "{#PayloadDir}\build_manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\build_manifest.json"; Flags: dontcopy
 Source: "{#PayloadDir}\upgrade_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -61,13 +61,20 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  { The actual install occurs in the [Files] callback below. This event remains
+    intentionally side-effect free so silent mode and interactive mode share the
+    same verified placement path. }
+  Result := '';
+end;
+
+procedure InstallVerifiedPayload();
 var ErrorText: String;
 begin
-  Result := '';
-  { This is a pre-install veto point.  Do the verified transactional placement here,
-    rather than ssPostInstall, so a helper failure cannot be reported as Setup success. }
+  { Runs during the primary [Files] phase. RaiseException makes hash, ownership,
+    rollback, or transactional replacement failure abort Setup rather than report success. }
   if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '"', ErrorText) then
-    Result := ErrorText;
+    RaiseException(ErrorText);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
