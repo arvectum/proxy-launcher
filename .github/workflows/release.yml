@@ -10,10 +10,12 @@ on:
       - main
     paths:
       - '.github/workflows/release.yml'
+      - '.github/workflows/release-evidence.yml'
       - '.github/workflows/windows-p0.yml'
       - 'VERSION'
       - 'RELEASE_POLICY.md'
       - 'tests/test_release_automation.py'
+      - 'tests/test_release_evidence.py'
       - 'tests/test_version_policy.py'
 
 permissions:
@@ -102,6 +104,13 @@ jobs:
             SUCCESSFUL_INSTALLER_RUN="$(echo "$RUNS_JSON" | jq -e '.[] | select((.path == ".github/workflows/windows-installer.yml" or .name == "Windows installer") and .conclusion == "success")' || true)"
             if [ -z "$SUCCESSFUL_PORTABLE_RUN" ] || [ -z "$SUCCESSFUL_INSTALLER_RUN" ]; then
               echo "::error::Commit ${{ github.sha }} requires successful Windows P0 portable and Windows installer push CI"
+              exit 1
+            fi
+
+            EVIDENCE_RUNS_JSON="$(gh api "repos/${{ github.repository }}/actions/workflows/release-evidence.yml/runs?head_sha=${{ github.sha }}&branch=main&event=workflow_run&per_page=20" --jq '.workflow_runs')"
+            SUCCESSFUL_EVIDENCE_RUN="$(echo "$EVIDENCE_RUNS_JSON" | jq -e '.[] | select(.name == "Release Evidence Package" and .conclusion == "success")' || true)"
+            if [ -z "$SUCCESSFUL_EVIDENCE_RUN" ]; then
+              echo "::error::Commit ${{ github.sha }} requires a successful Release Evidence Package for the exact main SHA"
               exit 1
             fi
 

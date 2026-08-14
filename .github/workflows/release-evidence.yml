@@ -1,0 +1,289 @@
+name: Release Evidence Package
+
+on:
+  workflow_run:
+    workflows:
+      - SAST
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact main commit SHA to package evidence for; defaults to current ref
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    name: Package exact-SHA release evidence
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Resolve source SHA
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SOURCE_SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SOURCE_SHA="${{ inputs.source_sha }}"
+            if [ -z "$SOURCE_SHA" ]; then
+              SOURCE_SHA="${{ github.sha }}"
+            fi
+          fi
+          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::source_sha must be a full 40-character commit SHA"
+            exit 1
+          fi
+          echo "sha=${SOURCE_SHA,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Verify source commit belongs to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="${{ steps.source.outputs.sha }}"
+          git fetch origin main --no-tags
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+
+      - name: Collect exact-SHA workflow evidence
+        id: gates
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/gates
+
+          workflows=(
+            "windows-p0.yml|Windows P0 portable|required"
+            "windows-installer.yml|Windows installer|required"
+            "secret-scan.yml|Secret scan|optional"
+            "dependency-scan.yml|Dependency vulnerability scan|optional"
+            "sbom.yml|SBOM|required"
+            "sast.yml|SAST|required"
+          )
+
+          for item in "${workflows[@]}"; do
+            IFS='|' read -r workflow_file workflow_name artifact_policy <<< "$item"
+            selected=""
+
+            for attempt in $(seq 1 60); do
+              response="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs?head_sha=${SOURCE_SHA}&event=push&per_page=20")"
+              selected="$(jq -c --arg sha "$SOURCE_SHA" '
+                .workflow_runs
+                | map(select(.head_sha == $sha and .event == "push"))
+                | sort_by(.id)
+                | reverse
+                | .[0] // empty
+              ' <<< "$response")"
+
+              if [ -z "$selected" ]; then
+                sleep 5
+                continue
+              fi
+
+              status="$(jq -r '.status' <<< "$selected")"
+              conclusion="$(jq -r '.conclusion // ""' <<< "$selected")"
+              if [ "$status" != "completed" ]; then
+                sleep 5
+                continue
+              fi
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::${workflow_name} run for ${SOURCE_SHA} concluded '${conclusion}'"
+                exit 1
+              fi
+              break
+            done
+
+            if [ -z "$selected" ] || [ "$(jq -r '.status' <<< "$selected")" != "completed" ]; then
+              echo "::error::Timed out waiting for ${workflow_name} exact-SHA push evidence"
+              exit 1
+            fi
+
+            run_id="$(jq -r '.id' <<< "$selected")"
+            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+            if [ "$artifact_policy" = "required" ] && [ "$(jq '.artifacts | map(select(.expired == false)) | length' <<< "$artifacts")" -lt 1 ]; then
+              echo "::error::${workflow_name} run ${run_id} has no live evidence artifact"
+              exit 1
+            fi
+
+            jq -n \
+              --arg workflow_file "$workflow_file" \
+              --arg workflow_name "$workflow_name" \
+              --argjson run "$selected" \
+              --argjson artifacts "$artifacts" \
+              '{
+                workflow_file: $workflow_file,
+                workflow_name: $workflow_name,
+                run: {
+                  id: $run.id,
+                  run_attempt: $run.run_attempt,
+                  head_sha: $run.head_sha,
+                  head_branch: $run.head_branch,
+                  event: $run.event,
+                  status: $run.status,
+                  conclusion: $run.conclusion,
+                  html_url: $run.html_url,
+                  created_at: $run.created_at,
+                  updated_at: $run.updated_at
+                },
+                artifacts: (
+                  $artifacts.artifacts
+                  | map({
+                      id,
+                      name,
+                      size_in_bytes,
+                      digest,
+                      expired,
+                      created_at,
+                      expires_at
+                    })
+                )
+              }' > "evidence/gates/${workflow_file}.json"
+
+            case "$workflow_file" in
+              sbom.yml)
+                echo "sbom_run_id=$run_id" >> "$GITHUB_OUTPUT"
+                ;;
+              sast.yml)
+                echo "sast_run_id=$run_id" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
+          done
+
+          jq -s 'sort_by(.workflow_file)' evidence/gates/*.json > evidence/workflow-runs.json
+          rm -rf evidence/gates
+
+      - name: Download exact SBOM and SAST reports
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          SBOM_RUN_ID: ${{ steps.gates.outputs.sbom_run_id }}
+          SAST_RUN_ID: ${{ steps.gates.outputs.sast_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/sbom evidence/sast
+          gh run download "$SBOM_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "arvectum-proxy-launcher-sbom-${SOURCE_SHA}" \
+            --dir evidence/sbom
+          gh run download "$SAST_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "arvectum-proxy-launcher-sast-${SOURCE_SHA}" \
+            --dir evidence/sast
+
+      - name: Verify included scanner reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd evidence/sbom
+            sha256sum -c arvectum-proxy-launcher-build.cdx.json.sha256
+          )
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          sbom = json.loads(Path("evidence/sbom/arvectum-proxy-launcher-build.cdx.json").read_text(encoding="utf-8"))
+          if sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.6":
+              raise SystemExit("Unexpected SBOM format/specVersion")
+
+          bandit = json.loads(Path("evidence/sast/bandit.json").read_text(encoding="utf-8"))
+          rank = {"UNDEFINED": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+          blocking = [
+              item for item in bandit.get("results", [])
+              if rank.get(str(item.get("issue_severity", "")).upper(), 0) >= 2
+              and rank.get(str(item.get("issue_confidence", "")).upper(), 0) >= 2
+          ]
+          if blocking:
+              raise SystemExit(f"Bandit report contains {len(blocking)} blocking finding(s)")
+          print("Included SBOM and SAST reports verified")
+          PY
+
+      - name: Record source identity and immutable inputs
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          SOURCE_TREE="$(git rev-parse "${SOURCE_SHA}^{tree}")"
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          BUILD_PYTHON="$(tr -d '[:space:]' < BUILD_PYTHON_VERSION)"
+          GENERATED_UTC="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg source_sha "$SOURCE_SHA" \
+            --arg source_tree "$SOURCE_TREE" \
+            --arg version "$VERSION_VALUE" \
+            --arg build_python_version "$BUILD_PYTHON" \
+            --arg generated_utc "$GENERATED_UTC" \
+            --arg evidence_run_id "$GITHUB_RUN_ID" \
+            --arg evidence_run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{
+              schema_version: $schema_version,
+              repository: $repository,
+              source_sha: $source_sha,
+              source_tree: $source_tree,
+              version: $version,
+              build_python_version: $build_python_version,
+              generated_utc: $generated_utc,
+              evidence_workflow: "Release Evidence Package",
+              evidence_run_id: ($evidence_run_id | tonumber),
+              evidence_run_attempt: ($evidence_run_attempt | tonumber)
+            }' > evidence/manifest.json
+
+          sha256sum \
+            VERSION \
+            BUILD_PYTHON_VERSION \
+            requirements-build.lock.txt \
+            .github/workflows/windows-p0.yml \
+            .github/workflows/windows-installer.yml \
+            .github/workflows/secret-scan.yml \
+            .github/workflows/dependency-scan.yml \
+            .github/workflows/sbom.yml \
+            .github/workflows/sast.yml \
+            .github/workflows/release-evidence.yml \
+            > evidence/source-inputs.sha256
+
+      - name: Seal evidence package
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd evidence
+            find . -type f ! -name SHA256SUMS.txt -print0 \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS.txt
+            sha256sum -c SHA256SUMS.txt
+          )
+
+      - name: Upload release evidence package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: arvectum-proxy-launcher-release-evidence-${{ steps.source.outputs.sha }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 90
