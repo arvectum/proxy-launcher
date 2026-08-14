@@ -3,7 +3,7 @@
 ## 1. Canonical Repository and Sources
 
 * **Canonical source of truth:** GitHub repository [`arvectum/proxy-launcher`](https://github.com/arvectum/proxy-launcher).
-* **Canonical integration branch:** `master`.
+* **Canonical integration branch:** `main`.
 * **Mirrors:** External mirrors (e.g., GitVerse) are downstream mirrors and do not serve as an independent source of truth.
 * **Release binaries:** Pre-built binary archives (ZIP, EXE, DMG, tarball) committed directly into Git are historical artifacts only and are **not** canonical release distribution sources.
 
@@ -46,7 +46,7 @@ Engineering milestones and backlog markers (such as `P0`, `P0.2`, `P0.4`, `RC2`,
 
 **Tag Rules:**
 1. Release tags are **immutable**. Once published, a tag must never be moved or replaced.
-2. Release tags must point directly to a commit on `master` that has green CI status.
+2. Release tags must point directly to a commit on `main` that has green CI status.
 3. If an issue is discovered after tagging/releasing, do not modify the tag; issue a new `PATCH` release.
 
 ## 5. Canonical Release Pipeline
@@ -55,7 +55,7 @@ Canonical distribution flow:
 ```text
 source change
   -> Pull Request
-  -> master
+  -> main
   -> green CI
   -> version consistency validation
   -> Git tag (vX.Y.Z)
