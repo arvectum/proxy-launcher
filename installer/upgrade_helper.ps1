@@ -27,17 +27,22 @@ function Invoke-PreviousRollback([string]$ExistingExe) {
 }
 try {
   Write-InstallLog '=== INSTALL SESSION START'
+  Write-InstallLog "PayloadRoot: $PayloadRoot"
+  Write-InstallLog "InstallRoot: $InstallRoot"
   $manifest = Get-Content -LiteralPath (Join-Path $PayloadRoot 'build_manifest.json') -Raw | ConvertFrom-Json
   $payloadExe = Join-Path $PayloadRoot 'Arvectum Proxy Launcher.exe'
+  Write-InstallLog "payload EXE: $payloadExe"
   $embeddedHash = Get-Sha256 $payloadExe
   Write-InstallLog "embedded application expected SHA256: $($manifest.application_sha256)"
   if ($embeddedHash -ne $manifest.application_sha256) { throw 'embedded application SHA256 verification failed' }
   $selfHash = Get-Sha256 (Join-Path $PayloadRoot 'upgrade_helper.ps1')
   if ($selfHash -ne $manifest.upgrade_helper_sha256) { throw 'upgrade helper SHA256 verification failed' }
   $existingExe = Join-Path $InstallRoot 'Arvectum Proxy Launcher.exe'
+  Write-InstallLog "final EXE: $existingExe"
   Invoke-PreviousRollback $existingExe
   Assert-RecoverySafe
   if ($PreflightOnly) { Write-InstallLog '=== INSTALL SESSION END: PASS (preflight)'; exit 0 }
+  New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
   $staged = "$existingExe.new"; $old = "$existingExe.old"
   Copy-Item -LiteralPath $payloadExe -Destination $staged -Force
   if ((Get-Sha256 $staged) -ne $manifest.application_sha256) { throw 'staged application SHA256 verification failed' }

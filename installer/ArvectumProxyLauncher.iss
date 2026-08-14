@@ -64,7 +64,9 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var ErrorText: String;
 begin
   Result := '';
-  if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '" -PreflightOnly', ErrorText) then
+  { This is a pre-install veto point.  Do the verified transactional placement here,
+    rather than ssPostInstall, so a helper failure cannot be reported as Setup success. }
+  if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '"', ErrorText) then
     Result := ErrorText;
 end;
 
@@ -73,8 +75,6 @@ var ErrorText: String;
 begin
   if CurStep = ssPostInstall then begin
     SaveStringToFile(ExpandConstant('{app}\.arvectum-install-owner'), 'ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER' + #13#10, False);
-    if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '"', ErrorText) then
-      RaiseException(ErrorText);
   end;
 end;
 

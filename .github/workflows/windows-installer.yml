@@ -28,18 +28,25 @@ jobs:
       - name: Fresh install, status, upgrade, and uninstall smoke
         shell: pwsh
         run: |
+          function Dump-InstallerDiagnostics {
+            if (Test-Path installer-fresh.log) { Get-Content installer-fresh.log }
+            if (Test-Path installer-upgrade.log) { Get-Content installer-upgrade.log }
+            $appLog = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher\install.log'
+            if (Test-Path $appLog) { Get-Content $appLog }
+          }
           $setup = '${{ steps.installer.outputs.setup_path }}'
           & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-fresh.log
-          if ($LASTEXITCODE) { Get-Content installer-fresh.log; throw 'fresh installer failed' }
+          if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'fresh installer failed' }
           $exe = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe'
-          if (-not (Test-Path -LiteralPath $exe)) { throw 'fresh install did not create installed EXE' }
-          & $exe --status; if ($LASTEXITCODE) { throw 'fresh install status failed' }
+          if (-not (Test-Path -LiteralPath $exe)) { [Environment]::GetFolderPath('MyDocuments'); Get-ChildItem $env:USERPROFILE -Filter 'Arvectum Proxy Launcher.exe' -File -Recurse -ErrorAction SilentlyContinue | Select-Object FullName; Dump-InstallerDiagnostics; throw 'fresh install did not create installed EXE' }
+          & $exe --status; if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'fresh install status failed' }
           & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-upgrade.log
-          if ($LASTEXITCODE) { Get-Content installer-upgrade.log; throw 'upgrade installer failed' }
-          & $exe --status; if ($LASTEXITCODE) { throw 'upgrade status failed' }
+          if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'upgrade installer failed' }
+          if (-not (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'upgrade removed installed EXE' }
+          & $exe --status; if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'upgrade status failed' }
           $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
           & $uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if (Test-Path -LiteralPath $exe) { throw 'uninstall did not remove installed EXE' }
+          if ($LASTEXITCODE -or (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'uninstall did not remove installed EXE' }
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.installer.outputs.setup_name }}

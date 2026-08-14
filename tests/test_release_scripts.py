@@ -211,6 +211,15 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("Network rollback", helper)
         self.assertIn("--rollback", helper)
 
+    @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
+    def test_verified_payload_placement_is_a_preinstall_veto(self):
+        text = self.read("installer/ArvectumProxyLauncher.iss")
+        prepare = text[text.index("function PrepareToInstall"):text.index("procedure CurStepChanged")]
+        post_install = text[text.index("procedure CurStepChanged"):]
+        self.assertIn("RunEmbeddedHelper('upgrade_helper.ps1'", prepare)
+        self.assertNotIn("-PreflightOnly", prepare)
+        self.assertNotIn("RunEmbeddedHelper('upgrade_helper.ps1'", post_install)
+
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
         self.assertIn("ArvectumProxyLauncher'", text)
