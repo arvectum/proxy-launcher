@@ -49,14 +49,24 @@ Engineering milestones and backlog markers (such as `P0`, `P0.2`, `P0.4`, `RC2`,
 2. Release tags must point directly to a commit on `main` that has green CI status.
 3. If an issue is discovered after tagging/releasing, do not modify the tag; issue a new `PATCH` release.
 
-## 5. Canonical Release Pipeline and Automation
+## 5. Canonical Clean Build and Toolchain
+
+Windows builds use a single canonical clean-build script:
+
+* **Entrypoint:** `tools/clean_build_windows.ps1` (with `build_exe.bat` as a thin compatibility wrapper).
+* **Base Python:** `3.12.10` x64 pinned in `BUILD_PYTHON_VERSION`.
+* **Build toolchain:** Exact pinned dependencies in `requirements-build.lock.txt` (`pip==25.3`, `pyinstaller==6.22.0`).
+* **Isolation:** Every build operates in a fresh, isolated virtual environment (`.build-venv`), preventing ambient/global package interference.
+* **Process:** Clean -> venv -> install lock -> py_compile -> unit tests -> PyInstaller -> package -> internal/external SHA256 -> verify -> `build-result.json`.
+
+## 6. Canonical Release Pipeline and Automation
 
 Canonical distribution flow:
 ```text
 source change
   -> Pull Request
   -> main
-  -> green CI
+  -> green CI (via tools/clean_build_windows.ps1)
   -> version consistency validation
   -> Git tag (vX.Y.Z)
   -> GitHub Release workflow (.github/workflows/release.yml)
@@ -77,7 +87,7 @@ source change
 * **Developer workstation builds:** Binaries built on developer workstations are strictly for local testing and debugging. They are not canonical release artifacts.
 * **CI Artifacts vs. GitHub Releases:** GitHub Actions artifacts are temporary QA and pre-release test builds. GitHub Releases is the canonical public binary distribution channel.
 
-## 6. Canonical Artifact Naming
+## 7. Canonical Artifact Naming
 
 Standard release filenames:
 
@@ -88,7 +98,7 @@ Standard release filenames:
 * **Linux x86_64:** `Arvectum-Proxy-Launcher-X.Y.Z-linux-x86_64.tar.gz`
 * **Checksum Manifest:** `SHA256SUMS.txt`
 
-## 7. Checksum Manifest Policy
+## 8. Checksum Manifest Policy
 
 * Release checksums must be published in standard `SHA256SUMS.txt` format:
   ```text
@@ -96,7 +106,7 @@ Standard release filenames:
   ```
 * For GitHub Releases, `SHA256SUMS.txt` must cover all final downloadable release packages (ZIP, EXE, DMG, tar.gz) and portable executables.
 
-## 8. Platform Release Maturity
+## 9. Platform Release Maturity
 
 * **Windows (0.2.3):** Verified production track with Documents handoff, LocalAppData isolation, DPAPI credential protection, rollback/recovery, and process-ownership enforcement.
 * **macOS:** Retained for continued development; not verified for production release until dedicated CI build and verification gates are implemented.

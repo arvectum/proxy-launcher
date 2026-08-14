@@ -5,9 +5,12 @@ proxy_internet_backup.json
 proxy_env_backup.json
 proxy_settings.json
 
-# PyInstaller output except the explicit client release ZIP
+# PyInstaller output, venv, and clean-build directories
+.build-venv/
 build/
 dist/
+out/
+artifact/
 __pycache__/
 *.spec
 

@@ -72,8 +72,11 @@ class VersionPolicyTests(unittest.TestCase):
 
         workflow_text = self.read(".github/workflows/windows-p0.yml")
         self.assertNotIn("Arvectum-Proxy-Launcher-Windows-P0", workflow_text)
-        self.assertIn("VERSION", workflow_text)
-        self.assertIn("SHA256SUMS.txt", workflow_text)
+
+        clean_build_script = self.read("tools/clean_build_windows.ps1")
+        self.assertIn("VERSION", clean_build_script)
+        self.assertIn("SHA256SUMS.txt", clean_build_script)
+        self.assertIn("Arvectum-Proxy-Launcher-$ProductVersion-windows-x64-portable", clean_build_script)
 
 
 if __name__ == "__main__":

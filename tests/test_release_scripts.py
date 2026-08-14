@@ -169,7 +169,7 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn('tk.StringVar(value="https://arvectum.com")', gui_text)
 
     def test_windows_version_resource_is_required(self):
-        build = self.read("build_exe.bat")
+        build = self.read("tools/clean_build_windows.ps1")
         version = self.read("version_info.txt")
         self.assertIn('--version-file "version_info.txt"', build)
         for value in ('ООО «Арвектум»', 'Arvectum Proxy Launcher', '0.2.3', '0.2.3.0'):

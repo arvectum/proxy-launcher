@@ -1,64 +1,21 @@
 @echo off
-setlocal EnableExtensions
-cd /d "%~dp0"
+setlocal enabledelayedexpansion
 
-set "PY_CMD="
-where python >nul 2>nul
-if not errorlevel 1 set "PY_CMD=python"
-if defined PY_CMD goto :python_ready
-where py >nul 2>nul
-if not errorlevel 1 set "PY_CMD=py -3"
-if defined PY_CMD goto :python_ready
+set "REPO_ROOT=%~dp0"
+if "%REPO_ROOT:~-1%"=="\" set "REPO_ROOT=%REPO_ROOT:~0,-1%"
+cd /d "%REPO_ROOT%"
 
-echo Python 3 not found.
-pause
+where pwsh.exe >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "%REPO_ROOT%\tools\clean_build_windows.ps1" %*
+    exit /b %ERRORLEVEL%
+)
+
+where powershell.exe >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%REPO_ROOT%\tools\clean_build_windows.ps1" %*
+    exit /b %ERRORLEVEL%
+)
+
+echo [ERROR] PowerShell (pwsh or powershell.exe) is required to run the canonical build script.
 exit /b 1
-
-:python_ready
-echo [1/4] Compiling sources...
-%PY_CMD% -m py_compile proxy_core.py proxy_gui.py tests\test_proxy_core.py tests\test_release_scripts.py
-if errorlevel 1 (
-    echo Python compile check failed. Build aborted.
-    pause
-    exit /b 1
-)
-
-echo [2/4] Running unit tests...
-%PY_CMD% -m unittest discover -v
-if errorlevel 1 (
-    echo Tests failed. Build aborted.
-    pause
-    exit /b 1
-)
-
-echo [3/4] Checking PyInstaller...
-%PY_CMD% -m PyInstaller --version >nul 2>nul
-if errorlevel 1 (
-    echo Installing PyInstaller...
-    %PY_CMD% -m pip install pyinstaller
-    if errorlevel 1 (
-        echo PyInstaller installation failed.
-        pause
-        exit /b 1
-    )
-)
-
-echo [4/4] Building one-file EXE...
-%PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name "Arvectum Proxy Launcher" ^
-    --version-file "version_info.txt" ^
-    --icon "assets\arvectum.ico" ^
-    --add-data "no_proxy.txt;." ^
-    --add-data "assets;assets" ^
-    proxy_gui.py
-
-if errorlevel 1 (
-    echo Build failed.
-    pause
-    exit /b 1
-)
-
-echo.
-echo Done: dist\Arvectum Proxy Launcher.exe
-echo Copy dist\Arvectum Proxy Launcher.exe next to install.bat, then run install.bat.
-pause
-endlocal
