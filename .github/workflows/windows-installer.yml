@@ -35,18 +35,23 @@ jobs:
             if (Test-Path $appLog) { Get-Content $appLog }
           }
           $setup = '${{ steps.installer.outputs.setup_path }}'
-          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-fresh.log
-          if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'fresh installer failed' }
+          $freshLog = Join-Path $PWD 'installer-fresh.log'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=$freshLog") -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh installer failed with exit code $($p.ExitCode)" }
           $exe = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe'
           if (-not (Test-Path -LiteralPath $exe)) { [Environment]::GetFolderPath('MyDocuments'); Get-ChildItem $env:USERPROFILE -Filter 'Arvectum Proxy Launcher.exe' -File -Recurse -ErrorAction SilentlyContinue | Select-Object FullName; Dump-InstallerDiagnostics; throw 'fresh install did not create installed EXE' }
-          & $exe --status; if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'fresh install status failed' }
-          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /LOG=installer-upgrade.log
-          if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'upgrade installer failed' }
+          $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh install status failed with exit code $($p.ExitCode)" }
+          $upgradeLog = Join-Path $PWD 'installer-upgrade.log'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=$upgradeLog") -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "upgrade installer failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'upgrade removed installed EXE' }
-          & $exe --status; if ($LASTEXITCODE) { Dump-InstallerDiagnostics; throw 'upgrade status failed' }
+          $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "upgrade status failed with exit code $($p.ExitCode)" }
           $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
-          & $uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if ($LASTEXITCODE -or (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'uninstall did not remove installed EXE' }
+          $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "uninstaller failed with exit code $($p.ExitCode)" }
+          if (Test-Path -LiteralPath $exe) { Dump-InstallerDiagnostics; throw 'uninstall did not remove installed EXE' }
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.installer.outputs.setup_name }}

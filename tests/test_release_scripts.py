@@ -221,6 +221,15 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertIn("RaiseException(ErrorText)", install)
         self.assertNotIn("RunEmbeddedHelper('upgrade_helper.ps1'", post_install)
 
+    def test_installer_workflow_waits_for_gui_processes(self):
+        text = self.read(".github/workflows/windows-installer.yml")
+        self.assertIn("Start-Process", text)
+        self.assertIn("-PassThru -Wait", text)
+        self.assertIn("$p.ExitCode", text)
+        self.assertNotIn("& $setup", text)
+        self.assertNotIn("& $exe --status", text)
+        self.assertNotIn("& $uninstaller", text)
+
     def test_uninstaller_removes_own_installed_apps_entry_and_start_menu_shortcut(self):
         text = self.read("uninstall.ps1")
         self.assertIn("ArvectumProxyLauncher'", text)
