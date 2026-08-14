@@ -33,7 +33,8 @@ import time
 from urllib.parse import urlsplit
 
 
-APP_VERSION = "0.2.3 P0.2"
+APP_VERSION = "0.2.3"
+ENGINEERING_MILESTONE = "P0.2"
 
 _STATE_FILES = (
     "proxy_settings.json", "no_proxy.txt", "proxy_core.pid", "proxy_core.log",
