@@ -6,6 +6,8 @@ Arvectum Proxy Launcher is a local proxy launcher with a Windows graphical clien
 
 Windows **0.2.3** is the verified release track. It uses a canonical executable handoff in `%USERPROFILE%\Documents\ArvectumProxyLauncher`, keeps mutable state in `%LOCALAPPDATA%\Arvectum\ProxyLauncher`, protects saved upstream passwords with current-user Windows DPAPI, and includes rollback/recovery and process-ownership safeguards.
 
+Windows Portable and Windows Installer are separate production release tracks built from the same application binary and canonical `VERSION`. The installer is `Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-setup.exe`; build it locally after the portable build with `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build_windows_installer.ps1`. Code signing is not included in this release track.
+
 macOS and Linux scripts and packaging assets are retained for further integration. They are not currently CI-verified against the Windows 0.2.3 safety architecture, so they must not be represented as production-ready releases.
 
 ## Versioning and releases

@@ -1,0 +1,44 @@
+name: Windows installer
+on:
+  push:
+    branches: [main, 'release/**', 'fix/**']
+  pull_request:
+    branches: [main, 'release/**']
+  workflow_dispatch:
+  workflow_call:
+jobs:
+  installer:
+    runs-on: windows-latest
+    outputs:
+      artifact_name: ${{ steps.installer.outputs.setup_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12.10' }
+      - name: Install pinned Inno Setup 6.7.1
+        shell: pwsh
+        run: choco install innosetup --version=6.7.1 --no-progress -y
+      - name: Build portable baseline
+        shell: pwsh
+        run: ./tools/clean_build_windows.ps1 -PythonExecutable python
+      - name: Compile installer
+        id: installer
+        shell: pwsh
+        run: ./tools/build_windows_installer.ps1 -PythonExecutable python
+      - name: Fresh install, status, upgrade, and uninstall smoke
+        shell: pwsh
+        run: |
+          $setup = '${{ steps.installer.outputs.setup_path }}'
+          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          $exe = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw 'fresh install did not create installed EXE' }
+          & $exe --status; if ($LASTEXITCODE) { throw 'fresh install status failed' }
+          & $setup /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+          & $exe --status; if ($LASTEXITCODE) { throw 'upgrade status failed' }
+          $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
+          & $uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if (Test-Path -LiteralPath $exe) { throw 'uninstall did not remove installed EXE' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.installer.outputs.setup_name }}
+          path: ${{ steps.installer.outputs.setup_path }}

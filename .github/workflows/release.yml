@@ -32,6 +32,7 @@ jobs:
       expected_tag: ${{ steps.parse.outputs.expected_tag }}
       artifact_name: ${{ steps.parse.outputs.artifact_name }}
       zip_name: ${{ steps.parse.outputs.zip_name }}
+      setup_name: ${{ steps.parse.outputs.setup_name }}
       prerelease: ${{ steps.parse.outputs.prerelease }}
       should_publish: ${{ steps.parse.outputs.should_publish }}
     steps:
@@ -62,6 +63,7 @@ jobs:
           EXPECTED_TAG="v${VERSION}"
           ARTIFACT_NAME="Arvectum-Proxy-Launcher-${VERSION}-windows-x64-portable"
           ZIP_NAME="${ARTIFACT_NAME}.zip"
+          SETUP_NAME="Arvectum-Proxy-Launcher-${VERSION}-windows-x64-setup.exe"
 
           PRERELEASE="false"
           if [[ "$VERSION" =~ - ]]; then
@@ -76,6 +78,7 @@ jobs:
           echo "expected_tag=${EXPECTED_TAG}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+          echo "setup_name=${SETUP_NAME}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
 
           # Evaluate trigger context and guards
@@ -95,9 +98,10 @@ jobs:
 
             # Check prior green canonical main CI
             RUNS_JSON="$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&branch=main&event=push" --jq '.workflow_runs')"
-            SUCCESSFUL_RUN="$(echo "$RUNS_JSON" | jq -e '.[] | select((.path == ".github/workflows/windows-p0.yml" or .name == "Windows P0 portable") and .conclusion == "success")' || true)"
-            if [ -z "$SUCCESSFUL_RUN" ]; then
-              echo "::error::Commit ${{ github.sha }} does not have a successful push run on main for Windows P0 portable"
+            SUCCESSFUL_PORTABLE_RUN="$(echo "$RUNS_JSON" | jq -e '.[] | select((.path == ".github/workflows/windows-p0.yml" or .name == "Windows P0 portable") and .conclusion == "success")' || true)"
+            SUCCESSFUL_INSTALLER_RUN="$(echo "$RUNS_JSON" | jq -e '.[] | select((.path == ".github/workflows/windows-installer.yml" or .name == "Windows installer") and .conclusion == "success")' || true)"
+            if [ -z "$SUCCESSFUL_PORTABLE_RUN" ] || [ -z "$SUCCESSFUL_INSTALLER_RUN" ]; then
+              echo "::error::Commit ${{ github.sha }} requires successful Windows P0 portable and Windows installer push CI"
               exit 1
             fi
 
@@ -125,11 +129,17 @@ jobs:
     needs: validate
     uses: ./.github/workflows/windows-p0.yml
 
+  installer:
+    name: Build Windows installer
+    needs: validate
+    uses: ./.github/workflows/windows-installer.yml
+
   publish:
     name: Publish GitHub Release
     needs:
       - validate
       - build
+      - installer
     if: github.event_name == 'push' && github.ref_type == 'tag' && needs.validate.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -142,18 +152,30 @@ jobs:
           name: ${{ needs.validate.outputs.artifact_name }}
           path: release-stage
 
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.installer.outputs.artifact_name }}
+          path: release-stage
+
       - name: Verify artifact package and calculate public SHA256SUMS
         run: |
           set -euo pipefail
           ZIP_NAME="${{ needs.validate.outputs.zip_name }}"
+          SETUP_NAME="${{ needs.validate.outputs.setup_name }}"
           if [ ! -f "release-stage/${ZIP_NAME}" ]; then
             echo "::error::Expected release package 'release-stage/${ZIP_NAME}' not found"
             ls -la release-stage/
             exit 1
           fi
+          if [ ! -f "release-stage/${SETUP_NAME}" ]; then
+            echo "::error::Expected release installer 'release-stage/${SETUP_NAME}' not found"
+            exit 1
+          fi
 
           cd release-stage
           sha256sum "$ZIP_NAME" > SHA256SUMS.txt
+          sha256sum "$SETUP_NAME" >> SHA256SUMS.txt
           cat SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
 
@@ -177,6 +199,7 @@ jobs:
           VERSION="${{ needs.validate.outputs.version }}"
           PRERELEASE="${{ needs.validate.outputs.prerelease }}"
           ZIP_NAME="${{ needs.validate.outputs.zip_name }}"
+          SETUP_NAME="${{ needs.validate.outputs.setup_name }}"
 
           EXTRA_FLAGS=()
           if [ "$PRERELEASE" = "true" ]; then
@@ -185,6 +208,7 @@ jobs:
 
           gh release create "$TAG" \
             "release-stage/${ZIP_NAME}" \
+            "release-stage/${SETUP_NAME}" \
             "release-stage/SHA256SUMS.txt" \
             --title "Arvectum Proxy Launcher ${VERSION}" \
             --verify-tag \
