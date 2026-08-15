@@ -153,7 +153,7 @@ function Verify-Target([string]$Target) {
 }
 
 $script:SignTool = Resolve-SignTool
-$targets = Resolve-Targets $Path
+$targets = @(Resolve-Targets $Path)
 if ($targets.Count -eq 0) {
     throw 'No Authenticode targets were resolved.'
 }
