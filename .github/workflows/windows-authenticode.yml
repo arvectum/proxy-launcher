@@ -65,7 +65,10 @@ jobs:
             -NotAfter (Get-Date).AddDays(1)
           $cerPath = Join-Path $env:RUNNER_TEMP 'arvectum-ci-authenticode.cer'
           Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          Import-Certificate -FilePath $cerPath -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+          certutil -addstore -user Root $cerPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "certutil failed to trust the ephemeral test certificate (exit $LASTEXITCODE)."
+          }
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "subject=$($cert.Subject)" >> $env:GITHUB_OUTPUT
 
