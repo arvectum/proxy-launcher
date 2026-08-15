@@ -94,7 +94,7 @@ Standard release filenames:
 * **Windows Portable:** `Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-portable.zip`
 * **Windows Installer:** `Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-setup.exe`
 
-The installer is built from the same portable application binary and `VERSION` using `tools/build_windows_installer.ps1`. It is a verified per-user release track; code signing is explicitly out of scope until signing is implemented.
+The installer is built from the same portable application binary and `VERSION` using `tools/build_windows_installer.ps1`. The repository now contains an **Authenticode foundation** in `tools/windows_authenticode.ps1` and `.github/workflows/windows-authenticode.yml`, but **production signing is not yet activated**. When production signing is activated, the portable application executable must be signed before portable packaging, and the installer executable must be signed after Inno Setup compilation; both signatures must be verified against the expected publisher before final checksums and publication.
 * **macOS Apple Silicon:** `Arvectum-Proxy-Launcher-X.Y.Z-macos-arm64.dmg`
 * **macOS Intel:** `Arvectum-Proxy-Launcher-X.Y.Z-macos-x64.dmg` (when supported)
 * **Linux x86_64:** `Arvectum-Proxy-Launcher-X.Y.Z-linux-x86_64.tar.gz`
