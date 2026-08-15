@@ -80,7 +80,7 @@ function Resolve-Targets([string[]]$InputPaths) {
 function Invoke-SignTool([string[]]$Arguments) {
     & $script:SignTool @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "SignTool failed with exit code $LASTEXITCODE: $($Arguments -join ' ')"
+        throw "SignTool failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
     }
 }
 
