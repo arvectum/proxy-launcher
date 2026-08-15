@@ -32,6 +32,8 @@ import threading
 import time
 from urllib.parse import urlsplit
 
+from structured_logging import StructuredLogger
+
 
 APP_VERSION = "0.2.3"
 ENGINEERING_MILESTONE = "P0.2"
@@ -340,12 +342,22 @@ def log_path():
     return os.path.join(runtime_dir(), "proxy_core.log")
 
 
+structured_logger = StructuredLogger(
+    path_getter=lambda: log_path(),
+    app_version=APP_VERSION,
+    milestone=ENGINEERING_MILESTONE,
+    component="proxy_core",
+)
+
+
+def structured_log(message, level=None, event=None, **fields):
+    """Write one structured diagnostic event; never raises on log I/O failure."""
+    return structured_logger.log(message, level=level, event=event, fields=fields or None)
+
+
 def _log(msg):
-    try:
-        with io.open(log_path(), "a", encoding="utf-8") as f:
-            f.write("%s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
-    except Exception:
-        pass
+    """Backward-compatible sink for existing call sites."""
+    return structured_log(msg)
 
 
 DEFAULT_SETTINGS = {
