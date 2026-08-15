@@ -65,9 +65,9 @@ jobs:
             -NotAfter (Get-Date).AddDays(1)
           $cerPath = Join-Path $env:RUNNER_TEMP 'arvectum-ci-authenticode.cer'
           Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          certutil -addstore -user Root $cerPath
-          if ($LASTEXITCODE -ne 0) {
-            throw "certutil failed to trust the ephemeral test certificate (exit $LASTEXITCODE)."
+          Import-Certificate -FilePath $cerPath -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+          if (-not (Test-Path -LiteralPath "Cert:\LocalMachine\Root\$($cert.Thumbprint)")) {
+            throw "Ephemeral test certificate was not trusted in Cert:\LocalMachine\Root."
           }
           "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
           "subject=$($cert.Subject)" >> $env:GITHUB_OUTPUT
@@ -117,5 +117,5 @@ jobs:
           $thumbprint = '${{ steps.test_cert.outputs.thumbprint }}'
           if ($thumbprint) {
             Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue
-            Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$thumbprint" -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$thumbprint" -Force -ErrorAction SilentlyContinue
           }
