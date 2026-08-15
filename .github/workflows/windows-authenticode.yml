@@ -1,0 +1,121 @@
+name: Windows Authenticode foundation
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+      - 'fix/**'
+    paths:
+      - '.github/workflows/windows-authenticode.yml'
+      - 'tools/windows_authenticode.ps1'
+      - 'tests/test_windows_authenticode_foundation.py'
+      - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
+      - 'RELEASE_POLICY.md'
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+    paths:
+      - '.github/workflows/windows-authenticode.yml'
+      - 'tools/windows_authenticode.ps1'
+      - 'tests/test_windows_authenticode_foundation.py'
+      - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
+      - 'RELEASE_POLICY.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Authenticode contract tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Validate signing foundation contract
+        run: python -m unittest tests.test_windows_authenticode_foundation -v
+
+  windows-signing-smoke:
+    name: Sign and verify real Windows PE with ephemeral certificate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+
+      - name: Build canonical Windows executable
+        shell: pwsh
+        run: ./tools/clean_build_windows.ps1 -PythonExecutable python
+
+      - name: Create ephemeral CI code-signing certificate
+        id: test_cert
+        shell: pwsh
+        run: |
+          $subject = 'CN=Arvectum CI Authenticode Test'
+          $cert = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject $subject `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -NotAfter (Get-Date).AddDays(1)
+          $cerPath = Join-Path $env:RUNNER_TEMP 'arvectum-ci-authenticode.cer'
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+          Import-Certificate -FilePath $cerPath -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+          if (-not (Test-Path -LiteralPath "Cert:\LocalMachine\Root\$($cert.Thumbprint)")) {
+            throw "Ephemeral test certificate was not trusted in Cert:\LocalMachine\Root."
+          }
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          "subject=$($cert.Subject)" >> $env:GITHUB_OUTPUT
+
+      - name: Prove unsigned rejection, sign, and verify
+        shell: pwsh
+        run: |
+          $source = 'dist\Arvectum Proxy Launcher.exe'
+          $unsignedCopy = Join-Path $env:RUNNER_TEMP 'apl-authenticode-unsigned.exe'
+          $signedCopy = Join-Path $env:RUNNER_TEMP 'apl-authenticode-signed.exe'
+          Copy-Item -LiteralPath $source -Destination $unsignedCopy -Force
+          Copy-Item -LiteralPath $source -Destination $signedCopy -Force
+
+          $unsignedRejected = $false
+          try {
+            ./tools/windows_authenticode.ps1 -Mode Verify -Path $unsignedCopy
+          } catch {
+            $unsignedRejected = $true
+            Write-Host "Expected unsigned verification failure: $($_.Exception.Message)"
+          }
+          if (-not $unsignedRejected) {
+            throw 'Unsigned PE unexpectedly passed Authenticode verification.'
+          }
+
+          ./tools/windows_authenticode.ps1 `
+            -Mode Sign `
+            -Path $signedCopy `
+            -CertificateThumbprint '${{ steps.test_cert.outputs.thumbprint }}' `
+            -ExpectedPublisher '${{ steps.test_cert.outputs.subject }}' `
+            -SkipTimestamp
+
+          ./tools/windows_authenticode.ps1 `
+            -Mode Verify `
+            -Path $signedCopy `
+            -ExpectedPublisher '${{ steps.test_cert.outputs.subject }}'
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $signedCopy
+          if ($signature.Status -ne 'Valid') {
+            throw "Signed PE status is $($signature.Status), expected Valid."
+          }
+          Write-Host "Authenticode foundation smoke PASS; publisher=$($signature.SignerCertificate.Subject)"
+
+      - name: Remove ephemeral CI certificate
+        if: always()
+        shell: pwsh
+        run: |
+          $thumbprint = '${{ steps.test_cert.outputs.thumbprint }}'
+          if ($thumbprint) {
+            Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$thumbprint" -Force -ErrorAction SilentlyContinue
+          }
