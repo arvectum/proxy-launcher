@@ -78,10 +78,12 @@ function Resolve-Targets([string[]]$InputPaths) {
 }
 
 function Invoke-SignTool([string[]]$Arguments) {
-    & $script:SignTool @Arguments
+    $output = & $script:SignTool @Arguments 2>&1
     if ($LASTEXITCODE -ne 0) {
+        $output | ForEach-Object { Write-Host $_ }
         throw "SignTool failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
     }
+    $output | ForEach-Object { Write-Host $_ }
 }
 
 function Get-CodeSigningCertificate([string]$Thumbprint) {
