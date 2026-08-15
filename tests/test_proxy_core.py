@@ -1,4 +1,5 @@
 import json
+import ntpath
 import os
 import socket
 import tempfile
@@ -34,10 +35,11 @@ def _recv_all(sock, timeout=3):
 class ProxyCoreTests(unittest.TestCase):
     def test_state_paths_are_independent_of_executable_directory(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": "C:/State"}, clear=False), \
-             mock.patch.object(core, "install_dir", return_value="C:/Some/Copy"):
-            self.assertEqual(core.data_dir(), "C:/State\\Arvectum\\ProxyLauncher")
-            self.assertTrue(core.settings_path().endswith("Arvectum\\ProxyLauncher\\proxy_settings.json"))
+             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": r"C:\State"}, clear=False), \
+             mock.patch.object(core, "install_dir", return_value=r"C:\Some\Copy"), \
+             mock.patch.object(core.os, "path", ntpath):
+            self.assertEqual(core.data_dir(), r"C:\State\Arvectum\ProxyLauncher")
+            self.assertTrue(core.settings_path().endswith(r"Arvectum\ProxyLauncher\proxy_settings.json"))
 
     def test_portable_executable_is_copied_to_documents_canonical_location(self):
         with tempfile.TemporaryDirectory() as td:
@@ -89,7 +91,8 @@ class ProxyCoreTests(unittest.TestCase):
         local = home + r"\AppData\Local"
         with mock.patch.object(core.os.path, "expanduser", return_value=home), \
              mock.patch.dict(core.os.environ, {"LOCALAPPDATA": local}, clear=False), \
-             mock.patch.object(core, "is_windows", return_value=True):
+             mock.patch.object(core, "is_windows", return_value=True), \
+             mock.patch.object(core.os, "path", ntpath):
             self.assertEqual(core.stable_app_exe(), home + r"\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe")
             self.assertEqual(core.data_dir(), local + r"\Arvectum\ProxyLauncher")
 
@@ -117,13 +120,15 @@ class ProxyCoreTests(unittest.TestCase):
             self.assertFalse(core.is_owned_arvectum_start_command(foreign))
 
     def test_pid_record_contains_executable_path(self):
+        exe = "C:/Program Files/Arvectum/Arvectum Proxy Launcher.exe"
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(core, "pid_path", return_value=str(Path(td) / "pid.json")), \
              mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
-             mock.patch.object(core.sys, "executable", "C:/Program Files/Arvectum/Arvectum Proxy Launcher.exe"):
+             mock.patch.object(core.sys, "executable", exe), \
+             mock.patch.object(core.os.path, "realpath", side_effect=lambda x: x):
             core._write_pid()
             self.assertEqual(os.path.normcase(core._read_pid()["exe_path"]),
-                             os.path.normcase("C:/Program Files/Arvectum/Arvectum Proxy Launcher.exe"))
+                             os.path.normcase(exe))
 
     def test_stale_system_proxy_is_safe_diagnostic(self):
         with mock.patch.object(core, "system_proxy_enabled", return_value=True), \
