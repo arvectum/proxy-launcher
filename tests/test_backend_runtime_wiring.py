@@ -65,8 +65,18 @@ class BackendRuntimeWiringTests(unittest.TestCase):
 
     def test_public_runtime_seams_delegate_to_one_selected_backend(self):
         backend = _FakeBackend()
+        ready = backend_runtime.BackendOperationalStatus(
+            backend_id="fake",
+            platform_label="Test",
+            state=backend_runtime.OperationalState.READY,
+            can_enable=True,
+            title="ready",
+            message="ready",
+            reasons=(),
+        )
         with mock.patch.object(core, "load_settings", return_value=dict(self.settings)), \
              mock.patch.object(core, "load_no_proxy", return_value=[]), \
+             mock.patch.object(backend_runtime, "require_enable_operational", return_value=ready), \
              mock.patch.object(backend_runtime, "create_backend", return_value=backend) as create:
             self.assertTrue(core.enable_system_proxy())
             self.assertTrue(core.system_proxy_enabled())
