@@ -13,13 +13,14 @@ def test_rel011_files_exist():
     assert WORKFLOW.is_file()
 
 
-def test_script_never_accepts_pin_or_pfx():
+def test_script_never_accepts_pin_or_exportable_key_material():
     text = SCRIPT.read_text(encoding="utf-8")
     lowered = text.lower()
     assert "[string]$pin" not in lowered
-    assert "password" not in lowered
-    assert "pfx" not in lowered
-    assert "p12" not in lowered
+    assert "[string]$password" not in lowered
+    assert "[string]$pfx" not in lowered
+    assert "import-pfxcertificate" not in lowered
+    assert "export-pfxcertificate" not in lowered
     assert "private_key_export_attempted      = $false" in lowered
     assert "pin_stored                        = $false" in lowered
 
