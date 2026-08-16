@@ -96,6 +96,7 @@ class LinuxCapabilityViewTests(unittest.TestCase):
 class CoreInteractiveGateTests(unittest.TestCase):
     def setUp(self):
         core._reset_proxy_backend_for_tests()
+        self.facade_globals = core._require_new_mutation_operational.__globals__
 
     def tearDown(self):
         core._reset_proxy_backend_for_tests()
@@ -113,24 +114,28 @@ class CoreInteractiveGateTests(unittest.TestCase):
         )
 
     def test_unmarked_auth_required_stays_fail_closed(self):
-        with mock.patch.object(core, "_effective_runtime_platform", return_value="linux"), \
-             mock.patch.object(core, "_interactive_policykit_context", return_value=False), \
-             mock.patch.object(
-                 backend_runtime,
-                 "require_enable_operational",
-                 side_effect=backend_runtime.BackendOperationalError(self.auth_status()),
-             ):
+        replacements = {
+            "_effective_runtime_platform": lambda: "linux",
+            "_interactive_policykit_context": lambda: False,
+        }
+        with mock.patch.dict(self.facade_globals, replacements), mock.patch.object(
+            backend_runtime,
+            "require_enable_operational",
+            side_effect=backend_runtime.BackendOperationalError(self.auth_status()),
+        ):
             with self.assertRaises(backend_runtime.BackendOperationalError):
                 core._require_new_mutation_operational()
 
     def test_marked_auth_required_can_reach_real_networkmanager_authority(self):
-        with mock.patch.object(core, "_effective_runtime_platform", return_value="linux"), \
-             mock.patch.object(core, "_interactive_policykit_context", return_value=True), \
-             mock.patch.object(
-                 backend_runtime,
-                 "operational_status_for_platform",
-                 return_value=self.auth_status(),
-             ):
+        replacements = {
+            "_effective_runtime_platform": lambda: "linux",
+            "_interactive_policykit_context": lambda: True,
+        }
+        with mock.patch.dict(self.facade_globals, replacements), mock.patch.object(
+            backend_runtime,
+            "operational_status_for_platform",
+            return_value=self.auth_status(),
+        ):
             status = core._require_new_mutation_operational()
         self.assertEqual(status.state, backend_runtime.OperationalState.AUTH_REQUIRED)
         self.assertFalse(status.can_enable)
@@ -138,11 +143,13 @@ class CoreInteractiveGateTests(unittest.TestCase):
     def test_interactive_backend_receives_policykit_runner(self):
         backend = mock.Mock()
         backend.backend_id = "linux"
-        with mock.patch.object(core, "_effective_runtime_platform", return_value="linux"), \
-             mock.patch.object(core, "_interactive_policykit_context", return_value=True), \
-             mock.patch.object(
-                 backend_runtime, "create_backend", return_value=backend
-             ) as create:
+        replacements = {
+            "_effective_runtime_platform": lambda: "linux",
+            "_interactive_policykit_context": lambda: True,
+        }
+        with mock.patch.dict(self.facade_globals, replacements), mock.patch.object(
+            backend_runtime, "create_backend", return_value=backend
+        ) as create:
             self.assertIs(core.get_proxy_backend(), backend)
         self.assertIs(
             create.call_args.kwargs["linux_runner"],
