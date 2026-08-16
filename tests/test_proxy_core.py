@@ -89,10 +89,10 @@ class ProxyCoreTests(unittest.TestCase):
     def test_paths_keep_documents_executable_and_localappdata_state_with_cyrillic_user(self):
         home = r"C:\Users\Анастасия"
         local = home + r"\AppData\Local"
-        with mock.patch.object(core.os.path, "expanduser", return_value=home), \
-             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": local}, clear=False), \
+        with mock.patch.dict(core.os.environ, {"LOCALAPPDATA": local}, clear=False), \
              mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core.os, "path", ntpath):
+             mock.patch.object(core.os, "path", ntpath), \
+             mock.patch.object(ntpath, "expanduser", return_value=home):
             self.assertEqual(core.stable_app_exe(), home + r"\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe")
             self.assertEqual(core.data_dir(), local + r"\Arvectum\ProxyLauncher")
 
