@@ -54,8 +54,11 @@ jobs:
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh install status failed with exit code $($p.ExitCode)" }
 
-          # Seed user configuration that repair/uninstall must preserve, plus stale
-          # operational artifacts that repair must clean.
+          # Seed persistent-state sentinels that maintenance itself must preserve,
+          # plus stale operational artifacts that repair must clean. The settings
+          # sentinel intentionally is not a valid runtime configuration: therefore
+          # preservation is checked before launching the repaired application, so
+          # runtime quarantine semantics are not confused with installer behavior.
           $stateRoot = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
           New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
           $settings = Join-Path $stateRoot 'proxy_settings.json'
@@ -79,8 +82,6 @@ jobs:
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repair installer failed with exit code $($p.ExitCode)" }
 
           if (-not (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'repair did not restore installed EXE' }
-          $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
-          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repaired install status failed with exit code $($p.ExitCode)" }
           if (Test-Path -LiteralPath ($exe + '.new')) { throw 'repair left stale .new transactional artifact' }
           if (Test-Path -LiteralPath ($exe + '.old')) { throw 'repair left stale .old transactional artifact' }
           if (Test-Path -LiteralPath (Join-Path $stateRoot 'proxy_core.pid')) { throw 'repair left stale runtime PID' }
@@ -88,6 +89,17 @@ jobs:
           if ($recoveryAfterRepair) { throw 'repair left stale owned recovery Run value' }
           if ((Get-Content -LiteralPath $settings -Raw) -notmatch 'apl_win_009') { throw 'repair modified persistent proxy settings' }
           if ((Get-Content -LiteralPath $noProxy -Raw) -notmatch 'apl-win-009.example') { throw 'repair modified persistent no-proxy rules' }
+
+          # Now prove the repaired binary is executable. Runtime configuration
+          # validation may quarantine the deliberately-invalid test sentinel, which
+          # is independent of the maintenance preservation contract above.
+          $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repaired install status failed with exit code $($p.ExitCode)" }
+
+          # Re-seed persistent-state sentinels so uninstall preservation is tested
+          # independently of runtime validation performed by the status command.
+          Set-Content -LiteralPath $settings -Value '{"apl_win_009":"preserve"}' -Encoding utf8
+          Set-Content -LiteralPath $noProxy -Value 'apl-win-009.example' -Encoding utf8
 
           # Uninstall must remove owned startup state while preserving a foreign
           # same-named recovery value and persistent user configuration.
