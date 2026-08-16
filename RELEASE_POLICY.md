@@ -87,6 +87,20 @@ source change
 * **Developer workstation builds:** Binaries built on developer workstations are strictly for local testing and debugging. They are not canonical release artifacts.
 * **CI Artifacts vs. GitHub Releases:** GitHub Actions artifacts are temporary QA and pre-release test builds. GitHub Releases is the canonical public binary distribution channel.
 
+### 6.1 Russian production signing policy
+
+The canonical production trust strategy for the Russian market is defined by `release/APL_REL_009_RUSSIAN_PRODUCTION_SIGNING_ARCHITECTURE.md`.
+
+* The release-signing priority is **Russia first**.
+* The existing ООО «Арвектум» Rutoken-backed УКЭП is used for qualified detached signature of final release evidence once the real POC is completed.
+* The intended embedded code-signing direction is ОТУЦ or an equivalent successor Russian code-signing mechanism after certificate profile, timestamping and target-OS verification are proven.
+* A normal qualified certificate must **not** be assumed to be a Windows code-signing certificate; embedded signing requires a separately proven certificate/provider profile.
+* Production private keys must remain non-exportable and owner-controlled; PFX/P12 export and token PIN storage in repository/cloud CI secrets are prohibited.
+* Foreign code-signing providers are deferred to a future international compatibility track and are not a blocker for the Russian production baseline.
+* Production Russian signing is **not yet activated**. APL-REL-010 must prove the real Rutoken/CryptoPro signing path before release publication is changed.
+
+When Russian production signing is activated, the release flow must produce and publish at minimum `SHA256SUMS.txt`, `SHA256SUMS.txt.sig`, the signer certificate/public chain material required for verification, and non-secret `signing-evidence.json`.
+
 ## 7. Canonical Artifact Naming
 
 Standard release filenames:
@@ -94,7 +108,7 @@ Standard release filenames:
 * **Windows Portable:** `Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-portable.zip`
 * **Windows Installer:** `Arvectum-Proxy-Launcher-X.Y.Z-windows-x64-setup.exe`
 
-The installer is built from the same portable application binary and `VERSION` using `tools/build_windows_installer.ps1`. The repository now contains an **Authenticode foundation** in `tools/windows_authenticode.ps1` and `.github/workflows/windows-authenticode.yml`, but **production signing is not yet activated**. When production signing is activated, the portable application executable must be signed before portable packaging, and the installer executable must be signed after Inno Setup compilation; both signatures must be verified against the expected publisher before final checksums and publication.
+The installer is built from the same portable application binary and `VERSION` using `tools/build_windows_installer.ps1`. The repository contains an **Authenticode foundation** in `tools/windows_authenticode.ps1` and `.github/workflows/windows-authenticode.yml`, but **production signing is not yet activated**. APL-REL-009 makes the Russian signing architecture canonical. When embedded production code signing is activated, the portable application executable must be signed before portable packaging, and the installer executable must be signed after Inno Setup compilation; both signatures must be verified against the expected publisher before final checksums. The final checksum manifest is then qualified-signed through the approved Russian Rutoken/CryptoPro path before publication.
 * **macOS Apple Silicon:** `Arvectum-Proxy-Launcher-X.Y.Z-macos-arm64.dmg`
 * **macOS Intel:** `Arvectum-Proxy-Launcher-X.Y.Z-macos-x64.dmg` (when supported)
 * **Linux x86_64:** `Arvectum-Proxy-Launcher-X.Y.Z-linux-x86_64.tar.gz`
@@ -107,6 +121,7 @@ The installer is built from the same portable application binary and `VERSION` u
   <sha256>  <filename>
   ```
 * For GitHub Releases, `SHA256SUMS.txt` must cover all final downloadable release packages (ZIP, EXE, DMG, tar.gz) and portable executables.
+* Once the Russian production signing path is activated, checksum generation must occur after every byte-changing embedded signature operation, and the final manifest must be covered by the approved detached Russian electronic signature.
 
 ## 9. Platform Release Maturity
 
