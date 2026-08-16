@@ -10,10 +10,13 @@ on:
     paths:
       - '.github/workflows/windows-authenticode.yml'
       - 'tools/windows_authenticode.ps1'
+      - 'tools/rutoken_cryptopro_poc.ps1'
       - 'tests/test_windows_authenticode_foundation.py'
       - 'tests/test_russian_signing_architecture.py'
+      - 'tests/test_rutoken_cryptopro_poc.py'
       - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
       - 'release/APL_REL_009_RUSSIAN_PRODUCTION_SIGNING_ARCHITECTURE.md'
+      - 'release/APL_REL_010_RUTOKEN_CRYPTOPRO_SIGNING_POC.md'
       - 'RELEASE_POLICY.md'
   pull_request:
     branches:
@@ -22,10 +25,13 @@ on:
     paths:
       - '.github/workflows/windows-authenticode.yml'
       - 'tools/windows_authenticode.ps1'
+      - 'tools/rutoken_cryptopro_poc.ps1'
       - 'tests/test_windows_authenticode_foundation.py'
       - 'tests/test_russian_signing_architecture.py'
+      - 'tests/test_rutoken_cryptopro_poc.py'
       - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
       - 'release/APL_REL_009_RUSSIAN_PRODUCTION_SIGNING_ARCHITECTURE.md'
+      - 'release/APL_REL_010_RUTOKEN_CRYPTOPRO_SIGNING_POC.md'
       - 'RELEASE_POLICY.md'
   workflow_dispatch:
 
@@ -41,14 +47,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.10'
-      - name: Validate signing foundation and Russian architecture contracts
-        run: python -m unittest tests.test_windows_authenticode_foundation tests.test_russian_signing_architecture -v
+      - name: Validate signing foundation, Russian architecture and Rutoken POC contracts
+        run: python -m unittest tests.test_windows_authenticode_foundation tests.test_russian_signing_architecture tests.test_rutoken_cryptopro_poc -v
 
   windows-signing-smoke:
     name: Sign and verify real Windows PE with ephemeral certificate
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Parse APL-REL-010 PowerShell runner
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\tools\rutoken_cryptopro_poc.ps1').Path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            throw "rutoken_cryptopro_poc.ps1 has $($errors.Count) PowerShell parse error(s)."
+          }
 
       - uses: actions/setup-python@v5
         with:
