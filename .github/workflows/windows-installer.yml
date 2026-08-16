@@ -54,17 +54,19 @@ jobs:
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh install status failed with exit code $($p.ExitCode)" }
 
-          # Seed persistent-state sentinels that maintenance itself must preserve,
-          # plus stale operational artifacts that repair must clean. The settings
-          # sentinel intentionally is not a valid runtime configuration: therefore
-          # preservation is checked before launching the repaired application, so
-          # runtime quarantine semantics are not confused with installer behavior.
+          # Seed a valid schema-v1 persistent configuration and no-proxy rules.
+          # Their hashes are the preservation evidence across repair and uninstall.
           $stateRoot = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
           New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
           $settings = Join-Path $stateRoot 'proxy_settings.json'
           $noProxy = Join-Path $stateRoot 'no_proxy.txt'
-          Set-Content -LiteralPath $settings -Value '{"apl_win_009":"preserve"}' -Encoding utf8
+          $settingsJson = '{"config_version":1,"local_http_port":18080,"local_socks_port":11080,"local_pac_port":18082,"pac_path":"/proxy.pac","upstream":[{"host":"","port":8000}]}'
+          Set-Content -LiteralPath $settings -Value $settingsJson -Encoding utf8
           Set-Content -LiteralPath $noProxy -Value 'apl-win-009.example' -Encoding utf8
+          $settingsHash = (Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash
+          $noProxyHash = (Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash
+
+          # Seed stale operational artifacts that repair must clean.
           Set-Content -LiteralPath (Join-Path $stateRoot 'proxy_core.pid') -Value '2147483646' -Encoding ascii
           Set-Content -LiteralPath ($exe + '.new') -Value 'stale-new' -Encoding ascii
           Set-Content -LiteralPath ($exe + '.old') -Value 'stale-old' -Encoding ascii
@@ -87,19 +89,14 @@ jobs:
           if (Test-Path -LiteralPath (Join-Path $stateRoot 'proxy_core.pid')) { throw 'repair left stale runtime PID' }
           $recoveryAfterRepair = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
           if ($recoveryAfterRepair) { throw 'repair left stale owned recovery Run value' }
-          if ((Get-Content -LiteralPath $settings -Raw) -notmatch 'apl_win_009') { throw 'repair modified persistent proxy settings' }
-          if ((Get-Content -LiteralPath $noProxy -Raw) -notmatch 'apl-win-009.example') { throw 'repair modified persistent no-proxy rules' }
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'repair modified persistent proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'repair modified persistent no-proxy rules' }
 
-          # Now prove the repaired binary is executable. Runtime configuration
-          # validation may quarantine the deliberately-invalid test sentinel, which
-          # is independent of the maintenance preservation contract above.
+          # Prove the repaired binary is executable with the preserved valid config.
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repaired install status failed with exit code $($p.ExitCode)" }
-
-          # Re-seed persistent-state sentinels so uninstall preservation is tested
-          # independently of runtime validation performed by the status command.
-          Set-Content -LiteralPath $settings -Value '{"apl_win_009":"preserve"}' -Encoding utf8
-          Set-Content -LiteralPath $noProxy -Value 'apl-win-009.example' -Encoding utf8
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'repaired runtime unexpectedly rewrote proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'repaired runtime unexpectedly rewrote no-proxy rules' }
 
           # Uninstall must remove owned startup state while preserving a foreign
           # same-named recovery value and persistent user configuration.
@@ -118,8 +115,8 @@ jobs:
           if ($mainAfterUninstall) { throw 'uninstall left owned main Run value' }
           $recoveryAfterUninstall = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
           if ($recoveryAfterUninstall -ne $foreignRecovery) { throw 'uninstall modified foreign recovery Run value' }
-          if ((Get-Content -LiteralPath $settings -Raw) -notmatch 'apl_win_009') { throw 'uninstall removed persistent proxy settings' }
-          if ((Get-Content -LiteralPath $noProxy -Raw) -notmatch 'apl-win-009.example') { throw 'uninstall removed persistent no-proxy rules' }
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'uninstall modified persistent proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'uninstall modified persistent no-proxy rules' }
 
           Remove-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
