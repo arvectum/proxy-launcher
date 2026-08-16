@@ -7,32 +7,34 @@ Current product version: `0.2.3`
 Status legend:
 
 - **DONE** — implementation and required automated acceptance are complete.
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — all repository/CI work that can be completed without the target machine/hardware/native privileged installation is complete; remaining evidence requires local execution.
-- **HUMAN/LEGAL PENDING** — engineering controls are complete, but a human/legal sign-off cannot be replaced by automation.
-- **LOCAL/NATIVE DEBT** — the next meaningful step requires a real host, privileged/native component, hardware token, or equivalent local boundary.
+- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — repository/CI work is complete; remaining evidence requires the target machine or privileged local execution.
+- **HUMAN/LEGAL PENDING** — engineering controls are complete, but judgment/sign-off cannot be replaced by automation.
+- **LOCAL/NATIVE DEBT** — next meaningful step requires a real host, privileged/native component, hardware-backed identity, or equivalent local boundary.
+- **STOP-GATE** — do not continue implementation until the named product/legal/infrastructure decision is made.
 
 ## 0. Proven Windows/core baseline
 
-The customer-proven Windows `0.2.3` system-proxy path remains the protected baseline. Autonomous roadmap work must not weaken or silently replace it.
+The customer-proven Windows `0.2.3` system-proxy path remains protected. New routing work must not silently replace or destabilize it.
 
-- **DONE** — unified backend contract/regression matrix (APL-CORE-007).
+- **DONE** — APL-CORE-007 — unified backend contract & regression matrix.
 - **DONE** — Windows portable/customer baseline and release/recovery safeguards already present in `main`.
 - **DONE** — Windows runtime/installer/security/diagnostics/productization CI already present in `main`.
-- **CONSTRAINT** — per-application routing is a new enforcement plane; it must not be smuggled into the proven Windows system-proxy path.
+- **CONSTRAINT** — per-application routing is a new enforcement plane and remains separated from the proven system-proxy baseline.
 
 ## 1. Linux / Astra Linux
 
 - **DONE** — APL-LNX-006 — Linux diagnostics & support bundle.
-- **DONE** — APL-LNX-007 — Debian `.deb` packaging. Merged independently as PR #66.
+- **DONE** — APL-LNX-007 — Debian `.deb` packaging (merged independently as PR #66).
 - **DONE** — APL-LNX-008 — AppImage packaging with hash-pinned build-only toolchain and extraction acceptance.
-- **DONE** — APL-LNX-009 — Debian/Ubuntu 22.04/24.04 CI acceptance, including ephemeral dpkg install/remove and user-state preservation.
+- **DONE** — APL-LNX-009 — Ubuntu 22.04/24.04 CI acceptance, including ephemeral dpkg install/remove and user-state preservation.
 - **DONE** — APL-IP-002-LNX — Linux stack & dependency sovereignty audit (conditional pass).
+- **DONE** — local-work reduction: `qa/collect_astra_acceptance_preflight.sh` collects read-only Astra/NetworkManager/package/session evidence without changing network state.
 - **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance.
-- **LOCAL/NATIVE DEBT** — Gate R8 — may close only after APL-LNX-010 produces real Astra evidence.
+- **LOCAL/NATIVE DEBT** — Gate R8 — close only from APL-LNX-010 real-host evidence.
 
 ### Linux release policy
 
-For controlled Astra deployments, `.deb` is the preferred artifact because it avoids the additional AppImage runtime stub. AppImage remains an optional portable format.
+For controlled Astra deployments, `.deb` is preferred because it avoids the additional AppImage runtime stub. AppImage remains an optional portable format.
 
 ## 2. macOS
 
@@ -44,15 +46,16 @@ For controlled Astra deployments, `.deb` is the preferred artifact because it av
 - **DONE** — APL-MAC-006 — per-user LaunchAgent ownership/autostart model.
 - **DONE** — APL-MAC-007 — packaging/recovery ownership contract tests.
 - **DONE** — APL-IP-002-MAC — macOS stack & dependency sovereignty audit (conditional pass).
-- **DONE** — post-roadmap integration hardening — macOS preflight is wired into the common backend operational gate before new `enable/sync` mutations; recovery/disable stays reachable.
+- **DONE** — integration hardening: macOS preflight is wired into the common backend operational gate before new `enable/sync` mutations; recovery/disable remains reachable.
+- **DONE** — local-work reduction: `qa/collect_macos_acceptance_preflight.sh` collects read-only OS/app/DMG/LaunchAgent/rollback-metadata evidence.
 - **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — APL-MAC-008 — real macOS GUI/system-proxy/autostart/crash-recovery acceptance.
-- **LOCAL/NATIVE DEBT** — Gate R9 — may close only after APL-MAC-008 evidence is complete.
+- **LOCAL/NATIVE DEBT** — Gate R9 — close only from APL-MAC-008 real-host evidence.
 
-Apple production identity signing/notarization is not a functional correctness gate in the current Russian-first release strategy. It remains a later distribution-policy task unless priorities change.
+Apple production identity signing/notarization is not a functional correctness gate in the current Russian-first release strategy; it remains a later distribution-policy task unless priorities change.
 
 ## 3. Cross-platform sovereignty / IP
 
-- **DONE** — APL-IP-002-WIN — Windows stack/dependency sovereignty audit already present; remediation findings remain binding.
+- **DONE** — APL-IP-002-WIN — Windows stack/dependency sovereignty audit; remediation findings remain binding.
 - **DONE** — APL-IP-002-LNX.
 - **DONE** — APL-IP-002-MAC.
 - **DONE** — APL-IP-002-FINAL — consolidated cross-platform conditional verdict.
@@ -64,45 +67,55 @@ Apple production identity signing/notarization is not a functional correctness g
   - chain-of-title/legal review for ООО «Арвектум»: pending;
   - clean IP baseline/tag: blocked until those reviews are signed off.
 
-### Build-sovereignty remediation retained from APL-IP-002
+### Windows build-sovereignty remediation — second autonomous pass
 
-- **HIGH PRIORITY** — Windows reproducible/offline build input closure: controlled CPython base, hash-bound wheelhouse and endpoint-denied/offline drill.
-- **HIGH PRIORITY** — independent/self-hosted build recovery path so GitHub/public package registries are not single points of release failure.
-- **MEDIUM PRIORITY** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
+- **DONE (engineering control)** — exact Windows x64 wheel set and SHA-256 hash lock in `requirements-build.windows-x64.hashes.txt`.
+- **DONE (engineering control)** — verified wheelhouse acquisition script with exactly eight approved wheels and `wheelhouse-manifest.json`.
+- **DONE (engineering control)** — canonical Windows build supports `offline-hash-locked` mode with `PIP_NO_INDEX=1`, `--no-index`, `--only-binary=:all:` and `--require-hashes`.
+- **DONE (CI control)** — dedicated Windows workflow acquires/validates the wheelhouse, then rebuilds portable with package-index access disabled.
+- **DONE** — build-only `pip` baseline moved from `25.3` to `26.1.2`; frozen PyInstaller/application runtime inputs otherwise unchanged.
+- **LOCAL/INFRA DEBT — HIGH** — store the verified wheelhouse in an Arvectum/Russian-controlled artifact perimeter instead of relying on reacquisition from PyPI.
+- **LOCAL/INFRA DEBT — HIGH** — pin/archive/verify the exact CPython 3.12.10 x64 base installer/runtime used to bootstrap the build.
+- **LOCAL/INFRA DEBT — HIGH** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare release evidence.
+- **MEDIUM** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
 
 ## 4. Per-application routing backlog
 
 - **DONE** — APL-ROUTE-001 — platform-neutral routing rule model: application identity + all/domain/CIDR destination + direct/proxy action + deterministic schema.
-- **DONE** — APL-ROUTE-002 — feasibility matrix based on platform-native mechanisms.
-  - Windows: first target through WFP application-aware ALE connect-redirection architecture.
-  - Linux/Astra: technically feasible through controlled cgroup/socket identity + nftables/policy-routing architecture; requires real-host privileged acceptance.
-  - macOS: NetworkExtension per-app path is entitlement/deployment/managed-configuration constrained; arbitrary consumer per-app routing is not promised.
-- **AUTONOMOUS COMPLETE / LOCAL/NATIVE DEBT** — APL-ROUTE-003 — Windows application-routing prototype.
-  - real read-only WFP application-id retrieval: done;
-  - deterministic filter-plan compiler: done;
-  - Windows hosted WFP probe: done/CI-governed;
-  - live WFP callout/filter/proxy-service enforcement: pending native privileged implementation and real Windows acceptance.
+- **DONE** — APL-ROUTE-002 — platform feasibility matrix.
+  - Windows: WFP application-aware ALE connect-redirection is technically suitable.
+  - Linux/Astra: controlled cgroup/socket identity + nftables/policy-routing is technically feasible but privileged and real-host dependent.
+  - macOS: NetworkExtension per-app routing is entitlement/deployment/managed-configuration constrained; arbitrary consumer per-app routing is not promised.
+- **AUTONOMOUS COMPLETE / LOCAL-NATIVE PENDING** — APL-ROUTE-003 control-plane prototype.
+  - real read-only `FwpmGetAppIdFromFileName0` probe: done;
+  - deterministic WFP filter-plan compiler: done;
+  - Windows hosted probe: CI-governed;
+  - live WFP callout/filter/proxy-service enforcement: not installed.
 - **DONE** — APL-ROUTE-004 — durable routing ownership/recovery/security journal contract.
 
-### Next routing implementation sequence
+### APL-ROUTE-003 production STOP-GATE
 
-1. native Windows WFP enforcement component + local proxy loop-prevention design;
-2. install/update/remove ownership and production signing for the native component;
-3. real Windows per-app direct/proxy acceptance including crash/reboot/rollback;
-4. only after Windows proof, Astra cgroup/nftables prototype and capability acceptance;
-5. macOS per-app routing only after entitlement/distribution-model proof.
+Production WFP connect-redirection needs a kernel-mode callout/driver path. On normal supported Windows, new production kernel drivers are subject to Microsoft's Hardware Dev Center signing chain, and enrollment/signing requires Microsoft program participation plus an accepted EV code-signing identity. The Russian user-mode signing strategy does not substitute for this Windows kernel loading policy.
 
-## 5. Immediate next execution order
+Therefore **do not implement or ship a production WFP kernel component yet**. First choose one product path:
 
-The next tasks are ordered by risk reduction, not by platform aesthetics:
+1. accept the Microsoft Hardware Dev Center + accepted EV certificate dependency specifically for the optional per-app Windows SKU;
+2. adopt a separately reviewed already-signed third-party enforcement component (which creates a new sovereignty/license/security dependency);
+3. redesign the Windows per-app feature around a supported user-mode mechanism if one can satisfy the same semantics without a kernel callout;
+4. defer Windows per-app routing while keeping system-proxy/domain/IP functionality production-ready.
 
-1. **Windows build-sovereignty closure** — remove public-network/build-channel single points of failure as far as automation allows; retain a final independent/local offline drill.
-2. **Prepare one-command real Astra acceptance evidence collection**, then execute it on the target Astra host when available.
-3. **Prepare one-command real macOS acceptance evidence collection**, then execute it on a real Mac when available.
-4. **Native WFP implementation specification/scaffold** without installing it into the proven customer baseline; live enforcement remains a separate local acceptance step.
-5. **Human/legal APL-IP-001 sign-off package** after final release artifacts/SBOM are known.
-6. **Gate R8/R9 closure** only from real-host evidence; never from hosted CI alone.
+Test-signing/developer modes are not accepted as a production-distribution workaround.
+
+## 5. Immediate remaining execution order
+
+1. **Finish CI validation of the current autonomous sweep and merge it to `main`.**
+2. **Windows sovereign-build local closure:** controlled CPython + controlled wheelhouse storage + independent endpoint-denied/self-hosted build proof.
+3. **APL-LNX-010:** run real Astra acceptance; then close Gate R8 if evidence passes.
+4. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
+5. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
+6. **APL-MAC-008:** real Mac acceptance; close Gate R9 only from real-host evidence.
+7. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
 
 ## Completion rule
 
-A task that requires a real target host, privileged native installation, hardware-backed signing identity, or legal/human judgment must remain visibly pending until that evidence exists. CI simulation, mocks, hosted runners and documentation may reduce the local work but may not be used to relabel that boundary as completed.
+A task requiring a real target host, privileged native installation, hardware-backed signing identity, external platform enrollment, or legal/human judgment stays visibly pending until that evidence exists. CI simulations, mocks, hosted runners and documentation may reduce local work but never relabel that boundary as completed.
