@@ -6,10 +6,12 @@ on:
     paths:
       - 'proxy_core.py'
       - 'proxy_gui.py'
+      - 'recovery_state.py'
       - 'secret_redaction.py'
       - 'windows_diagnostics.py'
       - 'doctor.py'
       - 'tests/test_doctor.py'
+      - 'tests/test_recovery_state_machine.py'
       - 'diagnostics/APL_DIAG_004_DOCTOR.md'
       - 'tools/clean_build_windows.ps1'
       - '.github/workflows/windows-p0.yml'
@@ -19,10 +21,12 @@ on:
     paths:
       - 'proxy_core.py'
       - 'proxy_gui.py'
+      - 'recovery_state.py'
       - 'secret_redaction.py'
       - 'windows_diagnostics.py'
       - 'doctor.py'
       - 'tests/test_doctor.py'
+      - 'tests/test_recovery_state_machine.py'
       - 'diagnostics/APL_DIAG_004_DOCTOR.md'
       - 'tools/clean_build_windows.ps1'
       - '.github/workflows/windows-p0.yml'
@@ -46,9 +50,11 @@ jobs:
         with:
           python-version: '3.12.10'
       - name: Compile diagnostics modules
-        run: python -m py_compile proxy_core.py proxy_gui.py secret_redaction.py windows_diagnostics.py doctor.py
+        run: python -m py_compile proxy_core.py proxy_gui.py recovery_state.py secret_redaction.py windows_diagnostics.py doctor.py
       - name: Run APL-DIAG-004 tests
         run: python -m unittest tests.test_doctor -v
+      - name: Run APL-REC-001 tests
+        run: python -m unittest tests.test_recovery_state_machine -v
       - name: Run full unit suite
         run: python -m unittest discover -s tests -v
       - name: Native Windows Doctor smoke
