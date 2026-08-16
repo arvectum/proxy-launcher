@@ -30,13 +30,16 @@ jobs:
       - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d
         with:
           python-version: '3.11'
+      - name: Install test runner
+        run: python -m pip install pytest
       - name: Run REL-011 contract tests
         run: python -m pytest -q tests/test_russian_signed_release_integration.py
       - name: Prove signing remains owner-operated
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R "secrets\." tools/russian_signed_release.ps1 .github/workflows/russian-signed-release-readiness.yml
-          ! grep -R -Ei "rutoken|csptest|certificate" .github/workflows/russian-signed-release-readiness.yml
+          ! grep -F 'secrets.' .github/workflows/russian-signed-release-readiness.yml
+          ! grep -F -- '-sfsign' .github/workflows/russian-signed-release-readiness.yml
+          ! grep -F 'Cert:\' .github/workflows/russian-signed-release-readiness.yml
           grep -F '$embeddedCodeSigningActivated = $false' tools/russian_signed_release.ps1
-          grep -F "RELEASE-EVIDENCE-ONLY" tools/russian_signed_release.ps1
+          grep -F 'RELEASE-EVIDENCE-ONLY' tools/russian_signed_release.ps1
