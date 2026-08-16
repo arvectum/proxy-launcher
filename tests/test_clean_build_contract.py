@@ -39,9 +39,14 @@ class CleanBuildContractTests(unittest.TestCase):
         self.assertIn("-m venv", script)
         self.assertIn("sys.prefix != sys.base_prefix", script)
 
-        # Toolchain installation
-        self.assertIn("pip==25.3", script)
+        # Toolchain installation. The online compatibility path remains version-pinned;
+        # the controlled release path can additionally enforce an offline hash-locked wheelhouse.
+        self.assertIn("pip==26.1.2", script)
+        self.assertNotIn("pip==25.3", script)
         self.assertIn("requirements-build.lock.txt", script)
+        self.assertIn("requirements-build.windows-x64.hashes.txt", script)
+        self.assertIn("--no-index", script)
+        self.assertIn("--require-hashes", script)
         self.assertIn("pip check", script)
 
         # Compilation & tests
