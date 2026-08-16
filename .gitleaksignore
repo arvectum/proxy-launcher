@@ -1,0 +1,4 @@
+# APL-DIAG-002 intentional synthetic redaction fixtures.
+# Exact fingerprint allowlist only. Do not add path-wide or rule-wide exclusions.
+fe61e0707505b1a9022cb606ac1f9285f781bfaf:tests/test_secret_redaction.py:jwt:49
+fe61e0707505b1a9022cb606ac1f9285f781bfaf:tests/test_secret_redaction.py:private-key:60

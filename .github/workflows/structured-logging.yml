@@ -1,4 +1,4 @@
-name: APL-DIAG-001 structured logging
+name: APL-DIAG-001/002 structured logging + secret redaction
 
 on:
   push:
@@ -6,16 +6,22 @@ on:
     paths:
       - 'proxy_core.py'
       - 'structured_logging.py'
+      - 'secret_redaction.py'
       - 'tests/test_structured_logging.py'
+      - 'tests/test_secret_redaction.py'
       - 'diagnostics/APL_DIAG_001_STRUCTURED_LOGGING.md'
+      - 'diagnostics/APL_DIAG_002_SECRET_REDACTION.md'
       - '.github/workflows/structured-logging.yml'
   pull_request:
     branches: [main]
     paths:
       - 'proxy_core.py'
       - 'structured_logging.py'
+      - 'secret_redaction.py'
       - 'tests/test_structured_logging.py'
+      - 'tests/test_secret_redaction.py'
       - 'diagnostics/APL_DIAG_001_STRUCTURED_LOGGING.md'
+      - 'diagnostics/APL_DIAG_002_SECRET_REDACTION.md'
       - '.github/workflows/structured-logging.yml'
   workflow_dispatch:
 
@@ -24,7 +30,7 @@ permissions:
 
 jobs:
   contract:
-    name: Structured logging contract (${{ matrix.os }})
+    name: Logging/redaction contract (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -36,8 +42,10 @@ jobs:
         with:
           python-version: '3.12.10'
       - name: Compile logging modules
-        run: python -m py_compile proxy_core.py structured_logging.py
+        run: python -m py_compile proxy_core.py structured_logging.py secret_redaction.py
       - name: Run structured logging tests
         run: python -m unittest tests.test_structured_logging -v
+      - name: Run secret redaction tests
+        run: python -m unittest tests.test_secret_redaction -v
       - name: Run full unit suite
         run: python -m unittest discover -s tests -v
