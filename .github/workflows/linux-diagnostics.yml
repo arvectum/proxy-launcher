@@ -1,0 +1,110 @@
+name: APL-LNX-006 Linux diagnostics support bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'linux_diagnostics.py'
+      - 'linux_runtime.py'
+      - 'linux_networkmanager_preflight.py'
+      - 'linux_backend.py'
+      - 'linux_autostart.py'
+      - 'linux_policykit_ux.py'
+      - 'secret_redaction.py'
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'tests/test_linux_diagnostics.py'
+      - 'tests/test_secret_redaction.py'
+      - 'tests/test_linux_runtime.py'
+      - 'tests/test_linux_networkmanager_preflight.py'
+      - 'tests/test_linux_backend.py'
+      - 'tests/test_linux_autostart.py'
+      - 'docs/APL_LNX_006_LINUX_DIAGNOSTICS_SUPPORT_BUNDLE.md'
+      - '.github/workflows/linux-diagnostics.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'linux_diagnostics.py'
+      - 'linux_runtime.py'
+      - 'linux_networkmanager_preflight.py'
+      - 'linux_backend.py'
+      - 'linux_autostart.py'
+      - 'linux_policykit_ux.py'
+      - 'secret_redaction.py'
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'tests/test_linux_diagnostics.py'
+      - 'tests/test_secret_redaction.py'
+      - 'tests/test_linux_runtime.py'
+      - 'tests/test_linux_networkmanager_preflight.py'
+      - 'tests/test_linux_backend.py'
+      - 'tests/test_linux_autostart.py'
+      - 'docs/APL_LNX_006_LINUX_DIAGNOSTICS_SUPPORT_BUNDLE.md'
+      - '.github/workflows/linux-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Linux diagnostics contract (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile Linux diagnostics surface
+        run: >-
+          python -m py_compile
+          linux_diagnostics.py
+          linux_runtime.py
+          linux_networkmanager_preflight.py
+          linux_backend.py
+          linux_autostart.py
+          linux_policykit_ux.py
+          secret_redaction.py
+          tests/test_linux_diagnostics.py
+
+      - name: Run APL-LNX-006 diagnostics tests
+        run: python -m unittest tests.test_linux_diagnostics -v
+
+      - name: Run redaction and Linux integration regressions
+        run: >-
+          python -m unittest -v
+          tests.test_secret_redaction
+          tests.test_linux_runtime
+          tests.test_linux_networkmanager_preflight
+          tests.test_linux_backend
+          tests.test_linux_autostart
+
+      - name: Native Linux no-proxy bundle smoke
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/apl-lnx-006-native.zip"
+          python linux_diagnostics.py "$bundle"
+          test -f "$bundle"
+          python - "$bundle" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          path = sys.argv[1]
+          with zipfile.ZipFile(path, "r") as archive:
+              names = set(archive.namelist())
+              assert "diagnostics.json" in names
+              assert all(name == "diagnostics.json" or name.startswith("logs/") for name in names)
+              data = json.loads(archive.read("diagnostics.json"))
+          assert data["schema"] == "arvectum.proxy.linux_diagnostics.v1"
+          assert data["read_only"] is True
+          assert data["sections"]["system"]["data"]["linux"] is True
+          PY
