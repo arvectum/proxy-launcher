@@ -61,10 +61,12 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
         workflow = self.read(".github/workflows/windows-installer.yml")
         self.assertIn("damaged-binary-for-repair-test", workflow)
         self.assertIn("Arvectum Proxy Launcher Repair.exe", workflow)
+        self.assertIn('"config_version":1', workflow)
+        self.assertIn("Get-FileHash -LiteralPath $settings -Algorithm SHA256", workflow)
         self.assertIn("repair left stale runtime PID", workflow)
         self.assertIn("repair modified persistent proxy settings", workflow)
         self.assertIn("uninstall modified foreign recovery Run value", workflow)
-        self.assertIn("uninstall removed persistent no-proxy rules", workflow)
+        self.assertIn("uninstall modified persistent no-proxy rules", workflow)
 
     def test_contract_document_is_present(self):
         contract = self.read("APL-WIN-009_WINDOWS_UNINSTALL_REPAIR.md")
