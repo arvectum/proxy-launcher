@@ -56,10 +56,44 @@ function Remove-OwnedRunValue([string]$Name, [string]$ExpectedExe) {
   }
 }
 
+function Invoke-NativeCapture([string]$FilePath, [string[]]$Arguments) {
+  $token = [Guid]::NewGuid().ToString('N')
+  $stdoutPath = Join-Path $env:TEMP ("apl-native-$token.out")
+  $stderrPath = Join-Path $env:TEMP ("apl-native-$token.err")
+  try {
+    $process = Start-Process `
+      -FilePath $FilePath `
+      -ArgumentList $Arguments `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath `
+      -NoNewWindow `
+      -PassThru `
+      -Wait
+    $stdout = if (Test-Path -LiteralPath $stdoutPath) {
+      Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue
+    } else { '' }
+    $stderr = if (Test-Path -LiteralPath $stderrPath) {
+      Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
+    } else { '' }
+    return [pscustomobject]@{
+      ExitCode = [int]$process.ExitCode
+      StdOut = [string]$stdout
+      StdErr = [string]$stderr
+    }
+  } finally {
+    Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Remove-OwnedLegacyTask([string]$ExpectedExe) {
   $schtasks = Join-Path $env:SystemRoot 'System32\schtasks.exe'
-  $xmlText = (& $schtasks /Query /TN $TaskName /XML 2>$null | Out-String)
-  if ($LASTEXITCODE -ne 0 -or -not $xmlText.Trim()) { return }
+  $query = Invoke-NativeCapture $schtasks @('/Query', '/TN', $TaskName, '/XML')
+  if ($query.ExitCode -ne 0 -or -not $query.StdOut.Trim()) {
+    Write-MaintenanceLog 'legacy scheduled task absent; nothing to remove'
+    return
+  }
+  $xmlText = $query.StdOut
 
   try { [xml]$taskXml = $xmlText } catch {
     Write-MaintenanceLog 'legacy scheduled task XML could not be parsed; task preserved'
@@ -88,10 +122,12 @@ function Remove-OwnedLegacyTask([string]$ExpectedExe) {
     return
   }
 
-  & $schtasks /Delete /F /TN $TaskName *> $null
-  if ($LASTEXITCODE -ne 0) { throw 'owned legacy scheduled task could not be removed' }
-  & $schtasks /Query /TN $TaskName *> $null
-  if ($LASTEXITCODE -eq 0) { throw 'owned legacy scheduled task still exists after deletion' }
+  $delete = Invoke-NativeCapture $schtasks @('/Delete', '/F', '/TN', $TaskName)
+  if ($delete.ExitCode -ne 0) {
+    throw "owned legacy scheduled task could not be removed; schtasks exit code $($delete.ExitCode)"
+  }
+  $verify = Invoke-NativeCapture $schtasks @('/Query', '/TN', $TaskName, '/XML')
+  if ($verify.ExitCode -eq 0) { throw 'owned legacy scheduled task still exists after deletion' }
   Write-MaintenanceLog 'owned legacy scheduled task removed'
 }
 
