@@ -173,14 +173,31 @@ The signer certificate is included in the CMS/PKCS#7 object with `-add` so the e
 
 ### Owner-operated closure
 
-- [ ] Run Inspect mode on the Windows notebook with the configured CryptoPro/Rutoken environment.
-- [ ] Record the intended ООО «Арвектум» certificate thumbprint and profile.
-- [ ] Run the real detached-signature round trip with the Rutoken physically attached.
-- [ ] Confirm CryptoPro verification PASS.
-- [ ] Review `signing-evidence.json` and confirm no secret material is present.
-- [ ] Record whether Code Signing EKU is present or absent.
-- [ ] If EKU is absent, formally classify the current УКЭП as **release-evidence only**.
-- [ ] If EKU is present, open a separate governed embedded-signing/timestamp/provider-policy probe before any production use.
+- [x] Run Inspect mode on the Windows notebook with the configured CryptoPro/Rutoken environment.
+- [x] Record the intended ООО «Арвектум» certificate thumbprint and profile.
+- [x] Run the real detached-signature round trip with the Rutoken physically attached.
+- [x] Confirm CryptoPro verification PASS.
+- [x] Review `signing-evidence.json` and confirm no secret material is present.
+- [x] Record whether Code Signing EKU is present or absent.
+- [x] If EKU is absent, formally classify the current УКЭП as **release-evidence only**.
+- [x] If EKU is present, open a separate governed embedded-signing/timestamp/provider-policy probe before any production use.
+
+**Closure date:** 2026-08-16  
+**Windows host:** ARUTYUNOVNS  
+**CryptoPro version:** 5.0.18138.0  
+**CryptoPro csptest path:** C:\Program Files\Crypto Pro\CSP\csptest.exe  
+**Signer certificate thumbprint:** EE1CFA955BA22F03C39C76B183D94CD37494582E  
+**Signer certificate subject:** ООО "АРВЕКТУМ" (SN=АРУТЮНОВ, G=НИКИТА СЕРГЕЕВИЧ, T=ГЕНЕРАЛЬНЫЙ ДИРЕКТОР)  
+**Signer certificate issuer:** Федеральная налоговая служба  
+**Certificate validity:** 2026-06-25 to 2027-09-25  
+**Certificate has accessible private key:** Yes  
+**Detached signature created:** Yes  
+**Detached signature verified by CryptoPro:** Yes (Detached Signature was verified OK)  
+**Code Signing EKU present:** No  
+**Current УКЭП classification:** RELEASE-EVIDENCE-ONLY  
+**Production signing activated:** NO  
+**Evidence directory:** %TEMP%\Arvectum\APL-REL-010\  
+**Evidence files:** poc-artifact.txt, SHA256SUMS.txt, SHA256SUMS.txt.sig, signer-certificate.cer, signing-evidence.json
 
 ## 8. Expected likely outcome
 
