@@ -125,6 +125,26 @@ function Invoke-PreviousRollback([string]$ExistingExe) {
   Stop-OwnedProcess $ExistingExe
 }
 
+function Get-MaintenanceKind([string]$ExistingExe, [string]$OwnerMarker, $IncomingManifest) {
+  if (-not (Test-Path -LiteralPath $ExistingExe) -and -not (Test-Path -LiteralPath $OwnerMarker)) {
+    return 'INSTALL'
+  }
+  $installedManifestPath = Join-Path $InstallRoot 'build_manifest.json'
+  if (Test-Path -LiteralPath $installedManifestPath -PathType Leaf) {
+    try {
+      $installedManifest = Get-Content -LiteralPath $installedManifestPath -Raw | ConvertFrom-Json
+      $installedVersion = [string]$installedManifest.version
+      $incomingVersion = [string]$IncomingManifest.version
+      if ($installedVersion -and $incomingVersion -and $installedVersion -ne $incomingVersion) {
+        return 'UPGRADE'
+      }
+    } catch {
+      Write-InstallLog "installed manifest could not be classified: $($_.Exception.Message)"
+    }
+  }
+  return 'REPAIR'
+}
+
 try {
   Write-InstallLog '=== INSTALL SESSION START'
   Write-InstallLog "PayloadRoot: $PayloadRoot"
@@ -140,8 +160,9 @@ try {
 
   $existingExe = Join-Path $InstallRoot 'Arvectum Proxy Launcher.exe'
   $ownerMarker = Join-Path $InstallRoot '.arvectum-install-owner'
-  $maintenanceKind = if ((Test-Path -LiteralPath $existingExe) -or (Test-Path -LiteralPath $ownerMarker)) { 'REPAIR' } else { 'INSTALL' }
+  $maintenanceKind = Get-MaintenanceKind $existingExe $ownerMarker $manifest
   Write-InstallLog "maintenance mode: $maintenanceKind"
+  Write-InstallLog "incoming version: $($manifest.version)"
   Write-InstallLog "final EXE: $existingExe"
 
   Invoke-PreviousRollback $existingExe
@@ -175,7 +196,6 @@ try {
   }
 
   Clear-StaleMaintenanceState $existingExe
-  # Known legacy releaseFolder pattern retained as an explicit migration boundary.
   $releaseFolder = 'arvectum-proxy-launcher-windows'
   Write-InstallLog "=== INSTALL SESSION END: PASS ($maintenanceKind)"
 } catch {
