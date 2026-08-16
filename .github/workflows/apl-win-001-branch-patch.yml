@@ -23,7 +23,9 @@ jobs:
           python-version: '3.12.10'
 
       - name: Apply APL-WIN-001 patch
-        run: python tools/apply_apl_win_001.py
+        run: |
+          python tools/apply_apl_win_001.py
+          python tools/apl_win_001_compat.py
 
       - name: Compile changed Python
         run: python -m py_compile proxy_gui.py tests/test_proxy_gui.py
@@ -38,6 +40,7 @@ jobs:
         shell: bash
         run: |
           rm tools/apply_apl_win_001.py
+          rm tools/apl_win_001_compat.py
           rm .github/workflows/apl-win-001-branch-patch.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
