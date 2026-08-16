@@ -1,7 +1,7 @@
 # APL-DIAG-003 — Windows diagnostics collector
 
-**Status:** IMPLEMENTED / READY FOR MERGE  
-**Depends on:** APL-DIAG-001 Structured logging, APL-DIAG-002 Secret redaction  
+**Status:** IMPLEMENTED / READY FOR MERGE
+**Depends on:** APL-DIAG-001 Structured logging, APL-DIAG-002 Secret redaction
 **Bundle schema:** `arvectum.proxy.windows_diagnostics.v1`
 
 ## Goal
