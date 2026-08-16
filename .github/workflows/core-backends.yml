@@ -1,0 +1,81 @@
+name: Core backend contract
+
+on:
+  pull_request:
+    paths:
+      - proxy_backend.py
+      - windows_backend.py
+      - macos_backend.py
+      - tests/test_proxy_backend.py
+      - tests/test_windows_backend.py
+      - tests/test_macos_backend.py
+      - core/**
+      - .github/workflows/core-backends.yml
+  push:
+    branches:
+      - main
+    paths:
+      - proxy_backend.py
+      - windows_backend.py
+      - macos_backend.py
+      - tests/test_proxy_backend.py
+      - tests/test_windows_backend.py
+      - tests/test_macos_backend.py
+      - core/**
+      - .github/workflows/core-backends.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backend-contract:
+    name: Backend contract (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile backend modules
+        run: >-
+          python -m py_compile
+          proxy_backend.py
+          windows_backend.py
+          macos_backend.py
+          tests/test_proxy_backend.py
+          tests/test_windows_backend.py
+          tests/test_macos_backend.py
+
+      - name: Run backend contract tests
+        run: >-
+          python -m unittest -v
+          tests.test_proxy_backend
+          tests.test_windows_backend
+          tests.test_macos_backend
+
+      - name: Verify macOS networksetup surface
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          help_output="$(/usr/sbin/networksetup -help 2>&1 || true)"
+          for flag in \
+            -listallnetworkservices \
+            -getautoproxyurl \
+            -setautoproxyurl \
+            -setautoproxystate \
+            -getproxybypassdomains \
+            -setproxybypassdomains
+          do
+            grep -q -- "$flag" <<<"$help_output"
+          done
