@@ -66,5 +66,70 @@ class AutostartOwnershipTests(unittest.TestCase):
         launcher._autostart_task_is_ours.assert_not_called()
 
 
+class FinalStatusUxTests(unittest.TestCase):
+    def status(self, **overrides):
+        values = {
+            "running": False,
+            "enabled": False,
+            "pending": False,
+            "orphaned_pac": False,
+            "stale_proxy": False,
+        }
+        values.update(overrides)
+        return gui._final_status_view(**values)
+
+    def test_active_state_is_unambiguous_and_actionable(self):
+        view = self.status(running=True, enabled=True)
+        self.assertEqual(view["key"], "active")
+        self.assertEqual(view["label"], "ПРОКСИ РАБОТАЕТ")
+        self.assertFalse(view["can_on"])
+        self.assertTrue(view["can_off"])
+        self.assertTrue(view["can_check"])
+        self.assertIn("Windows", view["hint"])
+
+    def test_engine_only_state_avoids_internal_pac_jargon_in_primary_label(self):
+        view = self.status(running=True, enabled=False)
+        self.assertEqual(view["key"], "engine_only")
+        self.assertEqual(view["label"], "ПРОКСИ ЗАПУЩЕН · НЕ ПОДКЛЮЧЕН")
+        self.assertNotIn("PAC", view["label"])
+        self.assertTrue(view["can_on"])
+        self.assertTrue(view["can_off"])
+
+    def test_recovery_state_blocks_proxy_actions_and_promotes_restore(self):
+        view = self.status(pending=True)
+        self.assertEqual(view["key"], "recovery_required")
+        self.assertFalse(view["can_on"])
+        self.assertFalse(view["can_off"])
+        self.assertTrue(view["restore_primary"])
+        self.assertIn("Восстановить настройки сети", view["hint"])
+
+    def test_orphaned_state_exposes_only_safe_cleanup_action(self):
+        view = self.status(orphaned_pac=True)
+        self.assertEqual(view["key"], "orphaned_arvectum_pac")
+        self.assertFalse(view["can_on"])
+        self.assertFalse(view["can_off"])
+        self.assertFalse(view["can_check"])
+        self.assertTrue(view["show_orphan_action"])
+
+    def test_diagnostics_state_is_fail_closed(self):
+        view = self.status(stale_proxy=True)
+        self.assertEqual(view["key"], "diagnostics_required")
+        self.assertFalse(view["can_on"])
+        self.assertFalse(view["can_off"])
+        self.assertIn("Диагностика", view["hint"])
+
+    def test_off_state_confirms_safe_final_state(self):
+        view = self.status()
+        self.assertEqual(view["key"], "off")
+        self.assertEqual(view["label"], "ПРОКСИ ВЫКЛЮЧЕН")
+        self.assertTrue(view["can_on"])
+        self.assertFalse(view["can_off"])
+        self.assertIn("Исходные сетевые настройки", view["hint"])
+
+    def test_running_state_keeps_precedence_over_recovery_evidence(self):
+        view = self.status(running=True, enabled=True, pending=True)
+        self.assertEqual(view["key"], "active")
+
+
 if __name__ == "__main__":
     unittest.main()
