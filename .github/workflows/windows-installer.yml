@@ -10,6 +10,9 @@ on:
       artifact_name:
         description: Canonical installer artifact name
         value: ${{ jobs.installer.outputs.artifact_name }}
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   installer:
     runs-on: windows-latest
@@ -29,35 +32,107 @@ jobs:
         id: installer
         shell: pwsh
         run: ./tools/build_windows_installer.ps1 -PythonExecutable python
-      - name: Fresh install, status, upgrade, and uninstall smoke
+      - name: Fresh install, repair, stale-state cleanup, and uninstall smoke
         shell: pwsh
         run: |
           function Dump-InstallerDiagnostics {
-            if (Test-Path installer-fresh.log) { Get-Content installer-fresh.log }
-            if (Test-Path installer-upgrade.log) { Get-Content installer-upgrade.log }
-            if (Test-Path installer-uninstall.log) { Get-Content installer-uninstall.log }
+            foreach ($log in @('installer-fresh.log','installer-repair.log','installer-uninstall.log')) {
+              if (Test-Path $log) { Write-Host "--- $log"; Get-Content $log }
+            }
             $appLog = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher\install.log'
-            if (Test-Path $appLog) { Get-Content $appLog }
+            if (Test-Path $appLog) { Write-Host '--- install.log'; Get-Content $appLog }
           }
+
           $setup = '${{ steps.installer.outputs.setup_path }}'
           $freshLog = Join-Path $PWD 'installer-fresh.log'
           $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=$freshLog") -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh installer failed with exit code $($p.ExitCode)" }
-          $exe = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe'
+
+          $installRoot = Join-Path $env:USERPROFILE 'Documents\ArvectumProxyLauncher'
+          $exe = Join-Path $installRoot 'Arvectum Proxy Launcher.exe'
+          $repair = Join-Path $installRoot 'Arvectum Proxy Launcher Repair.exe'
           if (-not (Test-Path -LiteralPath $exe)) { [Environment]::GetFolderPath('MyDocuments'); Get-ChildItem $env:USERPROFILE -Filter 'Arvectum Proxy Launcher.exe' -File -Recurse -ErrorAction SilentlyContinue | Select-Object FullName; Dump-InstallerDiagnostics; throw 'fresh install did not create installed EXE' }
+          if (-not (Test-Path -LiteralPath $repair)) { Dump-InstallerDiagnostics; throw 'fresh install did not cache repair Setup' }
+
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "fresh install status failed with exit code $($p.ExitCode)" }
-          $upgradeLog = Join-Path $PWD 'installer-upgrade.log'
-          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=$upgradeLog") -PassThru -Wait
-          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "upgrade installer failed with exit code $($p.ExitCode)" }
-          if (-not (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'upgrade removed installed EXE' }
+
+          # Seed a valid schema-v1 persistent configuration and no-proxy rules.
+          # Their hashes are the preservation evidence across repair and uninstall.
+          $stateRoot = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
+          New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
+          $settings = Join-Path $stateRoot 'proxy_settings.json'
+          $noProxy = Join-Path $stateRoot 'no_proxy.txt'
+          $settingsJson = '{"config_version":1,"local_http_port":18080,"local_socks_port":11080,"local_pac_port":18082,"pac_path":"/proxy.pac","upstream":[{"host":"","port":8000}]}'
+          Set-Content -LiteralPath $settings -Value $settingsJson -Encoding utf8
+          Set-Content -LiteralPath $noProxy -Value 'apl-win-009.example' -Encoding utf8
+          $settingsHash = (Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash
+          $noProxyHash = (Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash
+
+          # Seed stale operational artifacts that repair must clean.
+          Set-Content -LiteralPath (Join-Path $stateRoot 'proxy_core.pid') -Value '2147483646' -Encoding ascii
+          Set-Content -LiteralPath ($exe + '.new') -Value 'stale-new' -Encoding ascii
+          Set-Content -LiteralPath ($exe + '.old') -Value 'stale-old' -Encoding ascii
+          $runPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          New-Item -Path $runPath -Force | Out-Null
+          $ownedStart = '"' + $exe + '" --start'
+          New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -Value $ownedStart -PropertyType String -Force | Out-Null
+
+          # Simulate a damaged application binary with no outstanding recovery
+          # backups. The cached Setup must repair it rather than trying to execute
+          # the damaged EXE as a prerequisite.
+          Set-Content -LiteralPath $exe -Value 'damaged-binary-for-repair-test' -Encoding ascii
+          $repairLog = Join-Path $PWD 'installer-repair.log'
+          $p = Start-Process -FilePath $repair -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=$repairLog") -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repair installer failed with exit code $($p.ExitCode)" }
+
+          if (-not (Test-Path -LiteralPath $exe)) { Dump-InstallerDiagnostics; throw 'repair did not restore installed EXE' }
+          if (Test-Path -LiteralPath ($exe + '.new')) { throw 'repair left stale .new transactional artifact' }
+          if (Test-Path -LiteralPath ($exe + '.old')) { throw 'repair left stale .old transactional artifact' }
+          if (Test-Path -LiteralPath (Join-Path $stateRoot 'proxy_core.pid')) { throw 'repair left stale runtime PID' }
+          $recoveryAfterRepair = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+          if ($recoveryAfterRepair) { throw 'repair left stale owned recovery Run value' }
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'repair modified persistent proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'repair modified persistent no-proxy rules' }
+
+          # Prove the repaired binary is executable with the preserved valid config.
           $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
-          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "upgrade status failed with exit code $($p.ExitCode)" }
-          $uninstaller = Join-Path (Split-Path $exe) 'unins000.exe'
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "repaired install status failed with exit code $($p.ExitCode)" }
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'repaired runtime unexpectedly rewrote proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'repaired runtime unexpectedly rewrote no-proxy rules' }
+
+          # Uninstall must remove owned startup state while preserving a foreign
+          # same-named recovery value and persistent user configuration.
+          New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -Value $ownedStart -PropertyType String -Force | Out-Null
+          $foreignRecovery = '"' + $env:SystemRoot + '\System32\cmd.exe" /c echo foreign'
+          New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -Value $foreignRecovery -PropertyType String -Force | Out-Null
+
+          # Execute the installed cleanup helper directly first so its native
+          # Windows behavior and exit code are verified independently from Inno.
+          $uninstallHelper = Join-Path $installRoot 'uninstall_helper.ps1'
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $p = Start-Process -FilePath $windowsPowerShell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uninstallHelper, '-InstallRoot', $installRoot) -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "installed uninstall helper failed with exit code $($p.ExitCode)" }
+          $mainAfterHelper = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
+          if ($mainAfterHelper) { throw 'uninstall helper left owned main Run value' }
+          $recoveryAfterHelper = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+          if ($recoveryAfterHelper -ne $foreignRecovery) { throw 'uninstall helper modified foreign recovery Run value' }
+
+          $uninstaller = Join-Path $installRoot 'unins000.exe'
           $uninstallLog = Join-Path $PWD 'installer-uninstall.log'
           $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$uninstallLog") -PassThru -Wait
           if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "uninstaller failed with exit code $($p.ExitCode)" }
           if (Test-Path -LiteralPath $exe) { Dump-InstallerDiagnostics; throw 'uninstall did not remove installed EXE' }
+          if (Test-Path -LiteralPath $repair) { Dump-InstallerDiagnostics; throw 'uninstall did not remove cached repair Setup' }
+
+          $mainAfterUninstall = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
+          if ($mainAfterUninstall) { throw 'uninstall left owned main Run value' }
+          $recoveryAfterUninstall = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+          if ($recoveryAfterUninstall -ne $foreignRecovery) { throw 'uninstall modified foreign recovery Run value' }
+          if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'uninstall modified persistent proxy settings' }
+          if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'uninstall modified persistent no-proxy rules' }
+
+          Remove-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.installer.outputs.setup_name }}
