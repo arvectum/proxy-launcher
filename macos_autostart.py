@@ -2,6 +2,7 @@
 """Per-user LaunchAgent ownership for APL-MAC-006."""
 import os
 import plistlib
+import posixpath
 import tempfile
 from typing import Optional
 
@@ -14,8 +15,16 @@ def default_launchagent_path(home: Optional[str] = None) -> str:
     return os.path.join(root, "Library", "LaunchAgents", LABEL + ".plist")
 
 
+def _normalize_macos_executable(executable: str) -> str:
+    """Normalize a LaunchAgent executable using macOS/POSIX semantics on every CI host."""
+    value = str(executable or "").strip()
+    if not value.startswith("/"):
+        raise ValueError("LaunchAgent executable must be an absolute macOS path")
+    return posixpath.normpath(value)
+
+
 def launchagent_payload(executable: str = DEFAULT_EXECUTABLE):
-    executable = os.path.abspath(os.path.expanduser(str(executable)))
+    executable = _normalize_macos_executable(executable)
     return {
         "Label": LABEL,
         "ProgramArguments": [executable],

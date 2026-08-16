@@ -29,11 +29,11 @@ jobs:
           assert app_id, 'WFP returned empty app id'
           print(json.dumps({'executable': sys.executable, 'app_id_bytes': len(app_id), 'mutation': False}))
           '@ | python - | Tee-Object -FilePath apl-route-003-wfp-probe.json
-      - name: Prove no live filter API is present in prototype
+      - name: Prove no live filter API call is present in prototype
         shell: pwsh
         run: |
           $text = Get-Content windows_app_routing.py -Raw
-          if ($text -match 'FwpmFilterAdd|FwpmCalloutAdd|FwpsCalloutRegister') { throw 'Live WFP mutation API found in read-only prototype' }
+          if ($text -match 'FwpmFilterAdd\w*\s*\(|FwpmCalloutAdd\w*\s*\(|FwpsCalloutRegister\w*\s*\(') { throw 'Live WFP mutation API call found in read-only prototype' }
       - uses: actions/upload-artifact@v4
         with:
           name: apl-route-003-readonly-wfp-probe

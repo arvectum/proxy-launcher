@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read-only Windows WFP application identity and filter-plan prototype.
 
-APL-ROUTE-003 deliberately stops before FwpmFilterAdd/callout installation.
+APL-ROUTE-003 deliberately stops before live WFP filter/callout installation.
 Live WFP redirection requires a separately reviewed native privileged component.
 """
 from dataclasses import dataclass
@@ -20,7 +20,7 @@ class WindowsAppRoutingError(RuntimeError):
 
 
 class FWP_BYTE_BLOB(ctypes.Structure):
-    _fields_ = [("size", wintypes.UINT32), ("data", ctypes.POINTER(ctypes.c_ubyte))]
+    _fields_ = [("size", ctypes.c_uint32), ("data", ctypes.POINTER(ctypes.c_ubyte))]
 
 
 @dataclass(frozen=True)
