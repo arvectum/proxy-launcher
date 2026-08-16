@@ -41,7 +41,7 @@ class CapabilityModelTests(unittest.TestCase):
     def test_autostart_is_explicitly_platform_specific(self):
         self.assertTrue(capabilities_for_backend("windows").supports(Feature.AUTOSTART))
         self.assertFalse(capabilities_for_backend("macos").supports(Feature.AUTOSTART))
-        self.assertFalse(capabilities_for_backend("linux").supports(Feature.AUTOSTART))
+        self.assertTrue(capabilities_for_backend("linux").supports(Feature.AUTOSTART))
 
     def test_application_routing_is_planned_not_accidentally_enabled(self):
         for backend_id in declared_backend_ids():
@@ -64,16 +64,21 @@ class CapabilityModelTests(unittest.TestCase):
         self.assertEqual(view["state"], "planned")
 
     def test_supported_feature_ux_is_enabled(self):
-        view = unsupported_feature_view("linux", Feature.BYPASS_RULES)
+        view = unsupported_feature_view("linux", Feature.AUTOSTART)
         self.assertTrue(view["visible"])
         self.assertTrue(view["enabled"])
         self.assertEqual(view["badge"], "Доступно")
+        self.assertIn("XDG", view["message"])
 
     def test_require_feature_fails_closed_with_structured_context(self):
         with self.assertRaises(UnsupportedFeatureError) as caught:
-            require_feature("linux", Feature.AUTOSTART)
-        self.assertEqual(caught.exception.backend_id, "linux")
+            require_feature("macos", Feature.AUTOSTART)
+        self.assertEqual(caught.exception.backend_id, "macos")
         self.assertEqual(caught.exception.capability.feature, Feature.AUTOSTART)
+
+    def test_linux_autostart_requirement_is_supported(self):
+        capability = require_feature("linux", Feature.AUTOSTART)
+        self.assertEqual(capability.state, CapabilityState.SUPPORTED)
 
     def test_unknown_backend_and_undeclared_feature_fail_closed(self):
         with self.assertRaises(ValueError):

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Linux/Astra GUI entry point for Arvectum Proxy Launcher (APL-LNX-004).
+"""Linux/Astra GUI entry point for Arvectum Proxy Launcher (APL-LNX-004/005).
 
 The established Windows launcher remains untouched. This entry point reuses the
 shared branded dialogs/widgets while replacing Windows-specific runtime UX with
-Linux/Astra capability states and an explicit PolicyKit authorization flow.
+Linux/Astra capability states, an explicit PolicyKit authorization flow and a
+per-user production-safe XDG autostart control.
 """
 
 import os
@@ -14,6 +15,7 @@ from tkinter import messagebox
 
 import connection_test as connection_test_module
 import doctor as doctor_module
+import linux_autostart
 import linux_policykit_ux as policykit_ux
 import proxy_core as core
 import proxy_gui as shared_gui
@@ -84,20 +86,40 @@ class LinuxLauncher(shared_gui.Launcher):
         self._apply_linux_labels()
         self.refresh_status()
 
-    # Linux autostart policy is intentionally not smuggled through Windows Run/
-    # Task Scheduler code. A dedicated Linux autostart task can add systemd or
-    # desktop-autostart semantics later.
+    def _autostart_status(self):
+        return linux_autostart.status()
+
     def _autostart_enabled(self):
-        return False
+        return self._autostart_status().enabled
 
     def _toggle_autostart(self):
-        self.auto_var.set(False)
-        messagebox.showinfo(
-            APP_NAME,
-            "Автозапуск Linux/Astra пока не настраивается этой версией. "
-            "Ручной запуск и системный прокси работают независимо от него.",
-        )
-        return False
+        requested = bool(self.auto_var.get())
+        try:
+            before = self._autostart_status()
+            if before.conflict:
+                raise linux_autostart.LinuxAutostartError(before.message)
+            if requested:
+                result = linux_autostart.enable()
+            else:
+                result = linux_autostart.disable()
+        except linux_autostart.LinuxAutostartError as exc:
+            current = self._autostart_status()
+            self.auto_var.set(bool(current.enabled))
+            messagebox.showerror(
+                APP_NAME,
+                "%s\n\nЧужие или неподтверждённые записи автозапуска не изменялись." % exc,
+            )
+            return False
+        self.auto_var.set(bool(result.enabled))
+        if requested:
+            messagebox.showinfo(
+                APP_NAME,
+                "Автозапуск включён для текущего пользователя.\n\n"
+                "При следующем входе в графическую сессию Arvectum попробует подключить прокси "
+                "без повышения привилегий. Если NetworkManager потребует новое разрешение PolicyKit, "
+                "автоподключение завершится безопасно без изменения сети — подключите прокси из окна приложения.",
+            )
+        return True
 
     def _apply_linux_labels(self):
         self.root.title(APP_NAME + " · Linux/Astra")
@@ -110,8 +132,13 @@ class LinuxLauncher(shared_gui.Launcher):
         except Exception:
             pass
         try:
-            self.autostart_check.configure(text="Автозапуск Linux/Astra (будет добавлен отдельно)")
-            self.autostart_check.state(["disabled"])
+            self.autostart_check.configure(text="Автоподключение прокси при входе в Linux/Astra")
+            autostart_state = self._autostart_status()
+            if autostart_state.managed and not autostart_state.conflict:
+                self.autostart_check.state(["!disabled"])
+            else:
+                self.autostart_check.state(["disabled"])
+                self.auto_var.set(False)
         except Exception:
             pass
         try:
@@ -123,6 +150,20 @@ class LinuxLauncher(shared_gui.Launcher):
         # Preserve the mature active/recovery rendering first, then replace only
         # the idle/engine-only decision with the governed Linux capability state.
         shared_gui.Launcher.refresh_status(self)
+        try:
+            autostart_state = self._autostart_status()
+            self.auto_var.set(bool(autostart_state.enabled))
+            if autostart_state.managed and not autostart_state.conflict:
+                self.autostart_check.state(["!disabled"])
+            else:
+                self.autostart_check.state(["disabled"])
+        except Exception:
+            self.auto_var.set(False)
+            try:
+                self.autostart_check.state(["disabled"])
+            except Exception:
+                pass
+
         running = core.is_running()
         enabled = core.system_proxy_enabled()
         pending = core.network_restore_pending()
