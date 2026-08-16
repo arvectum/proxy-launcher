@@ -95,7 +95,7 @@ def _collect_system():
 
 
 def _collect_application():
-    settings = core.load_settings()
+    settings = core.load_settings(migrate_legacy=False)
     return {
         "app_version": core.APP_VERSION,
         "engineering_milestone": core.ENGINEERING_MILESTONE,
@@ -115,7 +115,7 @@ def _collect_application():
 
 
 def _collect_proxy_state():
-    settings = core.load_settings()
+    settings = core.load_settings(migrate_legacy=False)
     return {
         "engine_running": bool(core.is_running()),
         "system_proxy_enabled": bool(core.system_proxy_enabled()),
@@ -191,7 +191,7 @@ def _probe_listener(port, timeout=0.25):
 
 
 def _collect_listeners():
-    settings = core.load_settings()
+    settings = core.load_settings(migrate_legacy=False)
     ports = {
         "http": settings.get("local_http_port", 8080),
         "socks5": settings.get("local_socks_port", 1080),

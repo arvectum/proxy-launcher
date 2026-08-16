@@ -772,6 +772,25 @@ class ProxyCoreTests(unittest.TestCase):
             self.assertNotIn("password", disk["upstream"][0])
             self.assertEqual(disk["upstream"][0]["credentials_dpapi"], "ENCRYPTED")
 
+    def test_load_settings_read_only_does_not_migrate_legacy_plaintext_on_windows(self):
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "proxy_settings.json"
+            original = {
+                "upstream": [{
+                    "host": "proxy.test", "port": 8000,
+                    "username": "u", "password": "legacy-secret",
+                }]
+            }
+            path.write_text(json.dumps(original), encoding="utf-8")
+            with mock.patch.object(core, "settings_path", return_value=str(path)), \
+                 mock.patch.object(core, "is_windows", return_value=True), \
+                 mock.patch.object(core, "save_settings") as save:
+                runtime = core.load_settings(migrate_legacy=False)
+            save.assert_not_called()
+            self.assertEqual(runtime["upstream"][0]["password"], "legacy-secret")
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), original)
+
     def test_dpapi_failure_never_falls_back_to_plaintext_on_windows(self):
         settings = {
             "upstream": [{"host": "proxy.test", "port": 8000, "username": "user", "password": "secret"}],

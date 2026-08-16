@@ -18,6 +18,7 @@ class FakeCore:
         self.root = Path(root)
         self.windows = windows
         self.events = []
+        self.load_settings_migrate_flags = []
         self.root.mkdir(parents=True, exist_ok=True)
         (self.root / "proxy_internet_backup.json").write_text("{}", encoding="utf-8")
         (self.root / "proxy_env_backup.json").write_text("{}", encoding="utf-8")
@@ -59,7 +60,8 @@ class FakeCore:
     def _env_backup_path(self):
         return str(self.root / "proxy_env_backup.json")
 
-    def load_settings(self):
+    def load_settings(self, migrate_legacy=True):
+        self.load_settings_migrate_flags.append(migrate_legacy)
         return {
             "local_http_port": 8080,
             "local_socks_port": 1080,
@@ -162,6 +164,7 @@ class WindowsDiagnosticsTests(unittest.TestCase):
             self.assertIn("[REDACTED]", raw)
             self.assertIn("proxy.example.test", raw)
             self.assertTrue(snapshot["sections"]["recovery"]["data"]["network_restore_pending"])
+            self.assertEqual(fake.load_settings_migrate_flags, [False, False, False])
 
     def test_partial_collector_failure_is_recorded_and_does_not_abort_snapshot(self):
         def broken():

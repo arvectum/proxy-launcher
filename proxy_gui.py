@@ -23,6 +23,7 @@ import tkinter as tk
 from tkinter import ttk, font as tkfont, messagebox
 
 import proxy_core as core
+import doctor as doctor_module
 
 # ---------------------------------------------------------------------------
 # Бренд Arvectum
@@ -642,6 +643,10 @@ class Launcher:
         ttk.Button(
             left_tools, text="Журнал", style="Ghost.TButton",
             command=self.show_log).pack(side="left", padx=6)
+        self.btn_doctor = ttk.Button(
+            left_tools, text="Диагностика", style="Ghost.TButton",
+            command=self.doctor)
+        self.btn_doctor.pack(side="left", padx=6)
 
         self.btn_restore = ttk.Button(
             service, text="Восстановить настройки сети", style="Ghost.TButton",
@@ -698,6 +703,7 @@ class Launcher:
         orphaned_pac = core.orphaned_arvectum_pac()
 
         self.btn_check.state(["!disabled"])
+        self.btn_doctor.state(["!disabled"])
         self.btn_restore.state(["!disabled"])
         self.btn_restore.configure(style="Ghost.TButton")
         self.btn_orphan_pac.pack_forget()
@@ -862,7 +868,9 @@ class Launcher:
 
     def _set_busy(self, text, color):
         self.chip.config(text="  %s  " % text, bg=color, fg=NAVY)
-        for b in (self.btn_on, self.btn_off, self.btn_check, self.btn_restore, self.btn_orphan_pac):
+        for b in (
+                self.btn_on, self.btn_off, self.btn_check, self.btn_doctor,
+                self.btn_restore, self.btn_orphan_pac):
             b.state(["disabled"])
 
     # -- проверка -------------------------------------------------------------
@@ -980,6 +988,75 @@ class Launcher:
                 messagebox.showerror(APP_NAME, "Не удалось открыть журнал: %s" % e)
         else:
             messagebox.showinfo(APP_NAME, "Журнал пока пуст.")
+
+    def doctor(self):
+        """Run read-only APL-DIAG-004 checks without blocking the Tk event loop."""
+        self._set_busy("Диагностика…", MINT_LIGHT)
+        threading.Thread(target=self._do_doctor, daemon=True).start()
+
+    def _do_doctor(self):
+        try:
+            report = doctor_module.run_doctor()
+        except Exception as exc:
+            try:
+                core.structured_log(
+                    "doctor failed",
+                    event="diagnostics.doctor_failed",
+                    error=repr(exc),
+                )
+            except Exception:
+                pass
+
+            def show_error():
+                self.refresh_status()
+                messagebox.showerror(
+                    APP_NAME,
+                    "Автоматическая диагностика завершилась внутренней ошибкой. "
+                    "Состояние сети не изменялось. Подробности сохранены в «Журнал».")
+            self.root.after(0, show_error)
+            return
+
+        def show_result():
+            self.refresh_status()
+            overall = report.get("overall", doctor_module.FAIL)
+            counts = report.get("counts") or {}
+            problem_checks = [
+                item for item in report.get("checks") or []
+                if item.get("status") != doctor_module.PASS
+            ]
+            title = {
+                doctor_module.PASS: "Диагностика: проблем не обнаружено.",
+                doctor_module.WARN: "Диагностика: есть предупреждения.",
+                doctor_module.FAIL: "Диагностика: требуется действие.",
+            }.get(overall, "Диагностика завершена.")
+            lines = [
+                title,
+                "PASS %s · WARN %s · FAIL %s" % (
+                    counts.get(doctor_module.PASS, 0),
+                    counts.get(doctor_module.WARN, 0),
+                    counts.get(doctor_module.FAIL, 0),
+                ),
+            ]
+            if problem_checks:
+                lines.append("")
+                lines.append("Проверки, требующие внимания:")
+                for item in problem_checks[:8]:
+                    lines.append("[%s] %s" % (item.get("status"), item.get("id")))
+            actions = report.get("recommended_actions") or []
+            if actions:
+                lines.append("")
+                lines.append("Рекомендуемые действия:")
+                for action in actions[:5]:
+                    lines.append("• %s" % action)
+            text = "\n".join(lines)
+            if overall == doctor_module.FAIL:
+                messagebox.showerror(APP_NAME, text)
+            elif overall == doctor_module.WARN:
+                messagebox.showwarning(APP_NAME, text)
+            else:
+                messagebox.showinfo(APP_NAME, text)
+
+        self.root.after(0, show_result)
 
     # -- автозапуск -------------------------------------------------------------
 
@@ -1114,6 +1191,16 @@ class Launcher:
 
 
 def main():
+    # Doctor is intentionally evaluated before portable self-handoff: the exit
+    # code/report must describe the exact executable the operator invoked.
+    if len(sys.argv) > 1 and sys.argv[1] in ("--doctor", "--doctor-json"):
+        if sys.argv[1] == "--doctor":
+            return doctor_module.main([])
+        doctor_args = ["--json"]
+        if len(sys.argv) > 2:
+            doctor_args.extend(["--output", sys.argv[2]])
+        return doctor_module.main(doctor_args)
+
     # A portable launch first tries the permanent Documents location.
     # If Windows refuses that handoff, the already-running portable GUI remains
     # a valid manual P0 fallback for the current session.

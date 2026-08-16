@@ -533,7 +533,12 @@ def _encode_settings_for_disk(settings):
     return data
 
 
-def load_settings():
+def load_settings(migrate_legacy=True):
+    """Load runtime settings, optionally migrating legacy plaintext credentials.
+
+    Diagnostic/read-only callers pass ``migrate_legacy=False`` so inspecting
+    settings can never rewrite proxy_settings.json as a side effect.
+    """
     data = json.loads(json.dumps(DEFAULT_SETTINGS))
     p = settings_path()
     if not os.path.exists(p):
@@ -555,7 +560,7 @@ def load_settings():
             and (bool(up.get("username")) or bool(up.get("password")))
             for up in (loaded.get("upstream") or [])
         ) if isinstance(loaded, dict) else False
-        if legacy_plaintext and is_windows():
+        if legacy_plaintext and is_windows() and migrate_legacy:
             if save_settings(runtime):
                 _log("legacy plaintext upstream credentials migrated to DPAPI")
             else:

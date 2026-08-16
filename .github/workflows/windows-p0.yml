@@ -43,6 +43,19 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Documents EXE smoke failed with exit code $($p.ExitCode)" }
           Write-Host "Documents execution smoke PASS; SHA256=$canonicalHash"
 
+          $doctorReport = Join-Path $env:RUNNER_TEMP 'apl-diag-004-packaged-doctor.json'
+          if (Test-Path -LiteralPath $doctorReport) { Remove-Item -LiteralPath $doctorReport -Force }
+          $doctor = Start-Process -FilePath $canonicalExe -ArgumentList @('--doctor-json', $doctorReport) -PassThru -Wait
+          if ($doctor.ExitCode -notin @(0,1,2)) {
+            throw "Packaged Doctor smoke failed with unexpected exit code $($doctor.ExitCode)"
+          }
+          if (-not (Test-Path -LiteralPath $doctorReport)) { throw 'Packaged Doctor JSON was not created' }
+          $doctorJson = Get-Content -LiteralPath $doctorReport -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($doctorJson.schema -ne 'arvectum.proxy.doctor.v1') { throw 'Unexpected packaged Doctor schema' }
+          if ([int]$doctorJson.exit_code -ne $doctor.ExitCode) { throw 'Packaged Doctor exit_code mismatch' }
+          Remove-Item -LiteralPath $doctorReport -Force
+          Write-Host "Packaged Doctor smoke PASS; status=$($doctorJson.overall); exit=$($doctor.ExitCode)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.clean_build.outputs.artifact_name }}
