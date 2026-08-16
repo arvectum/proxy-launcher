@@ -26,7 +26,7 @@ package="arvectum-proxy-launcher"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 root="$work/${package}_${version}_${arch}"
-mkdir -p "$root/DEBIAN" "$out_dir"
+mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/share/applications" "$out_dir"
 
 install -Dm755 "$artifact" "$root/opt/arvectum-proxy-launcher/Arvectum Proxy Launcher"
 install -Dm644 assets/arvectum-icon-0.2.2-transparent.png \
