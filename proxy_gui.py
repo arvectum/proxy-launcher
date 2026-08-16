@@ -9,7 +9,7 @@ PT Sans / JetBrains Mono, фирменный знак и горизонталь�
   * включение/выключение прокси (поднимает proxy_core и системный PAC)
   * окно настроек внешнего прокси: IP, порт, логин, пароль (можно несколько)
   * удобное добавление/удаление исключений no_proxy
-  * проверка работы ("мой IP")
+  * встроенная проверка internet / upstream / HTTP / SOCKS5 / PAC / Windows
   * автозапуск при входе в Windows (планировщик задач)
 
 Запуск: pythonw proxy_gui.py  (или собранный Arvectum Proxy Launcher.exe)
@@ -24,6 +24,7 @@ from tkinter import ttk, font as tkfont, messagebox
 
 import proxy_core as core
 import doctor as doctor_module
+import connection_test as connection_test_module
 
 # ---------------------------------------------------------------------------
 # Бренд Arvectum
@@ -961,64 +962,51 @@ class Launcher:
     # -- проверка -------------------------------------------------------------
 
     def check(self):
-        s = core.load_settings()
-        port = int(s.get("local_http_port", 8080))
         url = self.check_url_var.get().strip()
         if not url:
             messagebox.showwarning(APP_NAME, "Укажи URL для проверки.")
             return
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
-        if not core.is_running():
-            if core.network_restore_pending():
-                messagebox.showwarning(
-                    APP_NAME,
-                    "Предыдущий сеанс proxy завершился некорректно.\n\n"
-                    "Сначала нажмите «Восстановить настройки сети», дождитесь "
-                    "успешного восстановления и затем снова включите прокси.")
-            elif core.stale_system_proxy():
-                messagebox.showwarning(
-                    APP_NAME,
-                    "Windows использует PAC Arvectum, но этот Launcher не может "
-                    "доказать владение предыдущим сеансом. Автоматический сброс "
-                    "не выполняется, чтобы не повредить настройки сети.")
-            else:
-                messagebox.showinfo(APP_NAME, "Прокси не запущен. Нажмите «Включить прокси».")
-            return
-        self._set_busy("Проверка…", MINT_LIGHT)
-        threading.Thread(target=self._do_check, args=(port, url), daemon=True).start()
 
-    def _do_check(self, port, url):
-        import urllib.request
-        import urllib.error
+        self._set_busy("Проверка соединения…", MINT_LIGHT)
+        threading.Thread(target=self._do_check, args=(url,), daemon=True).start()
 
-        def probe(label, proxy_handler):
-            opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxy_handler))
+    def _do_check(self, url):
+        try:
+            report = connection_test_module.run_connection_test(url)
+        except Exception as exc:
             try:
-                resp = opener.open(url, timeout=20)
-                code = getattr(resp, "status", resp.getcode())
-                reason = getattr(resp, "reason", "") or ""
-                final_url = resp.geturl()
-                # Не читаем весь ответ: у google.com он может быть большим.
-                resp.read(256)
-                suffix = "" if final_url == url else "\n  После редиректа: %s" % final_url
-                return "%s: HTTP %s %s%s" % (label, code, reason, suffix)
-            except urllib.error.HTTPError as e:
-                final_url = e.geturl() or url
-                suffix = "" if final_url == url else "\n  После редиректа: %s" % final_url
-                return "%s: HTTP %s %s%s" % (label, e.code, e.reason, suffix)
-            except Exception as e:
-                return "%s: ошибка соединения — %s" % (label, e)
+                core.structured_log(
+                    "connection test failed",
+                    event="diagnostics.connection_test_failed",
+                    error=repr(exc),
+                )
+            except Exception:
+                pass
 
-        result = "Проверка: %s\n%s" % (
-            probe("Через прокси", {"http": "http://127.0.0.1:%d" % port,
-                                   "https": "http://127.0.0.1:%d" % port}),
-            probe("Напрямую", {}),
-        )
+            def show_error():
+                self.refresh_status()
+                messagebox.showerror(
+                    APP_NAME,
+                    "Встроенная проверка соединения завершилась внутренней ошибкой. "
+                    "Состояние сети не изменялось. Подробности сохранены в «Журнал».",
+                )
+
+            self.root.after(0, show_error)
+            return
 
         def show():
             self.refresh_status()
-            messagebox.showinfo(APP_NAME, result)
+            text = connection_test_module.format_report(report)
+            overall = report.get("overall", connection_test_module.FAIL)
+            if overall == connection_test_module.FAIL:
+                messagebox.showerror(APP_NAME, text)
+            elif overall == connection_test_module.WARN:
+                messagebox.showwarning(APP_NAME, text)
+            else:
+                messagebox.showinfo(APP_NAME, text)
+
         self.root.after(0, show)
 
     # -- диалоги ---------------------------------------------------------------
