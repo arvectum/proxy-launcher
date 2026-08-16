@@ -1,0 +1,10 @@
+# APL-IP-002-WIN-R3 — controlled CPython bootstrap identity
+PYTHON_VERSION=3.12.10
+PYTHON_ARCH=x64
+PYTHON_INSTALLER=python-3.12.10-amd64.exe
+PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+PYTHON_INSTALLER_SIZE=26964224
+PYTHON_SIGSTORE_BUNDLE_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe.sigstore
+PYTHON_SIGSTORE_CERT_IDENTITY=thomas@python.org
+PYTHON_SIGSTORE_OIDC_ISSUER=https://accounts.google.com
+SIGSTORE_VERIFIER_VERSION=4.4.0
