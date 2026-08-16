@@ -1,0 +1,43 @@
+name: Russian Signed Release Readiness
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/russian_signed_release.ps1'
+      - 'release/APL_REL_011_RUSSIAN_SIGNED_RELEASE_INTEGRATION_OTUC_READINESS.md'
+      - 'tests/test_russian_signed_release_integration.py'
+      - '.github/workflows/russian-signed-release-readiness.yml'
+  pull_request:
+    paths:
+      - 'tools/russian_signed_release.ps1'
+      - 'release/APL_REL_011_RUSSIAN_SIGNED_RELEASE_INTEGRATION_OTUC_READINESS.md'
+      - 'tests/test_russian_signed_release_integration.py'
+      - '.github/workflows/russian-signed-release-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: REL-011 repository contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d
+        with:
+          python-version: '3.11'
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Run REL-011 contract tests
+        run: python -m pytest -q tests/test_russian_signed_release_integration.py
+      - name: Prove embedded signing remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F '$embeddedCodeSigningActivated = $false' tools/russian_signed_release.ps1
+          grep -F 'otuc_production_certificate_used  = $false' tools/russian_signed_release.ps1
+          grep -F 'RELEASE-EVIDENCE-ONLY' tools/russian_signed_release.ps1
