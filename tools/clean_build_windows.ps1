@@ -4,8 +4,8 @@
 .DESCRIPTION
     Cleans previous build outputs, initializes an isolated build virtual environment,
     installs locked build dependencies, validates toolchain and versions, runs unit tests,
-    compiles and packages the portable executable, verifies SHA256 checksum manifests,
-    and produces a build-result.json manifest.
+    compiles and packages the portable executable, verifies Windows branding metadata,
+    verifies SHA256 checksum manifests, and produces a build-result.json manifest.
 #>
 
 [CmdletBinding()]
@@ -33,7 +33,6 @@ $CandidatePythons = @()
 if ($PythonExecutable) {
     $CandidatePythons += $PythonExecutable
 }
-# Common Windows installation locations
 $CandidatePythons += "python.exe"
 $CandidatePythons += "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 $CandidatePythons += "C:\Python312\python.exe"
@@ -56,7 +55,6 @@ foreach ($cand in $CandidatePythons) {
             }
         }
     } catch {
-        # continue searching
     }
 }
 
@@ -84,8 +82,6 @@ foreach ($p in $CleanPaths) {
 }
 
 Get-ChildItem -Path $RepoRoot -Filter "*.spec" -File | Remove-Item -Force -ErrorAction SilentlyContinue
-
-# Clean __pycache__ under repo root and tests
 Get-ChildItem -Path $RepoRoot -Filter "__pycache__" -Directory -Recurse | ForEach-Object {
     if ($_.FullName -notmatch "\\\.git\\") {
         Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
@@ -104,8 +100,6 @@ $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $VenvPython)) {
     throw "Venv Python executable not found at $VenvPython"
 }
-
-# Verify isolation
 $isIsolated = & $VenvPython -c "import sys; print(sys.prefix != sys.base_prefix)"
 if ($isIsolated.Trim() -ne "True") {
     throw "Virtual environment is not properly isolated."
@@ -122,19 +116,15 @@ $LockFile = Join-Path $RepoRoot "requirements-build.lock.txt"
 if (-not (Test-Path -LiteralPath $LockFile)) {
     throw "Lock file requirements-build.lock.txt missing"
 }
-
 Write-Host "Installing pinned build dependencies from $LockFile..."
 & $VenvPython -m pip install --no-deps -r $LockFile
 if ($LASTEXITCODE -ne 0) { throw "Build dependencies installation failed" }
-
-Write-Host "Checking dependency integrity..."
 & $VenvPython -m pip check
 if ($LASTEXITCODE -ne 0) { throw "pip check reported broken dependencies" }
-
 $ResolvedToolchain = & $VenvPython -m pip freeze --all
 
 # ---------------------------------------------------------------------------
-# 5. Read & Validate Canonical Version
+# 5. Read Version & Generate Canonical Windows VERSIONINFO
 # ---------------------------------------------------------------------------
 $VersionFile = Join-Path $RepoRoot "VERSION"
 if (-not (Test-Path -LiteralPath $VersionFile)) {
@@ -147,11 +137,14 @@ if ($ProductVersion -notmatch $SemVerPattern) {
 }
 Write-Host "Product Version: $ProductVersion"
 
+& $VenvPython (Join-Path $RepoRoot "tools\generate_windows_version_info.py") --version-file $VersionFile --output (Join-Path $RepoRoot "version_info.txt")
+if ($LASTEXITCODE -ne 0) { throw "Windows VERSIONINFO generation failed" }
+
 # ---------------------------------------------------------------------------
 # 6. Compile & Run Tests
 # ---------------------------------------------------------------------------
 Write-Host "Compiling source files..."
-& $VenvPython -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py doctor.py proxy_gui.py
+& $VenvPython -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py doctor.py proxy_gui.py tools\generate_windows_version_info.py
 if ($LASTEXITCODE -ne 0) { throw "py_compile failed" }
 
 Write-Host "Running unit test suite..."
@@ -181,6 +174,25 @@ if (-not (Test-Path -LiteralPath $BuiltExe)) {
     throw "Built executable not found at $BuiltExe"
 }
 $ExeHash = (Get-FileHash -LiteralPath $BuiltExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+# APL-WIN-010: assert the user-visible Windows PE branding from the final bytes.
+$ExeInfo = (Get-Item -LiteralPath $BuiltExe).VersionInfo
+$VersionCore = ($ProductVersion -split '[-+]')[0]
+$ExpectedFileVersion = "$VersionCore.0"
+$MetadataAssertions = [ordered]@{
+    CompanyName      = @($ExeInfo.CompanyName, 'ООО «Арвектум»')
+    FileDescription  = @($ExeInfo.FileDescription, 'Arvectum Proxy Launcher')
+    ProductName      = @($ExeInfo.ProductName, 'Arvectum Proxy Launcher')
+    ProductVersion   = @($ExeInfo.ProductVersion, $ProductVersion)
+    FileVersion      = @($ExeInfo.FileVersion, $ExpectedFileVersion)
+    OriginalFilename = @($ExeInfo.OriginalFilename, 'Arvectum Proxy Launcher.exe')
+}
+foreach ($entry in $MetadataAssertions.GetEnumerator()) {
+    if ([string]$entry.Value[0] -cne [string]$entry.Value[1]) {
+        throw "Windows executable metadata mismatch for $($entry.Key): actual='$($entry.Value[0])' expected='$($entry.Value[1])'"
+    }
+}
+Write-Host "Executable branding metadata PASS for $ProductVersion"
 Write-Host "Executable built successfully: $BuiltExe (SHA256: $ExeHash)"
 
 # ---------------------------------------------------------------------------
@@ -190,30 +202,22 @@ $ArtifactName = "Arvectum-Proxy-Launcher-$ProductVersion-windows-x64-portable"
 $ZipName = "$ArtifactName.zip"
 $OutDir = Join-Path $RepoRoot "out"
 $StageDir = Join-Path $OutDir "stage\$ArtifactName"
-
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
 Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $StageDir "Arvectum Proxy Launcher.exe")
-Copy-Item -LiteralPath (Join-Path $RepoRoot "release\README_PORTABLE_P0.txt") -Destination (Join-Path $StageDir "README.txt")
+Copy-Item -LiteralPath (Join-Path $RepoRoot "release\README_WINDOWS_PORTABLE.txt") -Destination (Join-Path $StageDir "README.txt")
 Copy-Item -LiteralPath (Join-Path $RepoRoot "qa\diagnose_app_control.ps1") -Destination (Join-Path $StageDir "diagnose_app_control.ps1")
 Copy-Item -LiteralPath (Join-Path $RepoRoot "qa\run_p01_native_qa_v2.ps1") -Destination (Join-Path $StageDir "run_p01_native_qa_v2.ps1")
-
-# Write internal checksum manifest for the executable
 Set-Content -LiteralPath (Join-Path $StageDir "SHA256SUMS.txt") -Value "$ExeHash  Arvectum Proxy Launcher.exe" -Encoding ascii
 
 # ---------------------------------------------------------------------------
 # 9. Create Zip Package & External Checksum
 # ---------------------------------------------------------------------------
 $ZipPath = Join-Path $OutDir $ZipName
-if (Test-Path -LiteralPath $ZipPath) {
-    Remove-Item -LiteralPath $ZipPath -Force
-}
-
+if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
 Compress-Archive -Path "$StageDir\*" -DestinationPath $ZipPath -Force
 $ZipHash = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 Write-Host "Created portable ZIP package: $ZipPath (SHA256: $ZipHash)"
-
-# External checksum manifest for the downloadable package
 Set-Content -LiteralPath (Join-Path $OutDir "SHA256SUMS.txt") -Value "$ZipHash  $ZipName" -Encoding ascii
 
 # ---------------------------------------------------------------------------
@@ -221,33 +225,21 @@ Set-Content -LiteralPath (Join-Path $OutDir "SHA256SUMS.txt") -Value "$ZipHash  
 # ---------------------------------------------------------------------------
 Write-Host "Verifying ZIP package structure and content integrity..."
 $VerifyDir = Join-Path $OutDir "verify"
-if (Test-Path -LiteralPath $VerifyDir) {
-    Remove-Item -LiteralPath $VerifyDir -Recurse -Force
-}
+if (Test-Path -LiteralPath $VerifyDir) { Remove-Item -LiteralPath $VerifyDir -Recurse -Force }
 Expand-Archive -LiteralPath $ZipPath -DestinationPath $VerifyDir -Force
-
 $ExpectedFiles = @("Arvectum Proxy Launcher.exe", "README.txt", "diagnose_app_control.ps1", "run_p01_native_qa_v2.ps1", "SHA256SUMS.txt")
 $ActualFiles = (Get-ChildItem -Path $VerifyDir -File | Select-Object -ExpandProperty Name)
-
 foreach ($ef in $ExpectedFiles) {
-    if ($ActualFiles -notcontains $ef) {
-        throw "Package verification failed: missing expected file '$ef'"
-    }
+    if ($ActualFiles -notcontains $ef) { throw "Package verification failed: missing expected file '$ef'" }
 }
 foreach ($af in $ActualFiles) {
-    if ($ExpectedFiles -notcontains $af) {
-        throw "Package verification failed: forbidden/unexpected file in package '$af'"
-    }
+    if ($ExpectedFiles -notcontains $af) { throw "Package verification failed: forbidden/unexpected file in package '$af'" }
 }
-
-# Verify internal EXE hash matches the unpacked EXE
 $UnpackedExe = Join-Path $VerifyDir "Arvectum Proxy Launcher.exe"
 $UnpackedExeHash = (Get-FileHash -LiteralPath $UnpackedExe -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($UnpackedExeHash -ne $ExeHash) {
     throw "Package verification failed: EXE hash mismatch ($UnpackedExeHash != $ExeHash)"
 }
-
-# Clean verify directory
 Remove-Item -LiteralPath $VerifyDir -Recurse -Force
 Remove-Item -LiteralPath (Join-Path $OutDir "stage") -Recurse -Force
 
@@ -261,12 +253,12 @@ try {
 } catch {
     $GitCommit = "unknown"
 }
-
 $LockHash = (Get-FileHash -LiteralPath $LockFile -Algorithm SHA256).Hash.ToLowerInvariant()
-
 $Manifest = [ordered]@{
     product               = "Arvectum Proxy Launcher"
+    company               = "ООО «Арвектум»"
     version               = $ProductVersion
+    file_version          = $ExpectedFileVersion
     platform              = "windows-x64"
     format                = "portable"
     python_version        = $ExpectedPyVersion
@@ -279,7 +271,6 @@ $Manifest = [ordered]@{
     zip_sha256            = $ZipHash
     toolchain_lock_sha256 = $LockHash
 }
-
 $ManifestJson = $Manifest | ConvertTo-Json -Depth 4
 Set-Content -LiteralPath (Join-Path $OutDir "build-result.json") -Value $ManifestJson -Encoding utf8
 Write-Host "Build manifest written to out/build-result.json"
