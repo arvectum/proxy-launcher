@@ -45,4 +45,6 @@ The existing checkbox remains the single user control. It reflects actual owned 
 - failure reporting when an owned task survives deletion;
 - preservation of foreign same-named entries through the existing GUI ownership contract.
 
+The implementation also passes the repository Bandit SAST gate; the only XML parse site is explicitly documented as parsing local `schtasks` output for a fixed task name rather than remote or user-supplied XML.
+
 The full repository regression suite and Windows CI are required before merge.
