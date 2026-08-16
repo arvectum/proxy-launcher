@@ -1,0 +1,49 @@
+name: APL-WIN-007 apply and verify
+
+on:
+  push:
+    branches:
+      - feature/apl-win-007-production-safe-autostart
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply APL-WIN-007 patch
+        shell: pwsh
+        run: python tools/apply_apl_win_007.py
+
+      - name: Compile changed Python
+        shell: pwsh
+        run: python -m py_compile proxy_gui.py tests/test_autostart_safety.py
+
+      - name: Run autostart safety tests
+        shell: pwsh
+        run: python -m unittest tests.test_proxy_gui tests.test_autostart_safety -v
+
+      - name: Run full regression suite
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Commit governed implementation
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add proxy_gui.py APL-WIN-007_PRODUCTION_SAFE_AUTOSTART.md tests/test_autostart_safety.py
+          git rm tools/apply_apl_win_007.py .github/workflows/apl-win-007-apply.yml
+          git commit -m "APL-WIN-007: production-safe autostart"
+          git push origin HEAD:feature/apl-win-007-production-safe-autostart
