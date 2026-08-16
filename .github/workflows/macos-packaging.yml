@@ -1,0 +1,47 @@
+name: macOS packaging
+on:
+  pull_request:
+    branches: [main]
+    paths: ['macos_*.py','tools/build_macos_*.sh','tests/test_macos*.py','docs/APL_MAC_*.md','.github/workflows/macos-packaging.yml','assets/**','VERSION']
+  push:
+    branches: [main]
+    paths: ['macos_*.py','tools/build_macos_*.sh','tests/test_macos*.py','docs/APL_MAC_*.md','.github/workflows/macos-packaging.yml','assets/**','VERSION']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install frozen build lock
+        run: python -m pip install -r requirements-build.lock.txt
+      - name: macOS tests
+        run: python -m unittest discover -s tests -p 'test_macos*.py' -v
+      - name: Build .app
+        env:
+          PYTHON_BIN: python
+        run: ./tools/build_macos_app.sh
+      - name: Inspect .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app='dist/Arvectum Proxy Launcher.app'
+          test -d "$app/Contents/MacOS"
+          plutil -lint "$app/Contents/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = 'ru.arvectum.proxylauncher'
+          codesign -dv --verbose=2 "$app" 2>&1 | tee macos-codesign-inspection.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apl-mac-app-${{ matrix.os }}
+          path: |
+            dist/Arvectum Proxy Launcher.app
+            macos-codesign-inspection.txt
+          if-no-files-found: error
