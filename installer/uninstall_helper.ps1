@@ -36,14 +36,13 @@ function Test-OwnedStartCommand([string]$Command, [string]$ExpectedExe) {
 
 function Get-RunValue([string]$Name) {
   try {
-    $item = Get-ItemProperty -Path $RunPath -Name $Name -ErrorAction Stop
-    return [string]$item.$Name
+    $item = Get-ItemProperty -Path $RunPath -ErrorAction Stop
   } catch [System.Management.Automation.ItemNotFoundException] {
     return $null
-  } catch {
-    if ($_.FullyQualifiedErrorId -match 'PropertyNotFound') { return $null }
-    throw
   }
+  $property = $item.PSObject.Properties[$Name]
+  if ($null -eq $property) { return $null }
+  return [string]$property.Value
 }
 
 function Remove-OwnedRunValue([string]$Name, [string]$ExpectedExe) {
