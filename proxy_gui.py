@@ -15,6 +15,7 @@ PT Sans / JetBrains Mono, фирменный знак и горизонталь�
 Запуск: pythonw proxy_gui.py  (или собранный Arvectum Proxy Launcher.exe)
 """
 
+import atexit
 import os
 import sys
 import subprocess
@@ -25,6 +26,7 @@ from tkinter import ttk, font as tkfont, messagebox
 import proxy_core as core
 import doctor as doctor_module
 import connection_test as connection_test_module
+import windows_single_instance as single_instance_module
 
 # ---------------------------------------------------------------------------
 # Бренд Arvectum
@@ -201,6 +203,49 @@ def _bind_clipboard_paste(entry):
             menu.grab_release()
 
     entry.bind("<Button-3>", show_menu)
+
+
+def _clear_temporary_topmost(root):
+    try:
+        root.attributes("-topmost", False)
+    except Exception:
+        pass
+
+
+def _activate_main_window(root):
+    """Restore and foreground the canonical GUI after a duplicate launch."""
+    try:
+        root.deiconify()
+    except Exception:
+        pass
+    try:
+        root.lift()
+    except Exception:
+        pass
+    try:
+        root.focus_force()
+    except Exception:
+        pass
+    try:
+        root.attributes("-topmost", True)
+        root.after(120, lambda: _clear_temporary_topmost(root))
+    except Exception:
+        pass
+
+
+def _poll_single_instance_activation(root, instance):
+    """Consume duplicate-launch activation requests on the Tk main thread."""
+    try:
+        requested = instance.poll_activation()
+    except Exception as exc:
+        requested = False
+        core._log("single-instance activation poll failed: %s" % exc)
+    if requested:
+        _activate_main_window(root)
+    try:
+        root.after(150, lambda: _poll_single_instance_activation(root, instance))
+    except Exception:
+        pass
 
 
 def _run_headless(mode):
@@ -1424,6 +1469,24 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):
         sys.argv = [sys.argv[0], sys.argv[1]]
         return core.main()
+
+    # Only the interactive GUI is single-instance. Service/doctor commands above
+    # remain callable while the GUI is open. Acquire before Tk and before local
+    # or network repair side effects so a duplicate launch is inert.
+    instance = single_instance_module.WindowsSingleInstance()
+    try:
+        primary = instance.acquire()
+    except Exception as exc:
+        core._log("single-instance mutex acquisition failed: %s" % exc)
+        return 1
+    if not primary:
+        try:
+            instance.notify_existing(APP_NAME)
+        finally:
+            instance.close()
+        return 0
+    atexit.register(instance.close)
+
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -1453,7 +1516,9 @@ def main():
             "Автозапуск временно отключён: запускайте этот EXE вручную."
         )
     app = Launcher(root)
+    _poll_single_instance_activation(root, instance)
     root.mainloop()
+    instance.close()
     return 0
 
 
