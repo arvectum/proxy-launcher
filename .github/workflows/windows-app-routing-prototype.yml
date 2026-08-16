@@ -1,0 +1,41 @@
+name: APL-ROUTE-003 Windows routing prototype
+on:
+  pull_request:
+    branches: [main]
+    paths: ['routing_rules.py','windows_app_routing.py','tests/test_routing_rules.py','tests/test_windows_app_routing.py','docs/APL_ROUTE_00*.md','.github/workflows/windows-app-routing-prototype.yml']
+  push:
+    branches: [main]
+    paths: ['routing_rules.py','windows_app_routing.py','tests/test_routing_rules.py','tests/test_windows_app_routing.py','docs/APL_ROUTE_00*.md','.github/workflows/windows-app-routing-prototype.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-wfp-prototype:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit tests
+        run: python -m unittest tests.test_routing_rules tests.test_windows_app_routing -v
+      - name: Read-only WFP application-id smoke
+        shell: pwsh
+        run: |
+          @'
+          import json, sys
+          from windows_app_routing import get_wfp_app_id
+          app_id = get_wfp_app_id(sys.executable)
+          assert app_id, 'WFP returned empty app id'
+          print(json.dumps({'executable': sys.executable, 'app_id_bytes': len(app_id), 'mutation': False}))
+          '@ | python - | Tee-Object -FilePath apl-route-003-wfp-probe.json
+      - name: Prove no live filter API call is present in prototype
+        shell: pwsh
+        run: |
+          $text = Get-Content windows_app_routing.py -Raw
+          if ($text -match 'FwpmFilterAdd\w*\s*\(|FwpmCalloutAdd\w*\s*\(|FwpsCalloutRegister\w*\s*\(') { throw 'Live WFP mutation API call found in read-only prototype' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apl-route-003-readonly-wfp-probe
+          path: apl-route-003-wfp-probe.json
+          if-no-files-found: error

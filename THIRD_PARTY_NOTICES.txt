@@ -1,22 +1,55 @@
-Arvectum Proxy Launcher 0.2.2 — Third-Party Notices
-=====================================================
+Arvectum Proxy Launcher — Third-Party Notices
+============================================
 
-This notice covers components bundled by the Windows PyInstaller build.
+This notice distinguishes components that may be distributed inside a platform
+artifact from build-only tooling and operating-system-provided components. The
+final release SBOM remains the source of truth for the exact payload of a given
+artifact.
 
-Python
-Copyright © Python Software Foundation. Licensed under the Python Software
-Foundation License, Version 2. See https://docs.python.org/3/license.html.
+Python / Python standard library
+--------------------------------
+Copyright Python Software Foundation and contributors. Licensed under the
+Python Software Foundation License. Python runtime components are frozen into
+PyInstaller desktop artifacts as selected by the platform build.
 
 Tcl/Tk
-Copyright © Tcl/Tk contributors. Tcl/Tk is distributed under a BSD-style
-license. See https://www.tcl.tk/software/tcltk/license.html.
+------
+Copyright Tcl/Tk contributors. Tcl/Tk is distributed under BSD-style license
+terms and is used by Tkinter GUI builds when included by the selected Python /
+PyInstaller runtime.
 
 PyInstaller
-Copyright © PyInstaller Development Team. GPL-2.0-or-later with a special
-exception permitting distribution of bundled applications. See
-https://pyinstaller.org/en/stable/license.html.
+-----------
+Copyright PyInstaller Development Team. PyInstaller is licensed under
+GPL-2.0-or-later with the project's special exception permitting distribution
+of bundled applications. PyInstaller is primarily build tooling; its generated
+bootloader/runtime contribution may be present in frozen artifacts.
 
-OpenSSL and libffi
-The build inventory did not identify standalone OpenSSL or libffi binaries in
-the one-file application payload. They are therefore not claimed as bundled
-components by this release.
+AppImage type-2 runtime — Linux AppImage only
+----------------------------------------------
+The Linux AppImage artifact includes the separately hash-pinned AppImage type-2
+runtime. The upstream runtime project is MIT licensed and documents statically
+linked third-party code from musl libc, libfuse, squashfuse, libzstd and zlib,
+with their respective upstream license terms. The exact runtime SHA-256 and
+source commit used by Arvectum are recorded in tools/appimage-toolchain.lock.
+This runtime is not present in the Debian .deb package.
+
+Build-only tooling
+------------------
+The exact Python build dependency set is pinned in requirements-build.lock.txt.
+Inno Setup is used for the Windows installer path. appimagetool is used to
+construct the Linux AppImage. Apple hdiutil is used to construct macOS DMGs.
+Build-only tools are not claimed as application runtime components unless the
+final artifact/SBOM demonstrates that code from them is distributed.
+
+Operating-system components
+---------------------------
+Windows APIs/PowerShell, Linux NetworkManager/PolicyKit and Apple macOS system
+tools are host/platform dependencies and are not redistributed as Arvectum
+source code by this repository.
+
+Release rule
+------------
+Before a production release, reconcile this notice with the generated SBOM and
+the actual platform artifact. If they disagree, the release must be held until
+the notice/provenance package is corrected.

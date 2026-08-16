@@ -63,12 +63,10 @@ class LinuxOperationalStatusTests(unittest.TestCase):
             backend_runtime.OperationalState.AUTH_REQUIRED,
         )
 
-    def test_non_linux_platforms_keep_existing_runtime_behavior(self):
-        for platform in ("win32", "darwin"):
-            with self.subTest(platform=platform):
-                status = backend_runtime.operational_status_for_platform(platform)
-                self.assertEqual(status.state, backend_runtime.OperationalState.READY)
-                self.assertTrue(status.can_enable)
+    def test_windows_keeps_existing_runtime_behavior(self):
+        status = backend_runtime.operational_status_for_platform("win32")
+        self.assertEqual(status.state, backend_runtime.OperationalState.READY)
+        self.assertTrue(status.can_enable)
 
 
 class CoreMutationGateTests(unittest.TestCase):

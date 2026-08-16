@@ -1,0 +1,43 @@
+name: APL-IP-001 provenance
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  provenance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Provenance contract tests
+        run: python -m unittest tests.test_ip_provenance_contract -v
+      - name: Generate source provenance manifest
+        run: python tools/ip_provenance_check.py
+      - name: Validate manifest shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('artifacts/ip-provenance/source-manifest.json').read_text())
+          assert p['record_count'] == len(p['records']) and p['record_count'] > 0
+          assert p['human_review_required'] is True
+          assert p['legal_signoff_required'] is True
+          for record in p['records']:
+              assert len(record['sha256']) == 64
+          print('records', p['record_count'], 'review_findings', len(p['review_findings']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apl-ip-001-source-provenance
+          path: artifacts/ip-provenance/source-manifest.json
+          if-no-files-found: error
