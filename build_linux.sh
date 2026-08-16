@@ -14,7 +14,7 @@ fi
     --add-data "no_proxy.txt:." \
     --add-data "assets:assets" \
     --exclude-module "distutils" \
-    proxy_gui.py
+    linux_gui.py
 
 echo
 echo "Готово: dist/Arvectum Proxy Launcher"
