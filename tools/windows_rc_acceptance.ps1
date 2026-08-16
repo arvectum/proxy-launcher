@@ -28,6 +28,7 @@ function Add-Check([string]$Id, [bool]$Pass, [string]$Detail) {
     $script:checks += [pscustomobject]@{ id=$Id; status=$status; detail=$Detail }
     if (-not $Pass) { $script:failures += $Id }
 }
+function Normalize-VersionInfo($Value) { return ([string]$Value).Trim() }
 
 Add-Check 'artifact.portable.name' ((Split-Path $PortableZip -Leaf) -ceq $expectedPortable) (Split-Path $PortableZip -Leaf)
 Add-Check 'artifact.setup.name' ((Split-Path $SetupExe -Leaf) -ceq $expectedSetup) (Split-Path $SetupExe -Leaf)
@@ -46,11 +47,16 @@ if (Test-Path -LiteralPath $exe -PathType Leaf) {
 }
 
 $setupInfo = (Get-Item -LiteralPath $SetupExe).VersionInfo
-Add-Check 'setup.company' ([string]$setupInfo.CompanyName -ceq 'ООО «Арвектум»') ([string]$setupInfo.CompanyName)
-Add-Check 'setup.product' ([string]$setupInfo.ProductName -ceq 'Arvectum Proxy Launcher') ([string]$setupInfo.ProductName)
-Add-Check 'setup.description' ([string]$setupInfo.FileDescription -ceq 'Arvectum Proxy Launcher Windows Installer') ([string]$setupInfo.FileDescription)
-Add-Check 'setup.product_version' ([string]$setupInfo.ProductVersion -ceq $version) ([string]$setupInfo.ProductVersion)
-Add-Check 'setup.file_version' ([string]$setupInfo.FileVersion -ceq $fileVersion) ([string]$setupInfo.FileVersion)
+$setupCompany = Normalize-VersionInfo $setupInfo.CompanyName
+$setupProduct = Normalize-VersionInfo $setupInfo.ProductName
+$setupDescription = Normalize-VersionInfo $setupInfo.FileDescription
+$setupProductVersion = Normalize-VersionInfo $setupInfo.ProductVersion
+$setupFileVersion = Normalize-VersionInfo $setupInfo.FileVersion
+Add-Check 'setup.company' ($setupCompany -ceq 'ООО «Арвектум»') $setupCompany
+Add-Check 'setup.product' ($setupProduct -ceq 'Arvectum Proxy Launcher') $setupProduct
+Add-Check 'setup.description' ($setupDescription -ceq 'Arvectum Proxy Launcher Windows Installer') $setupDescription
+Add-Check 'setup.product_version' ($setupProductVersion -ceq $version) $setupProductVersion
+Add-Check 'setup.file_version' ($setupFileVersion -ceq $fileVersion) $setupFileVersion
 
 $buildResultPath = Join-Path $root 'out\build-result.json'
 Add-Check 'portable.build_manifest.exists' (Test-Path -LiteralPath $buildResultPath -PathType Leaf) $buildResultPath
