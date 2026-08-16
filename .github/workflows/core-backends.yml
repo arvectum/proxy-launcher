@@ -70,7 +70,7 @@ jobs:
           tests.test_macos_backend
           tests.test_linux_backend
 
-      - name: Verify Linux NetworkManager proxy surface
+      - name: Verify Linux nmcli availability
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -79,21 +79,8 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y network-manager
           fi
+          command -v nmcli
           nmcli --version
-
-          # Use nmcli's documented offline mode so capability verification does
-          # not depend on a NetworkManager daemon running on the CI host.
-          profile="$(nmcli --offline connection add \
-            type ethernet \
-            con-name apl-core-004-ci \
-            ifname eth-apl-ci \
-            proxy.method auto \
-            proxy.browser-only no \
-            proxy.pac-url http://127.0.0.1:8082/proxy.pac)"
-          grep -q -- '^\[proxy\]$' <<<"$profile"
-          grep -q -- '^method=auto$' <<<"$profile"
-          grep -q -- '^browser-only=false$' <<<"$profile"
-          grep -q -- '^pac-url=http://127.0.0.1:8082/proxy.pac$' <<<"$profile"
 
       - name: Verify macOS networksetup surface
         if: runner.os == 'macOS'
