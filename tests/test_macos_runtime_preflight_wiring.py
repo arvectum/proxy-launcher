@@ -48,7 +48,9 @@ class MacOSOperationalWiringTests(unittest.TestCase):
             backend_runtime.require_enable_operational(
                 "darwin", macos_preflight=preflight
             )
-        self.assertIs(caught.exception.status, status)
+        # require_enable_operational performs a fresh side-effect-free evaluation;
+        # compare semantic value, not Python object identity.
+        self.assertEqual(caught.exception.status, status)
 
     def test_ready_macos_require_gate_returns_status(self):
         preflight = self.fake(MacOSPreflightStatus.READY)
