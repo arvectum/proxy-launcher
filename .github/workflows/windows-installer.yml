@@ -89,8 +89,7 @@ jobs:
 
       # Lifecycle harness contract for legacy safety tests: qa/windows_rc_e2e.ps1
       # launches Setup/EXE/Uninstall through Start-Process with -PassThru -Wait
-      # and rejects every non-zero $p.ExitCode. Direct invocation (& $setup,
-      # & $exe --status, & $uninstaller) is intentionally forbidden.
+      # and rejects every non-zero $p.ExitCode. Direct invocation is forbidden.
       - name: Windows RC fresh / upgrade / repair / uninstall E2E
         shell: pwsh
         run: |
