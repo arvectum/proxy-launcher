@@ -56,8 +56,9 @@ jobs:
         shell: pwsh
         run: |
           $reportPath = Join-Path $env:RUNNER_TEMP 'apl-diag-004-doctor.json'
-          python doctor.py --json --output $reportPath | Out-Null
-          $doctorExit = $LASTEXITCODE
+          $pythonExe = (Get-Command python).Source
+          $doctor = Start-Process -FilePath $pythonExe -ArgumentList @('doctor.py', '--json', '--output', $reportPath) -NoNewWindow -Wait -PassThru
+          $doctorExit = $doctor.ExitCode
           if ($doctorExit -notin 0,1,2) { throw "Unexpected Doctor exit code: $doctorExit" }
           if (-not (Test-Path -LiteralPath $reportPath)) { throw 'Doctor JSON was not created' }
           $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
