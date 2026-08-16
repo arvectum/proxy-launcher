@@ -1,0 +1,300 @@
+diff --git a/proxy_core.py b/proxy_core.py
+--- a/proxy_core.py
++++ b/proxy_core.py
+@@ -527,7 +527,12 @@ def _encode_settings_for_disk(settings):
+     return data
+ 
+ 
+-def load_settings():
++def load_settings(migrate_legacy=True):
++    """Load runtime settings, optionally migrating legacy plaintext credentials.
++
++    Diagnostic/read-only callers pass ``migrate_legacy=False`` so inspecting
++    settings can never rewrite proxy_settings.json as a side effect.
++    """
+     data = json.loads(json.dumps(DEFAULT_SETTINGS))
+     p = settings_path()
+     if not os.path.exists(p):
+@@ -552,7 +557,7 @@ def load_settings():
+             and (bool(up.get("username")) or bool(up.get("password")))
+             for up in (loaded.get("upstream") or [])
+         ) if isinstance(loaded, dict) else False
+-        if legacy_plaintext and is_windows():
++        if legacy_plaintext and is_windows() and migrate_legacy:
+             if save_settings(runtime):
+                 _log("legacy plaintext upstream credentials migrated to DPAPI")
+             else:
+diff --git a/windows_diagnostics.py b/windows_diagnostics.py
+--- a/windows_diagnostics.py
++++ b/windows_diagnostics.py
+@@ -91,7 +91,7 @@ def _collect_system():
+ 
+ 
+ def _collect_application():
+-    settings = core.load_settings()
++    settings = core.load_settings(migrate_legacy=False)
+     return {
+         "app_version": core.APP_VERSION,
+         "engineering_milestone": core.ENGINEERING_MILESTONE,
+@@ -114,7 +114,7 @@ def _collect_application():
+ 
+ 
+ def _collect_proxy_state():
+-    settings = core.load_settings()
++    settings = core.load_settings(migrate_legacy=False)
+     return {
+         "engine_running": bool(core.is_running()),
+         "system_proxy_enabled": bool(core.system_proxy_enabled()),
+@@ -181,7 +181,7 @@ def _probe_listener(port, timeout=0.25):
+ 
+ 
+ def _collect_listeners():
+-    settings = core.load_settings()
++    settings = core.load_settings(migrate_legacy=False)
+     ports = {
+         "http": settings.get("local_http_port", 8080),
+         "socks5": settings.get("local_socks_port", 1080),
+diff --git a/tests/test_proxy_core.py b/tests/test_proxy_core.py
+--- a/tests/test_proxy_core.py
++++ b/tests/test_proxy_core.py
+@@ -771,6 +771,25 @@ class ProxyCoreTests(unittest.TestCase):
+             self.assertNotIn("password", disk["upstream"][0])
+             self.assertEqual(disk["upstream"][0]["credentials_dpapi"], "ENCRYPTED")
+ 
++    def test_load_settings_read_only_does_not_migrate_legacy_plaintext_on_windows(self):
++        import json
++        with tempfile.TemporaryDirectory() as td:
++            path = Path(td) / "proxy_settings.json"
++            original = {
++                "upstream": [{
++                    "host": "proxy.test", "port": 8000,
++                    "username": "u", "password": "legacy-secret",
++                }]
++            }
++            path.write_text(json.dumps(original), encoding="utf-8")
++            with mock.patch.object(core, "settings_path", return_value=str(path)), \
++                 mock.patch.object(core, "is_windows", return_value=True), \
++                 mock.patch.object(core, "save_settings") as save:
++                runtime = core.load_settings(migrate_legacy=False)
++            save.assert_not_called()
++            self.assertEqual(runtime["upstream"][0]["password"], "legacy-secret")
++            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), original)
++
+     def test_dpapi_failure_never_falls_back_to_plaintext_on_windows(self):
+         settings = {
+             "upstream": [{"host": "proxy.test", "port": 8000, "username": "user", "password": "secret"}],
+diff --git a/tests/test_windows_diagnostics.py b/tests/test_windows_diagnostics.py
+--- a/tests/test_windows_diagnostics.py
++++ b/tests/test_windows_diagnostics.py
+@@ -15,6 +15,7 @@ class FakeCore:
+         self.root = Path(root)
+         self.windows = windows
+         self.events = []
++        self.load_settings_migrate_flags = []
+         self.root.mkdir(parents=True, exist_ok=True)
+         (self.root / "proxy_internet_backup.json").write_text("{}", encoding="utf-8")
+         (self.root / "proxy_env_backup.json").write_text("{}", encoding="utf-8")
+@@ -52,7 +53,8 @@ class FakeCore:
+     def log_path(self):
+         return str(self.root / "proxy_core.log")
+ 
+-    def load_settings(self):
++    def load_settings(self, migrate_legacy=True):
++        self.load_settings_migrate_flags.append(migrate_legacy)
+         return {
+             "local_http_port": 8080,
+             "local_socks_port": 1080,
+@@ -157,6 +159,7 @@ class WindowsDiagnosticsTests(unittest.TestCase):
+             self.assertIn("[REDACTED]", raw)
+             self.assertIn("proxy.example.test", raw)
+             self.assertTrue(snapshot["sections"]["recovery"]["data"]["network_restore_pending"])
++            self.assertEqual(fake.load_settings_migrate_flags, [False, False, False])
+ 
+     def test_partial_collector_failure_is_recorded_and_does_not_abort_snapshot(self):
+         def broken():
+diff --git a/diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md b/diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md
+--- a/diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md
++++ b/diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md
+@@ -1,6 +1,6 @@
+ # APL-DIAG-003 — Windows diagnostics collector
+ 
+-**Status:** IMPLEMENTED / READY FOR MERGE
++**Status:** IMPLEMENTED / MERGED
+ **Depends on:** APL-DIAG-001 Structured logging, APL-DIAG-002 Secret redaction
+ **Bundle schema:** `arvectum.proxy.windows_diagnostics.v1`
+@@ -41,6 +41,7 @@ When present, current and rotated `proxy_core.log` files are added under `logs/`
+ - Structured log lines are parsed, recursively redacted and re-serialized.
+ - URI credentials, tokens, passwords, auth headers, cookies, DPAPI credential fields and other APL-DIAG-002 secret classes therefore remain outside the support bundle.
+ - Diagnostics are read-only with respect to WinINET, environment variables, Run entries and network state.
++- Settings are loaded with legacy credential migration disabled, so snapshot collection cannot rewrite `proxy_settings.json` as a side effect.
+ 
+ ## CLI
+@@ -69,5 +70,6 @@ The first form writes to the default per-user diagnostics directory. The second
+ - [x] Create the ZIP atomically and clean temporary files after success/failure.
+ - [x] Refuse Windows bundle creation on non-Windows systems.
++- [x] Read settings without triggering legacy plaintext-to-DPAPI migration.
+ - [x] Run dedicated collector/privacy tests on Ubuntu and Windows in GitHub Actions.
+ - [x] Run a native Windows no-proxy support-bundle smoke test in GitHub Actions.
+diff --git a/proxy_gui.py b/proxy_gui.py
+--- a/proxy_gui.py
++++ b/proxy_gui.py
+@@ -2,5 +2,6 @@ import tkinter as tk
+ from tkinter import ttk, font as tkfont, messagebox
+ 
+ import proxy_core as core
++import doctor as doctor_module
+ 
+ # ---------------------------------------------------------------------------
+@@ -15,6 +16,10 @@ import proxy_core as core
+         ttk.Button(
+             left_tools, text="Журнал", style="Ghost.TButton",
+             command=self.show_log).pack(side="left", padx=6)
++        self.btn_doctor = ttk.Button(
++            left_tools, text="Диагностика", style="Ghost.TButton",
++            command=self.doctor)
++        self.btn_doctor.pack(side="left", padx=6)
+ 
+         self.btn_restore = ttk.Button(
+             service, text="Восстановить настройки сети", style="Ghost.TButton",
+@@ -30,5 +35,6 @@ import proxy_core as core
+         orphaned_pac = core.orphaned_arvectum_pac()
+ 
+         self.btn_check.state(["!disabled"])
++        self.btn_doctor.state(["!disabled"])
+         self.btn_restore.state(["!disabled"])
+         self.btn_restore.configure(style="Ghost.TButton")
+@@ -42,6 +48,8 @@ import proxy_core as core
+     def _set_busy(self, text, color):
+         self.chip.config(text="  %s  " % text, bg=color, fg=NAVY)
+-        for b in (self.btn_on, self.btn_off, self.btn_check, self.btn_restore, self.btn_orphan_pac):
++        for b in (
++                self.btn_on, self.btn_off, self.btn_check, self.btn_doctor,
++                self.btn_restore, self.btn_orphan_pac):
+             b.state(["disabled"])
+ 
+     # -- проверка -------------------------------------------------------------
+@@ -64,4 +72,73 @@ import proxy_core as core
+         else:
+             messagebox.showinfo(APP_NAME, "Журнал пока пуст.")
+ 
++    def doctor(self):
++        """Run read-only APL-DIAG-004 checks without blocking the Tk event loop."""
++        self._set_busy("Диагностика…", MINT_LIGHT)
++        threading.Thread(target=self._do_doctor, daemon=True).start()
++
++    def _do_doctor(self):
++        try:
++            report = doctor_module.run_doctor()
++        except Exception as exc:
++            try:
++                core.structured_log(
++                    "doctor failed",
++                    event="diagnostics.doctor_failed",
++                    error=repr(exc),
++                )
++            except Exception:
++                pass
++
++            def show_error():
++                self.refresh_status()
++                messagebox.showerror(
++                    APP_NAME,
++                    "Автоматическая диагностика завершилась внутренней ошибкой. "
++                    "Состояние сети не изменялось. Подробности сохранены в «Журнал».")
++            self.root.after(0, show_error)
++            return
++
++        def show_result():
++            self.refresh_status()
++            overall = report.get("overall", doctor_module.FAIL)
++            counts = report.get("counts") or {}
++            problem_checks = [
++                item for item in report.get("checks") or []
++                if item.get("status") != doctor_module.PASS
++            ]
++            title = {
++                doctor_module.PASS: "Диагностика: проблем не обнаружено.",
++                doctor_module.WARN: "Диагностика: есть предупреждения.",
++                doctor_module.FAIL: "Диагностика: требуется действие.",
++            }.get(overall, "Диагностика завершена.")
++            lines = [
++                title,
++                "PASS %s · WARN %s · FAIL %s" % (
++                    counts.get(doctor_module.PASS, 0),
++                    counts.get(doctor_module.WARN, 0),
++                    counts.get(doctor_module.FAIL, 0),
++                ),
++            ]
++            if problem_checks:
++                lines.append("")
++                lines.append("Проверки, требующие внимания:")
++                for item in problem_checks[:8]:
++                    lines.append("[%s] %s" % (item.get("status"), item.get("id")))
++            actions = report.get("recommended_actions") or []
++            if actions:
++                lines.append("")
++                lines.append("Рекомендуемые действия:")
++                for action in actions[:5]:
++                    lines.append("• %s" % action)
++            text = "\n".join(lines)
++            if overall == doctor_module.FAIL:
++                messagebox.showerror(APP_NAME, text)
++            elif overall == doctor_module.WARN:
++                messagebox.showwarning(APP_NAME, text)
++            else:
++                messagebox.showinfo(APP_NAME, text)
++
++        self.root.after(0, show_result)
++
+     # -- автозапуск -------------------------------------------------------------
+@@ -74,4 +151,14 @@ import proxy_core as core
+ def main():
++    # Doctor is intentionally evaluated before portable self-handoff: the exit
++    # code/report must describe the exact executable the operator invoked.
++    if len(sys.argv) > 1 and sys.argv[1] in ("--doctor", "--doctor-json"):
++        if sys.argv[1] == "--doctor":
++            return doctor_module.main([])
++        doctor_args = ["--json"]
++        if len(sys.argv) > 2:
++            doctor_args.extend(["--output", sys.argv[2]])
++        return doctor_module.main(doctor_args)
++
+     # A portable launch first tries the permanent Documents location.
+     # If Windows refuses that handoff, the already-running portable GUI remains
+     # a valid manual P0 fallback for the current session.
+diff --git a/tools/clean_build_windows.ps1 b/tools/clean_build_windows.ps1
+--- a/tools/clean_build_windows.ps1
++++ b/tools/clean_build_windows.ps1
+@@ -153,7 +153,7 @@ Write-Host "Product Version: $ProductVersion"
+ # ---------------------------------------------------------------------------
+ # 6. Compile & Run Tests
+ # ---------------------------------------------------------------------------
+ Write-Host "Compiling source files..."
+-& $VenvPython -m py_compile proxy_core.py proxy_gui.py
++& $VenvPython -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py doctor.py proxy_gui.py
+ if ($LASTEXITCODE -ne 0) { throw "py_compile failed" }
+ 
+ Write-Host "Running unit test suite..."
+diff --git a/.github/workflows/windows-p0.yml b/.github/workflows/windows-p0.yml
+--- a/.github/workflows/windows-p0.yml
++++ b/.github/workflows/windows-p0.yml
+@@ -35,6 +35,19 @@ jobs:
+           $p = Start-Process -FilePath $canonicalExe -ArgumentList '--status' -PassThru -Wait
+           if ($p.ExitCode -ne 0) { throw "Documents EXE smoke failed with exit code $($p.ExitCode)" }
+           Write-Host "Documents execution smoke PASS; SHA256=$canonicalHash"
++
++          $doctorReport = Join-Path $env:RUNNER_TEMP 'apl-diag-004-packaged-doctor.json'
++          if (Test-Path -LiteralPath $doctorReport) { Remove-Item -LiteralPath $doctorReport -Force }
++          $doctor = Start-Process -FilePath $canonicalExe -ArgumentList @('--doctor-json', $doctorReport) -PassThru -Wait
++          if ($doctor.ExitCode -notin @(0,1,2)) {
++            throw "Packaged Doctor smoke failed with unexpected exit code $($doctor.ExitCode)"
++          }
++          if (-not (Test-Path -LiteralPath $doctorReport)) { throw 'Packaged Doctor JSON was not created' }
++          $doctorJson = Get-Content -LiteralPath $doctorReport -Raw -Encoding UTF8 | ConvertFrom-Json
++          if ($doctorJson.schema -ne 'arvectum.proxy.doctor.v1') { throw 'Unexpected packaged Doctor schema' }
++          if ([int]$doctorJson.exit_code -ne $doctor.ExitCode) { throw 'Packaged Doctor exit_code mismatch' }
++          Remove-Item -LiteralPath $doctorReport -Force
++          Write-Host "Packaged Doctor smoke PASS; status=$($doctorJson.overall); exit=$($doctor.ExitCode)"
+ 
+       - uses: actions/upload-artifact@v4
+         with:
