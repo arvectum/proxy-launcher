@@ -159,7 +159,9 @@ LinuxBackend owns the NetworkManager pointer to that PAC.
 
 The shared core-backend GitHub Actions workflow compiles and runs the abstract,
 Windows, macOS, and Linux backend contract tests on both Linux and macOS runners.
-The Linux leg also checks the required `nmcli` / `device reapply` command surface.
+The Linux leg also verifies native `nmcli` availability; exact command vectors,
+`device reapply` behavior, parsing, ownership, and rollback are covered by the
+daemon-independent contract tests.
 
 ## Acceptance
 
