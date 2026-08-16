@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[apl-win-008-applied]') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,411 +21,51 @@ jobs:
         with:
           python-version: '3.12.10'
 
-      - name: Apply APL-WIN-008 implementation
+      - name: Apply proxy_gui integration
         shell: python
         run: |
           from pathlib import Path
 
-          gui_path = Path('proxy_gui.py')
-          text = gui_path.read_text(encoding='utf-8')
-
-          old_imports = '''import os\nimport sys\nimport subprocess\nimport threading\nimport tkinter as tk\n'''
-          new_imports = '''import atexit\nimport os\nimport sys\nimport subprocess\nimport threading\nimport tkinter as tk\n'''
-          if old_imports not in text:
-              raise SystemExit('proxy_gui import anchor not found')
-          text = text.replace(old_imports, new_imports, 1)
-
-          old_module_imports = '''import doctor as doctor_module\nimport connection_test as connection_test_module\n'''
-          new_module_imports = '''import doctor as doctor_module\nimport connection_test as connection_test_module\nimport windows_single_instance as single_instance_module\n'''
-          if old_module_imports not in text:
-              raise SystemExit('proxy_gui module-import anchor not found')
-          text = text.replace(old_module_imports, new_module_imports, 1)
-
-          run_headless_anchor = '''def _run_headless(mode):\n'''
-          helpers = '''def _clear_temporary_topmost(root):\n    try:\n        root.attributes("-topmost", False)\n    except Exception:\n        pass\n\n\ndef _activate_main_window(root):\n    """Restore and foreground the canonical GUI after a duplicate launch."""\n    try:\n        root.deiconify()\n    except Exception:\n        pass\n    try:\n        root.lift()\n    except Exception:\n        pass\n    try:\n        root.focus_force()\n    except Exception:\n        pass\n    # Windows may refuse SetForegroundWindow from the already-running process.\n    # A short topmost pulse is a bounded fallback and is immediately removed.\n    try:\n        root.attributes("-topmost", True)\n        root.after(120, lambda: _clear_temporary_topmost(root))\n    except Exception:\n        pass\n\n\ndef _poll_single_instance_activation(root, instance):\n    """Consume duplicate-launch activation requests on the Tk main thread."""\n    try:\n        requested = instance.poll_activation()\n    except Exception as exc:\n        requested = False\n        core._log("single-instance activation poll failed: %s" % exc)\n    if requested:\n        _activate_main_window(root)\n    try:\n        root.after(150, lambda: _poll_single_instance_activation(root, instance))\n    except Exception:\n        pass\n\n\n'''
-          if run_headless_anchor not in text:
-              raise SystemExit('proxy_gui _run_headless anchor not found')
-          text = text.replace(run_headless_anchor, helpers + run_headless_anchor, 1)
-
-          cli_anchor = '''    if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):\n        sys.argv = [sys.argv[0], sys.argv[1]]\n        return core.main()\n    try:\n        import ctypes\n'''
-          cli_replacement = '''    if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):\n        sys.argv = [sys.argv[0], sys.argv[1]]\n        return core.main()\n\n    # Only the interactive GUI is single-instance. Service/doctor commands above\n    # must remain callable while the GUI is already open. Acquire before Tk and\n    # before any local/network repair side effects so a duplicate launch is inert.\n    instance = single_instance_module.WindowsSingleInstance()\n    try:\n        primary = instance.acquire()\n    except Exception as exc:\n        core._log("single-instance mutex acquisition failed: %s" % exc)\n        return 1\n    if not primary:\n        try:\n            instance.notify_existing(APP_NAME)\n        finally:\n            instance.close()\n        return 0\n    atexit.register(instance.close)\n\n    try:\n        import ctypes\n'''
-          if cli_anchor not in text:
-              raise SystemExit('proxy_gui CLI anchor not found')
-          text = text.replace(cli_anchor, cli_replacement, 1)
-
-          mainloop_anchor = '''    app = Launcher(root)\n    root.mainloop()\n    return 0\n'''
-          mainloop_replacement = '''    app = Launcher(root)\n    _poll_single_instance_activation(root, instance)\n    root.mainloop()\n    instance.close()\n    return 0\n'''
-          if mainloop_anchor not in text:
-              raise SystemExit('proxy_gui mainloop anchor not found')
-          text = text.replace(mainloop_anchor, mainloop_replacement, 1)
-          gui_path.write_text(text, encoding='utf-8')
-
-          Path('windows_single_instance.py').write_text(r'''# -*- coding: utf-8 -*-
-"""Windows GUI single-instance boundary for Arvectum Proxy Launcher.
-
-The production GUI uses a session-local named mutex as a crash-safe process
-sentinel and an auto-reset named event for duplicate-launch activation.  The
-module is deliberately independent of Tk so it can be tested without a desktop.
-"""
-
-import ctypes
-import os
-
-
-MUTEX_NAME = r"Local\Arvectum.ProxyLauncher.GUI.7D1327C3-7A2D-4D58-95B7-0B315E4AF008"
-ACTIVATE_EVENT_NAME = r"Local\Arvectum.ProxyLauncher.GUI.Activate.7D1327C3-7A2D-4D58-95B7-0B315E4AF008"
-
-ERROR_ALREADY_EXISTS = 183
-WAIT_OBJECT_0 = 0x00000000
-WAIT_TIMEOUT = 0x00000102
-WAIT_FAILED = 0xFFFFFFFF
-SW_RESTORE = 9
-
-
-class _Win32KernelObjects:
-    """Small ctypes adapter around the Win32 primitives used by the boundary."""
-
-    def __init__(self):
-        from ctypes import wintypes
-
-        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        self.user32 = ctypes.WinDLL("user32", use_last_error=True)
-
-        self.kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
-        self.kernel32.CreateMutexW.restype = wintypes.HANDLE
-        self.kernel32.CreateEventW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
-        self.kernel32.CreateEventW.restype = wintypes.HANDLE
-        self.kernel32.SetEvent.argtypes = [wintypes.HANDLE]
-        self.kernel32.SetEvent.restype = wintypes.BOOL
-        self.kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        self.kernel32.WaitForSingleObject.restype = wintypes.DWORD
-        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-        self.kernel32.CloseHandle.restype = wintypes.BOOL
-
-        self.user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
-        self.user32.FindWindowW.restype = wintypes.HWND
-        self.user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-        self.user32.ShowWindow.restype = wintypes.BOOL
-        self.user32.BringWindowToTop.argtypes = [wintypes.HWND]
-        self.user32.BringWindowToTop.restype = wintypes.BOOL
-        self.user32.SetForegroundWindow.argtypes = [wintypes.HWND]
-        self.user32.SetForegroundWindow.restype = wintypes.BOOL
-
-    @staticmethod
-    def _win_error():
-        code = ctypes.get_last_error()
-        return ctypes.WinError(code or 1)
-
-    def create_mutex(self, name):
-        ctypes.set_last_error(0)
-        handle = self.kernel32.CreateMutexW(None, False, name)
-        error = ctypes.get_last_error()
-        if not handle:
-            raise ctypes.WinError(error or 1)
-        return handle, error == ERROR_ALREADY_EXISTS
-
-    def create_event(self, name):
-        handle = self.kernel32.CreateEventW(None, False, False, name)
-        if not handle:
-            raise self._win_error()
-        return handle
-
-    def set_event(self, handle):
-        if not self.kernel32.SetEvent(handle):
-            raise self._win_error()
-
-    def event_signaled(self, handle):
-        result = int(self.kernel32.WaitForSingleObject(handle, 0))
-        if result == WAIT_OBJECT_0:
-            return True
-        if result == WAIT_TIMEOUT:
-            return False
-        if result == WAIT_FAILED:
-            raise self._win_error()
-        raise OSError("Unexpected WaitForSingleObject result: %s" % result)
-
-    def close_handle(self, handle):
-        if handle:
-            self.kernel32.CloseHandle(handle)
-
-    def activate_window(self, title):
-        """Best-effort activation from the newly launched foreground process."""
-        hwnd = self.user32.FindWindowW(None, title)
-        if not hwnd:
-            return False
-        self.user32.ShowWindow(hwnd, SW_RESTORE)
-        self.user32.BringWindowToTop(hwnd)
-        self.user32.SetForegroundWindow(hwnd)
-        return True
-
-
-class WindowsSingleInstance:
-    """Own the GUI mutex or notify the already-running GUI and exit."""
-
-    def __init__(self, mutex_name=MUTEX_NAME, event_name=ACTIVATE_EVENT_NAME,
-                 backend=None, platform=None):
-        self.mutex_name = mutex_name
-        self.event_name = event_name
-        self._platform = os.name if platform is None else platform
-        self._backend = backend
-        self._mutex_handle = None
-        self._event_handle = None
-        self._acquired = False
-        self._primary = False
-
-    @property
-    def primary(self):
-        return self._primary
-
-    def _get_backend(self):
-        if self._backend is None:
-            self._backend = _Win32KernelObjects()
-        return self._backend
-
-    def acquire(self):
-        if self._acquired:
-            return self._primary
-        if self._platform != "nt":
-            self._acquired = True
-            self._primary = True
-            return True
-
-        backend = self._get_backend()
-        mutex_handle = None
-        event_handle = None
-        try:
-            mutex_handle, already_exists = backend.create_mutex(self.mutex_name)
-            # Every instance opens the same auto-reset event.  If a duplicate
-            # arrives before the primary starts polling, the signal stays set
-            # until the primary consumes it.
-            event_handle = backend.create_event(self.event_name)
-        except Exception:
-            if event_handle is not None:
-                backend.close_handle(event_handle)
-            if mutex_handle is not None:
-                backend.close_handle(mutex_handle)
-            raise
-
-        self._mutex_handle = mutex_handle
-        self._event_handle = event_handle
-        self._acquired = True
-        self._primary = not already_exists
-        return self._primary
-
-    def notify_existing(self, window_title):
-        if self._platform != "nt" or self._primary or not self._acquired:
-            return False
-        backend = self._get_backend()
-        signaled = False
-        activated = False
-        if self._event_handle is not None:
-            backend.set_event(self._event_handle)
-            signaled = True
-        try:
-            activated = bool(backend.activate_window(window_title))
-        except Exception:
-            # The event is the canonical activation path.  Native foregrounding
-            # is intentionally best-effort because Windows may deny focus steal.
-            activated = False
-        return signaled or activated
-
-    def poll_activation(self):
-        if self._platform != "nt" or not self._primary or self._event_handle is None:
-            return False
-        return bool(self._get_backend().event_signaled(self._event_handle))
-
-    def close(self):
-        backend = self._backend
-        if backend is not None:
-            if self._event_handle is not None:
-                backend.close_handle(self._event_handle)
-            if self._mutex_handle is not None:
-                backend.close_handle(self._mutex_handle)
-        self._event_handle = None
-        self._mutex_handle = None
-        self._acquired = False
-        self._primary = False
-''', encoding='utf-8')
-
-          Path('tests/test_single_instance.py').write_text(r'''import unittest
-from unittest import mock
-
-import proxy_gui as gui
-import windows_single_instance as single
-
-
-class _Backend:
-    def __init__(self, mutex_exists=False):
-        self.mutex_exists = mutex_exists
-        self.created_mutex_names = []
-        self.created_event_names = []
-        self.set_events = []
-        self.closed = []
-        self.activation_titles = []
-        self.poll_values = []
-
-    def create_mutex(self, name):
-        self.created_mutex_names.append(name)
-        return "mutex-handle", self.mutex_exists
-
-    def create_event(self, name):
-        self.created_event_names.append(name)
-        return "event-handle"
-
-    def set_event(self, handle):
-        self.set_events.append(handle)
-
-    def event_signaled(self, handle):
-        if self.poll_values:
-            return self.poll_values.pop(0)
-        return False
-
-    def close_handle(self, handle):
-        self.closed.append(handle)
-
-    def activate_window(self, title):
-        self.activation_titles.append(title)
-        return True
-
-
-class WindowsSingleInstanceTests(unittest.TestCase):
-    def test_non_windows_is_noop_primary(self):
-        instance = single.WindowsSingleInstance(platform="posix")
-        self.assertTrue(instance.acquire())
-        self.assertTrue(instance.primary)
-        self.assertFalse(instance.poll_activation())
-        self.assertFalse(instance.notify_existing(gui.APP_NAME))
-
-    def test_first_windows_instance_owns_named_boundary(self):
-        backend = _Backend(mutex_exists=False)
-        instance = single.WindowsSingleInstance(backend=backend, platform="nt")
-
-        self.assertTrue(instance.acquire())
-        self.assertTrue(instance.primary)
-        self.assertEqual(backend.created_mutex_names, [single.MUTEX_NAME])
-        self.assertEqual(backend.created_event_names, [single.ACTIVATE_EVENT_NAME])
-        self.assertEqual(backend.set_events, [])
-
-    def test_duplicate_signals_primary_and_attempts_foreground(self):
-        backend = _Backend(mutex_exists=True)
-        instance = single.WindowsSingleInstance(backend=backend, platform="nt")
-
-        self.assertFalse(instance.acquire())
-        self.assertFalse(instance.primary)
-        self.assertTrue(instance.notify_existing(gui.APP_NAME))
-        self.assertEqual(backend.set_events, ["event-handle"])
-        self.assertEqual(backend.activation_titles, [gui.APP_NAME])
-
-    def test_primary_consumes_activation_requests_without_blocking(self):
-        backend = _Backend(mutex_exists=False)
-        backend.poll_values = [True, False]
-        instance = single.WindowsSingleInstance(backend=backend, platform="nt")
-        self.assertTrue(instance.acquire())
-        self.assertTrue(instance.poll_activation())
-        self.assertFalse(instance.poll_activation())
-
-    def test_close_is_idempotent_and_releases_event_then_mutex(self):
-        backend = _Backend(mutex_exists=False)
-        instance = single.WindowsSingleInstance(backend=backend, platform="nt")
-        instance.acquire()
-        instance.close()
-        instance.close()
-        self.assertEqual(backend.closed, ["event-handle", "mutex-handle"])
-        self.assertFalse(instance.primary)
-
-    def test_event_creation_failure_releases_mutex(self):
-        backend = _Backend(mutex_exists=False)
-        backend.create_event = mock.Mock(side_effect=OSError("event denied"))
-        instance = single.WindowsSingleInstance(backend=backend, platform="nt")
-        with self.assertRaises(OSError):
-            instance.acquire()
-        self.assertEqual(backend.closed, ["mutex-handle"])
-
-
-class DuplicateLaunchIntegrationTests(unittest.TestCase):
-    def test_duplicate_gui_exits_before_local_or_network_side_effects(self):
-        instance = mock.Mock()
-        instance.acquire.return_value = False
-        with mock.patch.object(gui.sys, "argv", ["proxy_gui.py"]), \
-             mock.patch.object(gui.core, "handoff_to_stable_copy", return_value=False), \
-             mock.patch.object(gui.core, "self_heal_error", return_value=None), \
-             mock.patch.object(gui, "_portable_fallback_active", return_value=False), \
-             mock.patch.object(gui.single_instance_module, "WindowsSingleInstance", return_value=instance), \
-             mock.patch.object(gui.core, "_ensure_local_files") as ensure_files, \
-             mock.patch.object(gui.core, "repair_portable_run_entries") as repair_runs, \
-             mock.patch.object(gui.tk, "Tk") as tk_root:
-            self.assertEqual(gui.main(), 0)
-
-        instance.notify_existing.assert_called_once_with(gui.APP_NAME)
-        instance.close.assert_called_once()
-        ensure_files.assert_not_called()
-        repair_runs.assert_not_called()
-        tk_root.assert_not_called()
-
-    def test_headless_service_command_bypasses_gui_mutex(self):
-        with mock.patch.object(gui.sys, "argv", ["proxy_gui.py", "--status"]), \
-             mock.patch.object(gui.core, "handoff_to_stable_copy", return_value=False), \
-             mock.patch.object(gui.core, "self_heal_error", return_value=None), \
-             mock.patch.object(gui, "_portable_fallback_active", return_value=False), \
-             mock.patch.object(gui.core, "main", return_value=0) as core_main, \
-             mock.patch.object(gui.single_instance_module, "WindowsSingleInstance") as boundary:
-            self.assertEqual(gui.main(), 0)
-        core_main.assert_called_once_with()
-        boundary.assert_not_called()
-
-    def test_activation_poll_restores_existing_tk_window(self):
-        root = mock.Mock()
-        instance = mock.Mock()
-        instance.poll_activation.return_value = True
-        with mock.patch.object(gui, "_activate_main_window") as activate:
-            gui._poll_single_instance_activation(root, instance)
-        activate.assert_called_once_with(root)
-        root.after.assert_called_once()
-
-
-if __name__ == "__main__":
-    unittest.main()
-''', encoding='utf-8')
-
-          Path('APL-WIN-008_SINGLE_INSTANCE.md').write_text(r'''# APL-WIN-008 — Single-instance mutex and duplicate-launch handling
-
-## Status
-
-Implemented for the Windows interactive GUI boundary.
-
-## Production contract
-
-1. The interactive Windows GUI has one canonical instance per Windows session.
-2. The boundary is established before `Tk()` construction and before local/network repair side effects.
-3. A session-local Win32 named mutex is the authoritative process sentinel. Kernel handle lifetime makes the boundary crash-safe: process termination releases the object automatically.
-4. A session-local auto-reset Win32 event carries duplicate-launch activation requests to the primary process without sockets, temp files, lock files, or mutable user data.
-5. A duplicate GUI launch does not start a second `Tk()` tree, does not repair Run entries, does not mutate proxy/network state, and exits successfully after notifying the primary instance.
-6. Duplicate handling requests restoration/foregrounding twice: best-effort Win32 activation from the newly launched process, plus an event consumed by the primary Tk event loop. The primary performs a bounded topmost pulse and immediately clears it.
-7. `--doctor`, `--doctor-json`, `--start`, `--stop`, `--status`, and `--rollback` remain outside the GUI mutex. They are operational commands, not second GUI instances.
-8. Portable self-handoff remains authoritative: a portable EXE first hands execution to the managed canonical copy; the canonical GUI then participates in the single-instance boundary.
-9. Mutex/event names include an Arvectum-specific GUID and use the `Local\` namespace so unrelated products and other Terminal Services sessions do not share the GUI sentinel.
-10. Any failure to establish the Windows mutex/event boundary is fail-closed for GUI startup and is written to the existing application log.
-
-## Acceptance scenarios
-
-- Launch the canonical EXE once: one GUI opens normally.
-- Launch it again while visible: no second GUI is created; the existing window is surfaced.
-- Minimize the first GUI, then launch again: the existing window is restored/surfaced.
-- Rapidly launch the EXE twice: the first process owns the mutex; the second signals the activation event and exits.
-- Kill the primary process, then launch again: the new process becomes primary because Windows closed the dead process handles.
-- Keep the GUI open and execute `--status` / `--start` / `--stop`: the command is not blocked by the GUI mutex.
-- Launch a portable copy while the managed canonical GUI is already open: portable handoff reaches canonical execution, which activates the existing canonical GUI instead of creating another one.
-
-## Regression coverage
-
-`tests/test_single_instance.py` verifies primary/duplicate classification, activation signaling, non-blocking event polling, crash-safe handle cleanup semantics, fail-closed setup cleanup, duplicate-launch side-effect isolation, service-command bypass, and Tk activation scheduling.
-''', encoding='utf-8')
+          path = Path('proxy_gui.py')
+          text = path.read_text(encoding='utf-8')
+
+          old = 'import os\nimport sys\nimport subprocess\nimport threading\nimport tkinter as tk\n'
+          new = 'import atexit\nimport os\nimport sys\nimport subprocess\nimport threading\nimport tkinter as tk\n'
+          if old not in text:
+              raise SystemExit('import anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = 'import doctor as doctor_module\nimport connection_test as connection_test_module\n'
+          new = 'import doctor as doctor_module\nimport connection_test as connection_test_module\nimport windows_single_instance as single_instance_module\n'
+          if old not in text:
+              raise SystemExit('module import anchor not found')
+          text = text.replace(old, new, 1)
+
+          anchor = 'def _run_headless(mode):\n'
+          helpers = 'def _clear_temporary_topmost(root):\n    try:\n        root.attributes("-topmost", False)\n    except Exception:\n        pass\n\n\ndef _activate_main_window(root):\n    """Restore and foreground the canonical GUI after a duplicate launch."""\n    try:\n        root.deiconify()\n    except Exception:\n        pass\n    try:\n        root.lift()\n    except Exception:\n        pass\n    try:\n        root.focus_force()\n    except Exception:\n        pass\n    try:\n        root.attributes("-topmost", True)\n        root.after(120, lambda: _clear_temporary_topmost(root))\n    except Exception:\n        pass\n\n\ndef _poll_single_instance_activation(root, instance):\n    """Consume duplicate-launch activation requests on the Tk main thread."""\n    try:\n        requested = instance.poll_activation()\n    except Exception as exc:\n        requested = False\n        core._log("single-instance activation poll failed: %s" % exc)\n    if requested:\n        _activate_main_window(root)\n    try:\n        root.after(150, lambda: _poll_single_instance_activation(root, instance))\n    except Exception:\n        pass\n\n\n'
+          if anchor not in text:
+              raise SystemExit('_run_headless anchor not found')
+          text = text.replace(anchor, helpers + anchor, 1)
+
+          old = '    if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):\n        sys.argv = [sys.argv[0], sys.argv[1]]\n        return core.main()\n    try:\n        import ctypes\n'
+          new = '    if len(sys.argv) > 1 and sys.argv[1] in ("--start", "--stop", "--status", "--rollback"):\n        sys.argv = [sys.argv[0], sys.argv[1]]\n        return core.main()\n\n    # Only the interactive GUI is single-instance. Service/doctor commands above\n    # remain callable while the GUI is open. Acquire before Tk and before local\n    # or network repair side effects so a duplicate launch is inert.\n    instance = single_instance_module.WindowsSingleInstance()\n    try:\n        primary = instance.acquire()\n    except Exception as exc:\n        core._log("single-instance mutex acquisition failed: %s" % exc)\n        return 1\n    if not primary:\n        try:\n            instance.notify_existing(APP_NAME)\n        finally:\n            instance.close()\n        return 0\n    atexit.register(instance.close)\n\n    try:\n        import ctypes\n'
+          if old not in text:
+              raise SystemExit('CLI integration anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '    app = Launcher(root)\n    root.mainloop()\n    return 0\n'
+          new = '    app = Launcher(root)\n    _poll_single_instance_activation(root, instance)\n    root.mainloop()\n    instance.close()\n    return 0\n'
+          if old not in text:
+              raise SystemExit('mainloop anchor not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
 
       - name: Compile changed Python modules
         shell: pwsh
         run: python -m py_compile proxy_gui.py windows_single_instance.py tests/test_single_instance.py
 
-      - name: Run focused GUI and single-instance regression tests
+      - name: Run focused regression tests
         shell: pwsh
         run: python -m unittest tests.test_proxy_gui tests.test_autostart_safety tests.test_single_instance -v
 
@@ -434,12 +73,12 @@ Implemented for the Windows interactive GUI boundary.
         shell: pwsh
         run: python -m unittest discover -s tests -v
 
-      - name: Commit verified implementation and remove temporary workflow
+      - name: Commit verified integration and remove temporary workflow
         shell: pwsh
         run: |
           Remove-Item -LiteralPath '.github/workflows/apl-win-008-apply.yml' -Force
           git config user.name 'arvectum-ci'
           git config user.email 'ci@arvectum.com'
-          git add proxy_gui.py windows_single_instance.py tests/test_single_instance.py APL-WIN-008_SINGLE_INSTANCE.md .github/workflows/apl-win-008-apply.yml
-          git commit -m 'APL-WIN-008: single-instance mutex and duplicate-launch handling [apl-win-008-applied]'
+          git add proxy_gui.py .github/workflows/apl-win-008-apply.yml
+          git commit -m 'APL-WIN-008: integrate single-instance GUI boundary [apl-win-008-applied]'
           git push origin HEAD:feature/apl-win-008-single-instance
