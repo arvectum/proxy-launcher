@@ -332,7 +332,12 @@ def _sanitized_log_text(path, max_lines=LOG_MAX_LINES):
                     ))
     except Exception as exc:
         return json.dumps({"log_read_error": _error_text(exc)}, ensure_ascii=False) + "\n"
-    return ("\n".join(lines) + "\n") if lines else ""
+    if not lines:
+        return ""
+    # A final pass over the complete bounded log tail is required for secrets
+    # whose syntax spans multiple physical lines (for example PEM private-key
+    # blocks). Per-line sanitization alone cannot see the BEGIN/END pair.
+    return redact_text("\n".join(lines) + "\n")
 
 
 def _log_candidates():
