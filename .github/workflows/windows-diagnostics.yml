@@ -1,0 +1,56 @@
+name: APL-DIAG-003 Windows diagnostics collector
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'structured_logging.py'
+      - 'secret_redaction.py'
+      - 'windows_diagnostics.py'
+      - 'tests/test_windows_diagnostics.py'
+      - 'diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md'
+      - '.github/workflows/windows-diagnostics.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'structured_logging.py'
+      - 'secret_redaction.py'
+      - 'windows_diagnostics.py'
+      - 'tests/test_windows_diagnostics.py'
+      - 'diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md'
+      - '.github/workflows/windows-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Windows diagnostics contract (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Compile diagnostics modules
+        run: python -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py
+      - name: Run APL-DIAG-003 tests
+        run: python -m unittest tests.test_windows_diagnostics -v
+      - name: Run full unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Native Windows no-proxy bundle smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:RUNNER_TEMP 'apl-diag-003-native.zip'
+          python windows_diagnostics.py $bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows diagnostics collector failed' }
+          if (-not (Test-Path -LiteralPath $bundle)) { throw 'Diagnostics ZIP was not created' }
+          python -c "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert 'diagnostics.json' in z.namelist(); d=json.loads(z.read('diagnostics.json')); assert d['schema']=='arvectum.proxy.windows_diagnostics.v1'" $bundle

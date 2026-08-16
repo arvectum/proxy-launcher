@@ -138,9 +138,15 @@ def _redact_query_pair(match):
 
 def _redact_assignment(match):
     key = match.group("key").strip("\"'")
-    if not is_sensitive_key(key):
-        return match.group(0)
-    return match.group("prefix") + REDACTED
+    prefix = match.group("prefix")
+    if is_sensitive_key(key):
+        return prefix + REDACTED
+    value = match.group("value")
+    if "=" in value or ":" in value:
+        nested = redact_text(value)
+        if nested != value:
+            return prefix + nested
+    return match.group(0)
 
 
 def redact_text(value, limit=None):
