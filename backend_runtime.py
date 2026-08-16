@@ -16,6 +16,10 @@ mutate through NetworkManager.
 APL-LNX-004 allows the composition layer to inject an interactive nmcli runner
 for one explicitly user-authorized Linux operation. The default remains fully
 non-interactive.
+
+APL-MAC-001/002 extend the same separation to macOS: a darwin build is a
+supported product platform, while a particular host must still expose a
+readable ``networksetup`` control surface before new proxy mutation is allowed.
 """
 
 from dataclasses import dataclass
@@ -86,16 +90,49 @@ def _always_ready_status(backend_id):
     )
 
 
-def operational_status_for_platform(platform=None, linux_preflight=None):
+def _macos_operational_status(macos_preflight=None):
+    if macos_preflight is None:
+        from macos_networksetup_preflight import detect_macos_network_preflight
+        macos_preflight = detect_macos_network_preflight()
+
+    from macos_networksetup_preflight import MacOSPreflightStatus
+    from macos_capability_ux import macos_capability_view
+
+    view = macos_capability_view(macos_preflight)
+    reasons = tuple(getattr(macos_preflight, "reasons", ()) or ())
+    platform_label = capabilities_for_backend("macos").platform_label
+    preflight_state = getattr(macos_preflight, "status", None)
+
+    if preflight_state == MacOSPreflightStatus.READY:
+        state = OperationalState.READY
+    elif preflight_state == MacOSPreflightStatus.AUTH_REQUIRED:
+        state = OperationalState.AUTH_REQUIRED
+    else:
+        state = OperationalState.UNAVAILABLE
+
+    return BackendOperationalStatus(
+        backend_id="macos",
+        platform_label=platform_label,
+        state=state,
+        can_enable=bool(view["can_on"]),
+        title=str(view["label"]),
+        message=str(view["hint"]),
+        reasons=reasons,
+    )
+
+
+def operational_status_for_platform(platform=None, linux_preflight=None, macos_preflight=None):
     """Return host-specific readiness without mutating network state.
 
-    Windows/macOS currently have their own backend validation paths and therefore
-    remain operationally ready here. Linux/Astra delegates to APL-LNX-002.
-    ``linux_preflight`` is an injectable result used by deterministic tests.
+    Windows keeps its customer-proven backend validation path. Linux/Astra
+    delegates to APL-LNX-002 and macOS delegates to APL-MAC-001. Injectable
+    preflight results keep the composition layer deterministic in tests.
     """
     backend_id = backend_id_for_platform(platform)
-    if backend_id != "linux":
+    if backend_id == "windows":
         return _always_ready_status(backend_id)
+    if backend_id == "macos":
+        return _macos_operational_status(macos_preflight)
 
     if linux_preflight is None:
         from linux_networkmanager_preflight import detect_networkmanager_preflight
@@ -145,7 +182,7 @@ def operational_status_for_platform(platform=None, linux_preflight=None):
 
 
 def operational_status_view(status):
-    """Stable user-facing data for Linux/Astra capability UX."""
+    """Stable user-facing data for platform capability UX."""
     if not isinstance(status, BackendOperationalStatus):
         raise TypeError("BackendOperationalStatus is required")
     badge = {
@@ -165,9 +202,13 @@ def operational_status_view(status):
     }
 
 
-def require_enable_operational(platform=None, linux_preflight=None):
+def require_enable_operational(platform=None, linux_preflight=None, macos_preflight=None):
     """Fail closed before a new proxy mutation when host preflight is not ready."""
-    status = operational_status_for_platform(platform, linux_preflight=linux_preflight)
+    status = operational_status_for_platform(
+        platform,
+        linux_preflight=linux_preflight,
+        macos_preflight=macos_preflight,
+    )
     if not status.can_enable:
         raise BackendOperationalError(status)
     return status
