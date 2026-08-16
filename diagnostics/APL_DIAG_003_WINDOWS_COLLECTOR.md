@@ -1,6 +1,6 @@
 # APL-DIAG-003 — Windows diagnostics collector
 
-**Status:** IMPLEMENTED / READY FOR MERGE
+**Status:** IMPLEMENTED / MERGED
 **Depends on:** APL-DIAG-001 Structured logging, APL-DIAG-002 Secret redaction
 **Bundle schema:** `arvectum.proxy.windows_diagnostics.v1`
 
@@ -42,6 +42,7 @@ When present, current and rotated `proxy_core.log` files are added under `logs/`
 - Structured log lines are parsed, recursively redacted and re-serialized.
 - URI credentials, tokens, passwords, auth headers, cookies, DPAPI credential fields and other APL-DIAG-002 secret classes therefore remain outside the support bundle.
 - Diagnostics are read-only with respect to WinINET, environment variables, Run entries and network state.
+- Settings are loaded with legacy credential migration disabled, so snapshot collection cannot rewrite `proxy_settings.json` as a side effect.
 
 ## CLI
 
@@ -68,5 +69,6 @@ The first form writes to the default per-user diagnostics directory. The second 
 - [x] Work when the engine is stopped and recovery is pending after an interrupted session.
 - [x] Create the ZIP atomically and clean temporary files after success/failure.
 - [x] Refuse Windows bundle creation on non-Windows systems.
+- [x] Read settings without triggering legacy plaintext-to-DPAPI migration.
 - [x] Run dedicated collector/privacy tests on Ubuntu and Windows in GitHub Actions.
 - [x] Run a native Windows no-proxy support-bundle smoke test in GitHub Actions.

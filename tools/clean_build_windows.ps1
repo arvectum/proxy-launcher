@@ -151,7 +151,7 @@ Write-Host "Product Version: $ProductVersion"
 # 6. Compile & Run Tests
 # ---------------------------------------------------------------------------
 Write-Host "Compiling source files..."
-& $VenvPython -m py_compile proxy_core.py proxy_gui.py
+& $VenvPython -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py doctor.py proxy_gui.py
 if ($LASTEXITCODE -ne 0) { throw "py_compile failed" }
 
 Write-Host "Running unit test suite..."
