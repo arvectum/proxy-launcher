@@ -10,6 +10,9 @@ on:
       artifact_name:
         description: Canonical installer artifact name
         value: ${{ jobs.installer.outputs.artifact_name }}
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   installer:
     runs-on: windows-latest
@@ -103,6 +106,17 @@ jobs:
           New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -Value $ownedStart -PropertyType String -Force | Out-Null
           $foreignRecovery = '"' + $env:SystemRoot + '\System32\cmd.exe" /c echo foreign'
           New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -Value $foreignRecovery -PropertyType String -Force | Out-Null
+
+          # Execute the installed cleanup helper directly first so its native
+          # Windows behavior and exit code are verified independently from Inno.
+          $uninstallHelper = Join-Path $installRoot 'uninstall_helper.ps1'
+          $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $p = Start-Process -FilePath $windowsPowerShell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uninstallHelper, '-InstallRoot', $installRoot) -PassThru -Wait
+          if ($p.ExitCode -ne 0) { Dump-InstallerDiagnostics; throw "installed uninstall helper failed with exit code $($p.ExitCode)" }
+          $mainAfterHelper = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
+          if ($mainAfterHelper) { throw 'uninstall helper left owned main Run value' }
+          $recoveryAfterHelper = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+          if ($recoveryAfterHelper -ne $foreignRecovery) { throw 'uninstall helper modified foreign recovery Run value' }
 
           $uninstaller = Join-Path $installRoot 'unins000.exe'
           $uninstallLog = Join-Path $PWD 'installer-uninstall.log'
