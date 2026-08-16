@@ -48,6 +48,12 @@ Copy-Item -LiteralPath $exe -Destination (Join-Path $payload 'Arvectum Proxy Lau
 Copy-Item -LiteralPath (Join-Path $root 'installer\upgrade_helper.ps1') -Destination $payload
 Copy-Item -LiteralPath (Join-Path $root 'installer\uninstall_helper.ps1') -Destination $payload
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function NormalizedVersionInfoValue($Value) {
+    # Inno Setup may space-pad string-table fields in the PE resource. Windows
+    # Explorer presents the same logical value without that padding, so compare
+    # the semantic value while still requiring exact text/case after trimming.
+    return ([string]$Value).Trim()
+}
 
 $manifest = [ordered]@{
     product='Arvectum Proxy Launcher'
@@ -87,10 +93,14 @@ if (-not (Test-Path -LiteralPath $setup)) { throw "Expected setup EXE was not pr
 $setupHash = Hash $setup
 
 $setupInfo = (Get-Item -LiteralPath $setup).VersionInfo
-if ([string]$setupInfo.CompanyName -cne 'ООО «Арвектум»') { throw "Setup CompanyName mismatch: $($setupInfo.CompanyName)" }
-if ([string]$setupInfo.ProductName -cne 'Arvectum Proxy Launcher') { throw "Setup ProductName mismatch: $($setupInfo.ProductName)" }
-if ([string]$setupInfo.FileDescription -cne 'Arvectum Proxy Launcher Windows Installer') { throw "Setup FileDescription mismatch: $($setupInfo.FileDescription)" }
-if ([string]$setupInfo.FileVersion -cne $versionInfoVersion) { throw "Setup FileVersion mismatch: $($setupInfo.FileVersion) != $versionInfoVersion" }
+$actualCompany = NormalizedVersionInfoValue $setupInfo.CompanyName
+$actualProduct = NormalizedVersionInfoValue $setupInfo.ProductName
+$actualDescription = NormalizedVersionInfoValue $setupInfo.FileDescription
+$actualFileVersion = NormalizedVersionInfoValue $setupInfo.FileVersion
+if ($actualCompany -cne 'ООО «Арвектум»') { throw "Setup CompanyName mismatch: '$actualCompany'" }
+if ($actualProduct -cne 'Arvectum Proxy Launcher') { throw "Setup ProductName mismatch: '$actualProduct'" }
+if ($actualDescription -cne 'Arvectum Proxy Launcher Windows Installer') { throw "Setup FileDescription mismatch: '$actualDescription'" }
+if ($actualFileVersion -cne $versionInfoVersion) { throw "Setup FileVersion mismatch: '$actualFileVersion' != '$versionInfoVersion'" }
 
 if ($env:GITHUB_OUTPUT) {
     if ($SyntheticPredecessor) {
