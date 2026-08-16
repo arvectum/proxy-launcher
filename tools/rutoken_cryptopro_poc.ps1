@@ -22,9 +22,7 @@ param(
     [ValidateSet('CurrentUser', 'LocalMachine')]
     [string]$CertificateStoreLocation = 'CurrentUser',
 
-    [string]$OutputDirectory = (Join-Path $env:TEMP 'Arvectum\APL-REL-010'),
-
-    [string]$ExpectedSubjectPattern = 'Арвектум'
+    [string]$OutputDirectory = (Join-Path $env:TEMP 'Arvectum\APL-REL-010')
 )
 
 Set-StrictMode -Version Latest
@@ -56,12 +54,17 @@ function Resolve-CspTest {
         return $command.Source
     }
 
-    $candidates = @(
-        (Join-Path $env:ProgramFiles 'Crypto Pro\CSP\csptest.exe'),
-        (Join-Path ${env:ProgramFiles(x86)} 'Crypto Pro\CSP\csptest.exe')
-    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
+    $candidatePaths = @()
+    if ($env:ProgramFiles) {
+        $candidatePaths += (Join-Path $env:ProgramFiles 'Crypto Pro\CSP\csptest.exe')
+    }
+    if (${env:ProgramFiles(x86)}) {
+        $candidatePaths += (Join-Path ${env:ProgramFiles(x86)} 'Crypto Pro\CSP\csptest.exe')
+    }
 
-    $candidate = $candidates | Select-Object -First 1
+    $candidate = $candidatePaths |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
     if ($candidate) {
         return (Resolve-Path -LiteralPath $candidate).Path
     }
@@ -134,21 +137,11 @@ function Resolve-SelectedCertificate([object[]]$Inventory) {
     }
 
     $privateKeyCandidates = @($Inventory | Where-Object { $_.has_private_key })
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedSubjectPattern)) {
-        $subjectMatches = @($privateKeyCandidates | Where-Object { $_.subject -match [regex]::Escape($ExpectedSubjectPattern) })
-        if ($subjectMatches.Count -eq 1) {
-            return $subjectMatches[0]
-        }
-        if ($subjectMatches.Count -gt 1) {
-            throw "Multiple private-key certificates match '$ExpectedSubjectPattern'. Re-run with -CertificateThumbprint."
-        }
-    }
-
     if ($privateKeyCandidates.Count -eq 1) {
         return $privateKeyCandidates[0]
     }
 
-    throw 'Unable to choose a unique private-key certificate automatically. Re-run with -CertificateThumbprint.'
+    throw 'Run mode requires -CertificateThumbprint unless exactly one private-key certificate exists in the selected store.'
 }
 
 function Invoke-CspTest([string[]]$Arguments) {
@@ -190,7 +183,7 @@ $evidencePath = Join-Path $outputPath 'signing-evidence.json'
 $nonce = [guid]::NewGuid().ToString('N')
 $utcNow = [DateTime]::UtcNow.ToString('o')
 @(
-    'Arvectum Proxy Launcher — APL-REL-010 disposable signing POC'
+    'Arvectum Proxy Launcher - APL-REL-010 disposable signing POC'
     "generated_utc=$utcNow"
     "nonce=$nonce"
 ) | Set-Content -LiteralPath $payloadPath -Encoding UTF8
@@ -206,12 +199,14 @@ if (Test-Path -LiteralPath $signaturePath) {
     Remove-Item -LiteralPath $signaturePath -Force
 }
 
+$storeSelector = if ($CertificateStoreLocation -eq 'LocalMachine') { '-MY' } else { '-my' }
+
 Write-Host 'Creating detached CMS/PKCS#7 signature. CryptoPro/Rutoken may prompt for the token PIN interactively.'
 $signOutput = Invoke-CspTest @(
     '-sfsign', '-sign', '-detached', '-add',
     '-in', $manifestPath,
     '-out', $signaturePath,
-    '-my', $selected.thumbprint
+    $storeSelector, $selected.thumbprint
 )
 
 if (-not (Test-Path -LiteralPath $signaturePath -PathType Leaf)) {
@@ -232,7 +227,6 @@ if (-not $signatureVerified) {
 
 $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $signatureHash = (Get-FileHash -LiteralPath $signaturePath -Algorithm SHA256).Hash.ToLowerInvariant()
-$subjectMatchesExpected = if ([string]::IsNullOrWhiteSpace($ExpectedSubjectPattern)) { $true } else { $selected.subject -match [regex]::Escape($ExpectedSubjectPattern) }
 
 $codeSigningAssessment = if ($selected.code_signing_eku_present) {
     'candidate-profile-only; issuer policy, timestamping and real PE signing still require separate proof'
@@ -250,7 +244,6 @@ $evidence = [ordered]@{
     cryptopro_file_version         = $cspVersion
     certificate_store              = $CertificateStoreLocation
     signer_subject                 = $selected.subject
-    signer_subject_matches_expected = [bool]$subjectMatchesExpected
     signer_issuer                  = $selected.issuer
     signer_thumbprint              = $selected.thumbprint
     certificate_serial             = $selected.serial
