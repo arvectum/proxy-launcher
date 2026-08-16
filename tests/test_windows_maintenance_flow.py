@@ -58,6 +58,15 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
         self.assertIn("foreign or unknown legacy scheduled task preserved", helper)
         self.assertNotIn("taskkill", helper.lower())
 
+    def test_absent_legacy_task_is_captured_as_native_exit_code(self):
+        helper = self.read("installer/uninstall_helper.ps1")
+        self.assertIn("function Invoke-NativeCapture", helper)
+        self.assertIn("RedirectStandardOutput", helper)
+        self.assertIn("RedirectStandardError", helper)
+        self.assertIn("legacy scheduled task absent; nothing to remove", helper)
+        self.assertIn("$query.ExitCode -ne 0", helper)
+        self.assertNotIn("/XML 2>$null", helper)
+
     def test_windows_ci_repairs_corruption_and_checks_config_preservation(self):
         workflow = self.read(".github/workflows/windows-installer.yml")
         self.assertIn("damaged-binary-for-repair-test", workflow)
@@ -66,6 +75,7 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
         self.assertIn("Get-FileHash -LiteralPath $settings -Algorithm SHA256", workflow)
         self.assertIn("repair left stale runtime PID", workflow)
         self.assertIn("repair modified persistent proxy settings", workflow)
+        self.assertIn("installed uninstall helper failed with exit code", workflow)
         self.assertIn("uninstall modified foreign recovery Run value", workflow)
         self.assertIn("uninstall modified persistent no-proxy rules", workflow)
 
