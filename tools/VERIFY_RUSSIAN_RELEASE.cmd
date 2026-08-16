@@ -6,15 +6,18 @@ title Arvectum Proxy Launcher - Проверка релиза
 echo Arvectum Proxy Launcher - проверка российского релиза
 echo.
 
-set "SCRIPT=%~dp0verify_russian_release.ps1"
-if not exist "%SCRIPT%" (
+set "APL_VERIFY_SCRIPT=%~dp0verify_russian_release.ps1"
+set "APL_VERIFY_DIR=%~dp0"
+if not exist "%APL_VERIFY_SCRIPT%" (
   echo ОШИБКА: рядом с этим файлом не найден verify_russian_release.ps1
   echo.
   pause
   exit /b 1
 )
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" -ReleaseDirectory "%~dp0"
+rem Windows PowerShell 5.1 may treat UTF-8 .ps1 without BOM as ANSI.
+rem Read the verifier explicitly as UTF-8 and compile it from Unicode text.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$text=[System.IO.File]::ReadAllText($env:APL_VERIFY_SCRIPT,[System.Text.Encoding]::UTF8); $block=[ScriptBlock]::Create($text); & $block -ReleaseDirectory $env:APL_VERIFY_DIR"
 set "RC=%ERRORLEVEL%"
 
 echo.
