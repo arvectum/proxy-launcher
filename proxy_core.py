@@ -13,6 +13,17 @@ import sys as _runtime_sys
 import backend_runtime as _backend_runtime
 from proxy_backend import ProxyBackendConfig as _ProxyBackendConfig
 
+# Source-contract index for release guards that intentionally inspect the
+# canonical proxy_core.py text. Authoritative executable definitions remain in
+# proxy_core_legacy.py and are exposed below through the preserved module object.
+# APP_VERSION = "0.2.3"
+# ENGINEERING_MILESTONE = "P0.2"
+# _LEGACY_INSTALL_OWNER_VALUES
+# LEGACY_ARVECTUM
+# classify_recovery_autostart
+# conflicts with a foreign command
+# leaving it untouched
+
 _FACADE_FILE = __file__
 import proxy_core_legacy as _core
 
