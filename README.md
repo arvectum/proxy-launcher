@@ -57,7 +57,7 @@ python -m unittest discover -s tests -v
 
 ## Configuration and recovery
 
-User runtime configuration is created on first use under LocalAppData and is deliberately excluded from Git. No `proxy_settings.json` is bundled in source or CI artifacts. The application supplies safe defaults programmatically; enter upstream host and credentials in the GUI. Passwords are stored through DPAPI, never as plaintext settings on Windows.
+User runtime configuration is created on first use under LocalAppData and is deliberately excluded from Git. No `proxy_settings.json` is bundled in source or CI artifacts. Settings use a versioned, validated schema; writes are same-directory atomic replacements with flush/fsync, and the previous valid configuration is retained as an encrypted last-known-good snapshot. Structurally corrupted settings are quarantined and recovered from that snapshot when possible, otherwise the application uses programmatic safe defaults without silently trusting malformed data. Upstream credentials are stored through current-user Windows DPAPI and are never written as plaintext by the Windows release track.
 
 Do not manually remove recovery files while the proxy is active. Use the launcher’s recovery action or `restore_network.bat` if the GUI is unavailable.
 
