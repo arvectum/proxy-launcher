@@ -206,8 +206,6 @@ def _collect_listeners():
 
 
 def _interface_fallback(reason=None):
-    # Do not resolve even the local hostname here: resolver traffic would break
-    # the collector's strict no-external-network contract.
     result = {
         "source": "unavailable",
         "hostname": socket.gethostname(),
@@ -242,13 +240,7 @@ def _collect_network_interfaces():
     )
     try:
         proc = subprocess.run(
-            [
-                powershell,
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-Command", script,
-            ],
+            [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -304,7 +296,6 @@ _SECTION_COLLECTORS = (
 
 
 def collect_snapshot():
-    """Collect a redacted in-memory diagnostics snapshot without writing files."""
     sections = {name: _safe_section(collector) for name, collector in _SECTION_COLLECTORS}
     return _sanitize({
         "schema": SCHEMA,
@@ -332,7 +323,11 @@ def _sanitized_log_text(path, max_lines=LOG_MAX_LINES):
                     ))
     except Exception as exc:
         return json.dumps({"log_read_error": _error_text(exc)}, ensure_ascii=False) + "\n"
-    return ("\n".join(lines) + "\n") if lines else ""
+    if not lines:
+        return ""
+    # Final whole-tail redaction catches secret syntax that spans physical
+    # lines, notably PEM private-key BEGIN/END blocks.
+    return redact_text("\n".join(lines) + "\n")
 
 
 def _log_candidates():
@@ -345,14 +340,10 @@ def _log_candidates():
 
 def _default_output_path():
     folder = os.path.join(core.data_dir(), "diagnostics")
-    return os.path.join(
-        folder,
-        "ArvectumProxyDiagnostics-%s.zip" % _safe_filename_timestamp(),
-    )
+    return os.path.join(folder, "ArvectumProxyDiagnostics-%s.zip" % _safe_filename_timestamp())
 
 
 def create_support_bundle(output_path=None):
-    """Create an atomic redacted Windows diagnostics ZIP and return its path."""
     if not core.is_windows():
         raise RuntimeError("APL-DIAG-003 support bundle is available on Windows only")
 
@@ -368,9 +359,7 @@ def create_support_bundle(output_path=None):
     diagnostics_json = json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
     try:
-        with zipfile.ZipFile(
-            temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
-        ) as archive:
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
             archive.writestr("diagnostics.json", diagnostics_json.encode("utf-8"))
             for source, arcname in _log_candidates():
                 if os.path.isfile(source):
