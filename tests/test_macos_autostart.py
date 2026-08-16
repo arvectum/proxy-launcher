@@ -11,7 +11,11 @@ class MacOSAutostartTests(unittest.TestCase):
             path = os.path.join(temp, "Library", "LaunchAgents", LABEL + ".plist")
             enable_autostart(path)
             self.assertTrue(is_autostart_enabled(path))
-            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            # chmod permission bits are meaningful on macOS/POSIX. The broad Windows
+            # regression suite still validates plist contents/ownership semantics,
+            # while macOS CI enforces the real 0600 filesystem mode.
+            if os.name != "nt":
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
             with open(path, "rb") as stream:
                 payload = plistlib.load(stream)
             self.assertEqual(payload["ProgramArguments"], [DEFAULT_EXECUTABLE])
