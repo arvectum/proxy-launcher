@@ -14,37 +14,12 @@ import re
 import secrets
 import threading
 
+from secret_redaction import is_sensitive_key, redact_text, redact_value
+
 
 SCHEMA = "arvectum.proxy.log.v1"
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024
 DEFAULT_BACKUPS = 3
-_REDACTED = "[REDACTED]"
-
-_SENSITIVE_KEYS = {
-    "password", "passwd", "pwd", "passphrase", "secret", "token",
-    "access_token", "refresh_token", "authorization", "proxy_authorization",
-    "cookie", "set_cookie", "credential", "credentials", "credentials_dpapi",
-    "password_dpapi", "pin", "private_key", "client_secret", "api_key",
-}
-
-# Message redaction is intentionally conservative and targets common credential
-# forms without hiding ordinary hosts, IP addresses, ports, or diagnostic paths.
-_MESSAGE_REDACTIONS = (
-    # URI userinfo: scheme://user:password@host -> scheme://[REDACTED]@host
-    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)([^\s/@:]+):([^\s/@]+)@"), r"\1[REDACTED]@"),
-    # HTTP Proxy-Authorization / Authorization Basic <blob>
-    (re.compile(r"(?i)\b(proxy-authorization|authorization)\s*:\s*basic\s+[A-Za-z0-9+/=_-]+"),
-     r"\1: Basic [REDACTED]"),
-    # Free-standing Basic auth token where it follows a credential-ish label.
-    (re.compile(r"(?i)\b(basic)\s+[A-Za-z0-9+/]{8,}={0,2}"), r"\1 [REDACTED]"),
-    # key=value / key: value (quoted or unquoted), including JSON-ish messages.
-    (re.compile(
-        r"(?i)(\b(?:password|passwd|pwd|passphrase|secret|token|access_token|refresh_token|"
-        r"authorization|proxy_authorization|credentials?_dpapi|password_dpapi|pin|api_key|"
-        r"client_secret)\b\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
-    ), r"\1[REDACTED]"),
-)
-
 _EVENT_RULES = (
     (re.compile(r"^proxy started\b", re.I), "proxy.started"),
     (re.compile(r"^proxy stopped\b", re.I), "proxy.stopped"),
@@ -74,47 +49,16 @@ def _utc_timestamp():
 
 
 def _sanitize_message(value, limit=4096):
-    text = str(value)
-    for pattern, replacement in _MESSAGE_REDACTIONS:
-        text = pattern.sub(replacement, text)
-    if len(text) > limit:
-        text = text[: limit - 16] + "...[truncated]"
-    return text
+    return redact_text(value, limit=limit)
 
 
 def _sensitive_key(key):
-    normalized = re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
-    if normalized in _SENSITIVE_KEYS:
-        return True
-    return any(
-        normalized.endswith("_" + suffix)
-        for suffix in ("password", "passwd", "passphrase", "secret", "token", "authorization", "cookie", "pin")
-    )
+    """Compatibility wrapper retained for APL-DIAG-001 callers/tests."""
+    return is_sensitive_key(key)
 
 
 def _sanitize_value(value, depth=0):
-    if depth >= 4:
-        return "[MAX_DEPTH]"
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    if isinstance(value, str):
-        return _sanitize_message(value, limit=2048)
-    if isinstance(value, dict):
-        out = {}
-        for index, (key, item) in enumerate(value.items()):
-            if index >= 50:
-                out["__truncated__"] = True
-                break
-            key_text = str(key)[:128]
-            out[key_text] = _REDACTED if _sensitive_key(key_text) else _sanitize_value(item, depth + 1)
-        return out
-    if isinstance(value, (list, tuple, set)):
-        items = list(value)
-        out = [_sanitize_value(item, depth + 1) for item in items[:50]]
-        if len(items) > 50:
-            out.append("[TRUNCATED]")
-        return out
-    return _sanitize_message(repr(value), limit=2048)
+    return redact_value(value, depth=depth, max_depth=4, max_items=50, string_limit=2048)
 
 
 def _infer_level(message):
@@ -182,7 +126,7 @@ class StructuredLogger:
     def make_record(self, message, level=None, event=None, fields=None):
         clean_message = _sanitize_message(message)
         resolved_level = _valid_level(level) or _infer_level(clean_message)
-        resolved_event = str(event or _derive_event(clean_message, self.component))[:128]
+        resolved_event = _sanitize_message(event or _derive_event(clean_message, self.component), limit=128)
         record = {
             "schema": SCHEMA,
             "ts": _utc_timestamp(),
