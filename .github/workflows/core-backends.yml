@@ -4,10 +4,15 @@ on:
   pull_request:
     paths:
       - proxy_backend.py
+      - backend_runtime.py
+      - proxy_core.py
+      - proxy_core_legacy.py
       - windows_backend.py
       - macos_backend.py
       - linux_backend.py
       - tests/test_proxy_backend.py
+      - tests/test_backend_runtime.py
+      - tests/test_backend_runtime_wiring.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
@@ -18,10 +23,15 @@ on:
       - main
     paths:
       - proxy_backend.py
+      - backend_runtime.py
+      - proxy_core.py
+      - proxy_core_legacy.py
       - windows_backend.py
       - macos_backend.py
       - linux_backend.py
       - tests/test_proxy_backend.py
+      - tests/test_backend_runtime.py
+      - tests/test_backend_runtime_wiring.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
@@ -54,10 +64,15 @@ jobs:
         run: >-
           python -m py_compile
           proxy_backend.py
+          backend_runtime.py
+          proxy_core.py
+          proxy_core_legacy.py
           windows_backend.py
           macos_backend.py
           linux_backend.py
           tests/test_proxy_backend.py
+          tests/test_backend_runtime.py
+          tests/test_backend_runtime_wiring.py
           tests/test_windows_backend.py
           tests/test_macos_backend.py
           tests/test_linux_backend.py
@@ -66,6 +81,8 @@ jobs:
         run: >-
           python -m unittest -v
           tests.test_proxy_backend
+          tests.test_backend_runtime
+          tests.test_backend_runtime_wiring
           tests.test_windows_backend
           tests.test_macos_backend
           tests.test_linux_backend
