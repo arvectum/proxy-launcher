@@ -12,6 +12,10 @@ APL-LNX-003 adds a runtime operational gate for Linux/Astra. Static product
 support and host readiness are deliberately separate concepts: Linux can be a
 supported product platform while a particular host is not currently safe to
 mutate through NetworkManager.
+
+APL-LNX-004 allows the composition layer to inject an interactive nmcli runner
+for one explicitly user-authorized Linux operation. The default remains fully
+non-interactive.
 """
 
 from dataclasses import dataclass
@@ -169,7 +173,7 @@ def require_enable_operational(platform=None, linux_preflight=None):
     return status
 
 
-def create_backend(platform=None, legacy_core=None, logger=None):
+def create_backend(platform=None, legacy_core=None, logger=None, linux_runner=None):
     """Instantiate the concrete backend selected for *platform*.
 
     Selection itself stays side-effect free and does not run operational
@@ -181,6 +185,10 @@ def create_backend(platform=None, legacy_core=None, logger=None):
     runtime facade. This prevents the Windows adapter from recursively calling
     the new public dispatch functions while preserving the customer-proven
     Windows 0.2.3 mutation path byte-for-byte.
+
+    ``linux_runner`` is intentionally optional. When absent, LinuxBackend keeps
+    its normal non-interactive subprocess runner. APL-LNX-004 supplies it only
+    inside the child process launched after explicit GUI authorization consent.
     """
     backend_id = backend_id_for_platform(platform)
     capabilities_for_backend(backend_id)
@@ -195,6 +203,7 @@ def create_backend(platform=None, legacy_core=None, logger=None):
         from macos_backend import MacOSBackend
         return MacOSBackend(logger=logger)
     if backend_id == "linux":
-        from linux_backend import LinuxBackend
-        return LinuxBackend(logger=logger)
+        from linux_backend import LinuxBackend, NetworkManagerClient
+        client = NetworkManagerClient(runner=linux_runner) if linux_runner is not None else None
+        return LinuxBackend(client=client, logger=logger)
     raise AssertionError("unreachable backend id: %s" % backend_id)

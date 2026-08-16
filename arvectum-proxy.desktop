@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=Arvectum Proxy Launcher
-Comment=Proxy launcher (HTTP/SOCKS5/PAC)
-Exec=python3 /path/to/proxy_gui.py
+Comment=Proxy launcher (HTTP/SOCKS5/PAC) for Linux/Astra
+Exec=python3 /path/to/linux_gui.py
 Terminal=false
 Icon=arvectum-icon
 Categories=Network;
-Keywords=proxy;vpn;pac;
+Keywords=proxy;networkmanager;astra;linux;pac;
