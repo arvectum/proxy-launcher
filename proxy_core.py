@@ -164,17 +164,19 @@ def _require_new_mutation_operational():
     APL-LNX-004 permits exactly one additional state: ``auth_required`` may pass
     this guard when the current Linux child was explicitly marked by the GUI.
     This does not grant privileges. It only allows the real nmcli mutation to
-    ask NetworkManager/polkit for authorization. All unmarked callers stay
-    fail-closed exactly as in APL-LNX-003.
+    ask NetworkManager/polkit for authorization. All unmarked callers stay on
+    the exact APL-LNX-003 fail-closed gate.
     """
     platform = _effective_runtime_platform()
+    if not _interactive_policykit_context():
+        return _backend_runtime.require_enable_operational(platform)
+
     status = _backend_runtime.operational_status_for_platform(platform)
     if status.can_enable:
         return status
     if (
         str(platform).lower().startswith("linux")
         and status.state == _backend_runtime.OperationalState.AUTH_REQUIRED
-        and _interactive_policykit_context()
     ):
         return status
     raise _backend_runtime.BackendOperationalError(status)
