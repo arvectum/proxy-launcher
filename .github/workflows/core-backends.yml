@@ -13,6 +13,7 @@ on:
       - macos_backend.py
       - linux_backend.py
       - linux_runtime.py
+      - linux_networkmanager_preflight.py
       - tests/test_proxy_backend.py
       - tests/test_backend_contract_matrix.py
       - tests/test_backend_runtime.py
@@ -22,10 +23,12 @@ on:
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
       - tests/test_linux_runtime.py
+      - tests/test_linux_networkmanager_preflight.py
       - core/**
       - docs/APL_CORE_006_CAPABILITY_MODEL_UNSUPPORTED_FEATURE_UX.md
       - docs/APL_CORE_007_UNIFIED_BACKEND_CONTRACT_REGRESSION_MATRIX.md
       - docs/APL_LNX_001_LINUX_ASTRA_RUNTIME_ENVIRONMENT_DETECTION.md
+      - docs/APL_LNX_002_LINUX_ASTRA_NETWORKMANAGER_PREFLIGHT.md
       - .github/workflows/core-backends.yml
   push:
     branches:
@@ -41,6 +44,7 @@ on:
       - macos_backend.py
       - linux_backend.py
       - linux_runtime.py
+      - linux_networkmanager_preflight.py
       - tests/test_proxy_backend.py
       - tests/test_backend_contract_matrix.py
       - tests/test_backend_runtime.py
@@ -50,10 +54,12 @@ on:
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
       - tests/test_linux_runtime.py
+      - tests/test_linux_networkmanager_preflight.py
       - core/**
       - docs/APL_CORE_006_CAPABILITY_MODEL_UNSUPPORTED_FEATURE_UX.md
       - docs/APL_CORE_007_UNIFIED_BACKEND_CONTRACT_REGRESSION_MATRIX.md
       - docs/APL_LNX_001_LINUX_ASTRA_RUNTIME_ENVIRONMENT_DETECTION.md
+      - docs/APL_LNX_002_LINUX_ASTRA_NETWORKMANAGER_PREFLIGHT.md
       - .github/workflows/core-backends.yml
 
 permissions:
@@ -91,6 +97,7 @@ jobs:
           macos_backend.py
           linux_backend.py
           linux_runtime.py
+          linux_networkmanager_preflight.py
           tests/test_proxy_backend.py
           tests/test_backend_contract_matrix.py
           tests/test_backend_runtime.py
@@ -100,6 +107,7 @@ jobs:
           tests/test_macos_backend.py
           tests/test_linux_backend.py
           tests/test_linux_runtime.py
+          tests/test_linux_networkmanager_preflight.py
 
       - name: Run backend contract tests
         run: >-
@@ -113,6 +121,7 @@ jobs:
           tests.test_macos_backend
           tests.test_linux_backend
           tests.test_linux_runtime
+          tests.test_linux_networkmanager_preflight
 
       - name: Verify Linux nmcli availability
         if: runner.os == 'Linux'
