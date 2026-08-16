@@ -96,7 +96,7 @@ begin
     same file and no copy is necessary. For downloaded/newer Setup builds, cache
     the exact Setup that successfully completed this install/repair session. }
   if CompareText(SourcePath, TargetPath) <> 0 then begin
-    if not FileCopy(SourcePath, TargetPath, False) then
+    if not CopyFile(SourcePath, TargetPath, False) then
       RaiseException('InstallFailure: could not cache the Windows repair installer.');
   end;
   if not FileExists(TargetPath) then
