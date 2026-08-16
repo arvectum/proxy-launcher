@@ -205,7 +205,7 @@ $StageDir = Join-Path $OutDir "stage\$ArtifactName"
 New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
 Copy-Item -LiteralPath $BuiltExe -Destination (Join-Path $StageDir "Arvectum Proxy Launcher.exe")
-Copy-Item -LiteralPath (Join-Path $RepoRoot "release\README_PORTABLE_P0.txt") -Destination (Join-Path $StageDir "README.txt")
+Copy-Item -LiteralPath (Join-Path $RepoRoot "release\README_WINDOWS_PORTABLE.txt") -Destination (Join-Path $StageDir "README.txt")
 Copy-Item -LiteralPath (Join-Path $RepoRoot "qa\diagnose_app_control.ps1") -Destination (Join-Path $StageDir "diagnose_app_control.ps1")
 Copy-Item -LiteralPath (Join-Path $RepoRoot "qa\run_p01_native_qa_v2.ps1") -Destination (Join-Path $StageDir "run_p01_native_qa_v2.ps1")
 Set-Content -LiteralPath (Join-Path $StageDir "SHA256SUMS.txt") -Value "$ExeHash  Arvectum Proxy Launcher.exe" -Encoding ascii
