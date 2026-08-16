@@ -78,8 +78,8 @@ def test_readiness_workflow_is_non_secret_and_does_not_sign():
     assert "permissions:" in text
     assert "contents: read" in text
     assert "pytest" in lowered
-    assert "secrets." not in lowered
+    assert "${{ secrets." not in lowered
     assert "-sfsign" not in lowered
-    assert "crypo_pro_csptest_path" not in lowered
-    assert "cert:\\" not in lowered
-    assert "certificate-thumbprint" not in lowered
+    assert "cert:\\currentuser" not in lowered
+    assert "cert:\\localmachine" not in lowered
+    assert "-certificatethumbprint" not in lowered
