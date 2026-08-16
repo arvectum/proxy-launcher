@@ -69,15 +69,24 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
 
     def test_windows_ci_repairs_corruption_and_checks_config_preservation(self):
         workflow = self.read(".github/workflows/windows-installer.yml")
-        self.assertIn("damaged-binary-for-repair-test", workflow)
-        self.assertIn("Arvectum Proxy Launcher Repair.exe", workflow)
-        self.assertIn('"config_version":1', workflow)
-        self.assertIn("Get-FileHash -LiteralPath $settings -Algorithm SHA256", workflow)
-        self.assertIn("repair left stale runtime PID", workflow)
-        self.assertIn("repair modified persistent proxy settings", workflow)
-        self.assertIn("installed uninstall helper failed with exit code", workflow)
-        self.assertIn("uninstall modified foreign recovery Run value", workflow)
-        self.assertIn("uninstall modified persistent no-proxy rules", workflow)
+        e2e = self.read("qa/windows_rc_e2e.ps1")
+
+        # The workflow must execute the governed lifecycle harness instead of
+        # duplicating the maintenance test implementation inline in YAML.
+        self.assertIn("./qa/windows_rc_e2e.ps1", workflow)
+        self.assertIn("out\\windows-rc-e2e.json", workflow)
+
+        # APL-WIN-009 repair/uninstall invariants remain mandatory under the
+        # broader APL-WIN-012 RC lifecycle harness.
+        self.assertIn("damaged-binary-for-apl-win-012-repair", e2e)
+        self.assertIn("Arvectum Proxy Launcher Repair.exe", e2e)
+        self.assertIn('"config_version":1', e2e)
+        self.assertIn("Get-FileHash -LiteralPath $settings -Algorithm SHA256", e2e)
+        self.assertIn("repair left stale PID file", e2e)
+        self.assertIn("repair modified persistent proxy settings", e2e)
+        self.assertIn("uninstall left owned main autostart value", e2e)
+        self.assertIn("uninstall modified foreign recovery autostart value", e2e)
+        self.assertIn("uninstall modified persistent no-proxy rules", e2e)
 
     def test_contract_document_is_present(self):
         contract = self.read("APL-WIN-009_WINDOWS_UNINSTALL_REPAIR.md")
