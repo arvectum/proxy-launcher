@@ -90,7 +90,7 @@ function Remove-OwnedLegacyTask([string]$ExpectedExe) {
 
   & $schtasks /Delete /F /TN $TaskName *> $null
   if ($LASTEXITCODE -ne 0) { throw 'owned legacy scheduled task could not be removed' }
-  & $schtasks /Query /TN $TaskName *> $null 2>&1
+  & $schtasks /Query /TN $TaskName *> $null
   if ($LASTEXITCODE -eq 0) { throw 'owned legacy scheduled task still exists after deletion' }
   Write-MaintenanceLog 'owned legacy scheduled task removed'
 }
