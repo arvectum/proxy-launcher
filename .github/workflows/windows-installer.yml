@@ -1,7 +1,7 @@
 name: Windows installer
 on:
   push:
-    branches: [main, 'release/**', 'fix/**', 'feature/**']
+    branches: [main, 'release/**', 'fix/**']
   pull_request:
     branches: [main, 'release/**']
   workflow_dispatch:
