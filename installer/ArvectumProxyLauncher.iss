@@ -1,14 +1,23 @@
-; APL-REL-006 / APL-WIN-009. PayloadDir and AppVersion are supplied only by the canonical build script.
+; APL-REL-006 / APL-WIN-009..012. Canonical Windows installer definition.
 #ifndef AppVersion
   #error AppVersion must be supplied by tools/build_windows_installer.ps1
+#endif
+#ifndef VersionInfoVersion
+  #error VersionInfoVersion must be supplied by tools/build_windows_installer.ps1
 #endif
 #ifndef PayloadDir
   #error PayloadDir must be supplied by tools/build_windows_installer.ps1
 #endif
 #define AppName "Arvectum Proxy Launcher"
 #define AppPublisher "ООО «Арвектум»"
+#define AppPublisherURL "https://arvectum.com"
+#define AppSupportURL "https://github.com/arvectum/proxy-launcher/issues"
 #define AppDir "{userdocs}\ArvectumProxyLauncher"
-#define SetupName "Arvectum-Proxy-Launcher-" + AppVersion + "-windows-x64-setup"
+#ifdef SyntheticLifecycleFixture
+  #define SetupName "Arvectum-Proxy-Launcher-" + AppVersion + "-windows-x64-setup-synthetic-predecessor"
+#else
+  #define SetupName "Arvectum-Proxy-Launcher-" + AppVersion + "-windows-x64-setup"
+#endif
 #define RepairExeName "Arvectum Proxy Launcher Repair.exe"
 
 [Setup]
@@ -16,6 +25,8 @@ AppId={{6A5A0706-4015-4EAF-BFA1-25EF435C9E1B}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
+AppPublisherURL={#AppPublisherURL}
+AppSupportURL={#AppSupportURL}
 DefaultDirName={#AppDir}
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
@@ -27,6 +38,14 @@ Uninstallable=yes
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=no
+VersionInfoVersion={#VersionInfoVersion}
+VersionInfoProductVersion={#VersionInfoVersion}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoCompany={#AppPublisher}
+VersionInfoDescription=Arvectum Proxy Launcher Windows Installer
+VersionInfoProductName={#AppName}
+VersionInfoCopyright=© 2026 ООО «Арвектум». All rights reserved.
+VersionInfoOriginalFileName={#SetupName}.exe
 
 [Files]
 ; All required files are compiled into the setup executable; no portable folder is consulted at install time.
@@ -71,17 +90,12 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  { The actual install/repair occurs in the [Files] callback below. This event
-    remains intentionally side-effect free so silent and interactive modes share
-    the same verified placement path. Re-running Setup is the repair flow. }
   Result := '';
 end;
 
 procedure InstallVerifiedPayload();
 var ErrorText: String;
 begin
-  { Runs during the primary [Files] phase. RaiseException makes hash, ownership,
-    rollback, repair, or transactional replacement failure abort Setup. }
   if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '"', ErrorText) then
     RaiseException(ErrorText);
 end;
@@ -92,9 +106,6 @@ var
 begin
   SourcePath := ExpandConstant('{srcexe}');
   TargetPath := ExpandConstant('{app}\{#RepairExeName}');
-  { When repair is launched from the cached copy, the source and target are the
-    same file and no copy is necessary. For downloaded/newer Setup builds, cache
-    the exact Setup that successfully completed this install/repair session. }
   if CompareText(SourcePath, TargetPath) <> 0 then begin
     if not CopyFile(SourcePath, TargetPath, False) then
       RaiseException('InstallFailure: could not cache the Windows repair installer.');
