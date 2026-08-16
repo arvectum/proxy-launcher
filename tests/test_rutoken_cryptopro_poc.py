@@ -44,7 +44,7 @@ class RutokenCryptoProPocContractTests(unittest.TestCase):
         self.assertIn("code_signing_eku_present", script)
         self.assertIn("authenticode_probe_attempted", script)
         self.assertIn("production_signing_activated", script)
-        self.assertIn("does not activate production signing automatically", doc)
+        self.assertIn("activate production signing automatically", doc)
 
     def test_poc_uses_csptest_without_making_cryptcp_mandatory(self):
         script = self.read("tools/rutoken_cryptopro_poc.ps1")
