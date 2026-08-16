@@ -1,0 +1,59 @@
+name: Phase 5 Config Security Bootstrap v2
+
+on:
+  push:
+    branches:
+      - phase5/config-security
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract implementation payload from bootstrap v1
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/phase5-bootstrap.yml')
+          lines = source.read_text(encoding='utf-8').splitlines()
+          marker = '      - name: Implement APL-SEC-001 through APL-SEC-005'
+          start_name = lines.index(marker)
+          start = next(i for i in range(start_name + 1, len(lines)) if lines[i].strip() == 'run: |')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '      - name: Run Phase 5 tests before commit')
+          block = lines[start + 1:end]
+          payload = '\n'.join(line[10:] if line.startswith('          ') else line for line in block) + '\n'
+          Path('/tmp/phase5-implement.sh').write_text(payload, encoding='utf-8')
+          PY
+          bash -n /tmp/phase5-implement.sh
+
+      - name: Implement Phase 5
+        shell: bash
+        run: bash /tmp/phase5-implement.sh
+
+      - name: Remove temporary bootstrap workflows
+        shell: bash
+        run: rm -f .github/workflows/phase5-bootstrap.yml .github/workflows/phase5-bootstrap-v2.yml
+
+      - name: Run Phase 5 verification
+        shell: bash
+        run: |
+          python -m py_compile proxy_core.py windows_diagnostics.py
+          python -m unittest tests.test_config_security -v
+          python -m unittest discover -s tests -v
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name "arvectum"
+          git config user.email "arvectum@gmail.com"
+          git add -A
+          git commit -m "APL-SEC: complete Phase 5 implementation"
+          git push origin HEAD:phase5/config-security
