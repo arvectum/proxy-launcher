@@ -54,35 +54,68 @@ jobs:
       - name: Build portable baseline and verify final EXE metadata
         id: portable
         shell: pwsh
-        run: ./tools/clean_build_windows.ps1 -PythonExecutable python
+        run: |
+          try {
+            ./tools/clean_build_windows.ps1 -PythonExecutable python
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Canonical Windows build failed::$message"
+            throw
+          }
 
       - name: Build synthetic predecessor lifecycle fixture
         id: predecessor
         shell: pwsh
-        run: ./tools/build_windows_installer.ps1 -PythonExecutable python -SyntheticPredecessor
+        run: |
+          try {
+            ./tools/build_windows_installer.ps1 -PythonExecutable python -SyntheticPredecessor
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Synthetic predecessor build failed::$message"
+            throw
+          }
 
       - name: Compile current canonical installer and verify Setup metadata
         id: installer
         shell: pwsh
-        run: ./tools/build_windows_installer.ps1 -PythonExecutable python
+        run: |
+          try {
+            ./tools/build_windows_installer.ps1 -PythonExecutable python
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Canonical Setup build failed::$message"
+            throw
+          }
 
       - name: Windows RC fresh / upgrade / repair / uninstall E2E
         shell: pwsh
         run: |
-          ./qa/windows_rc_e2e.ps1 `
-            -CurrentSetup '${{ steps.installer.outputs.setup_path }}' `
-            -PredecessorSetup '${{ steps.predecessor.outputs.predecessor_setup_path }}' `
-            -CurrentVersion '${{ steps.version.outputs.version }}' `
-            -EvidencePath 'out\windows-rc-e2e.json'
+          try {
+            ./qa/windows_rc_e2e.ps1 `
+              -CurrentSetup '${{ steps.installer.outputs.setup_path }}' `
+              -PredecessorSetup '${{ steps.predecessor.outputs.predecessor_setup_path }}' `
+              -CurrentVersion '${{ steps.version.outputs.version }}' `
+              -EvidencePath 'out\windows-rc-e2e.json'
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Windows RC lifecycle failed::$message"
+            throw
+          }
 
       - name: Windows RC packaging and Gate R6 acceptance matrix
         shell: pwsh
         run: |
-          ./tools/windows_rc_acceptance.ps1 `
-            -PortableZip '${{ steps.portable.outputs.zip_path }}' `
-            -SetupExe '${{ steps.installer.outputs.setup_path }}' `
-            -LifecycleEvidence 'out\windows-rc-e2e.json' `
-            -OutputPath 'out\windows-rc-acceptance.json'
+          try {
+            ./tools/windows_rc_acceptance.ps1 `
+              -PortableZip '${{ steps.portable.outputs.zip_path }}' `
+              -SetupExe '${{ steps.installer.outputs.setup_path }}' `
+              -LifecycleEvidence 'out\windows-rc-e2e.json' `
+              -OutputPath 'out\windows-rc-acceptance.json'
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Gate R6 acceptance failed::$message"
+            throw
+          }
 
       - name: Upload RC failure diagnostics
         if: failure()
