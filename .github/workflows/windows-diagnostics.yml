@@ -1,4 +1,4 @@
-name: APL-DIAG-003 Windows diagnostics collector
+name: APL-DIAG-003/006 Windows diagnostics + privacy
 
 on:
   push:
@@ -9,7 +9,9 @@ on:
       - 'secret_redaction.py'
       - 'windows_diagnostics.py'
       - 'tests/test_windows_diagnostics.py'
+      - 'tests/test_support_bundle_privacy.py'
       - 'diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md'
+      - 'diagnostics/APL_DIAG_006_SUPPORT_BUNDLE_PRIVACY_TESTS.md'
       - '.github/workflows/windows-diagnostics.yml'
   pull_request:
     branches: [main]
@@ -19,7 +21,9 @@ on:
       - 'secret_redaction.py'
       - 'windows_diagnostics.py'
       - 'tests/test_windows_diagnostics.py'
+      - 'tests/test_support_bundle_privacy.py'
       - 'diagnostics/APL_DIAG_003_WINDOWS_COLLECTOR.md'
+      - 'diagnostics/APL_DIAG_006_SUPPORT_BUNDLE_PRIVACY_TESTS.md'
       - '.github/workflows/windows-diagnostics.yml'
   workflow_dispatch:
 
@@ -41,8 +45,10 @@ jobs:
           python-version: '3.12.10'
       - name: Compile diagnostics modules
         run: python -m py_compile proxy_core.py structured_logging.py secret_redaction.py windows_diagnostics.py
-      - name: Run APL-DIAG-003 tests
+      - name: Run APL-DIAG-003 collector tests
         run: python -m unittest tests.test_windows_diagnostics -v
+      - name: Run APL-DIAG-006 support bundle privacy tests
+        run: python -m unittest tests.test_support_bundle_privacy -v
       - name: Run full unit suite
         run: python -m unittest discover -s tests -v
       - name: Native Windows no-proxy bundle smoke
