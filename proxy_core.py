@@ -3,9 +3,13 @@
 
 The former proxy_core implementation is preserved byte-for-byte as
 ``proxy_core_legacy.py``. This facade exposes that same module object to callers,
-then replaces only the five public system-proxy integration functions with
+then replaces only the public system-proxy integration functions with
 platform-neutral dispatch. The proxy engine, Windows registry/environment
 implementation, CLI lifecycle and existing private test seams stay intact.
+
+APL-LNX-003 gates only *new* Linux/Astra mutations on the read-only
+NetworkManager preflight. Disable/recovery paths intentionally remain reachable
+when readiness later degrades.
 """
 
 import sys as _runtime_sys
@@ -86,6 +90,16 @@ def resolved_backend_config(settings=None):
     )
 
 
+def backend_operational_status():
+    """Return current host readiness for product UX without changing the network."""
+    return _backend_runtime.operational_status_for_platform(_runtime_sys.platform)
+
+
+def backend_operational_view():
+    """Return stable user-facing capability data for the current host."""
+    return _backend_runtime.operational_status_view(backend_operational_status())
+
+
 def get_proxy_backend():
     """Return the process-local concrete backend selected from ``sys.platform``."""
     global _SELECTED_BACKEND
@@ -111,9 +125,15 @@ def _backend_failure(operation, error):
         pass
 
 
+def _require_new_mutation_operational():
+    """Guard enabling/reconfiguration; never use this on disable/recovery."""
+    return _backend_runtime.require_enable_operational(_runtime_sys.platform)
+
+
 def enable_system_proxy():
     """Enable the current platform backend using the resolved runtime config."""
     try:
+        _require_new_mutation_operational()
         backend = get_proxy_backend()
         return bool(backend.enable(resolved_backend_config()))
     except Exception as error:
@@ -124,6 +144,8 @@ def enable_system_proxy():
 def disable_system_proxy():
     """Restore system proxy state through the automatically selected backend."""
     try:
+        # Deliberately NOT preflight-gated: rollback must remain available even
+        # if NetworkManager readiness or authorization changes after enable.
         return bool(get_proxy_backend().disable())
     except Exception as error:
         _backend_failure("disable", error)
@@ -153,6 +175,7 @@ def network_restore_pending():
 def sync_client_no_proxy():
     """Synchronize active bypass state through the selected backend."""
     try:
+        _require_new_mutation_operational()
         backend = get_proxy_backend()
         return bool(backend.sync_no_proxy(resolved_backend_config()))
     except Exception as error:
@@ -164,6 +187,8 @@ def sync_client_no_proxy():
 # private helpers therefore resolve these dispatchers without platform branches
 # being duplicated in callers.
 _core.resolved_backend_config = resolved_backend_config
+_core.backend_operational_status = backend_operational_status
+_core.backend_operational_view = backend_operational_view
 _core.get_proxy_backend = get_proxy_backend
 _core._reset_proxy_backend_for_tests = _reset_proxy_backend_for_tests
 _core.enable_system_proxy = enable_system_proxy
@@ -172,7 +197,7 @@ _core.system_proxy_enabled = system_proxy_enabled
 _core.network_restore_pending = network_restore_pending
 _core.sync_client_no_proxy = sync_client_no_proxy
 
-# ``import proxy_core`` returns the original module object with the five public
+# ``import proxy_core`` returns the original module object with the public
 # integration seams rewired. This preserves monkeypatch/private-test semantics
 # and all mutable module state from the established Windows baseline.
 _runtime_sys.modules[__name__] = _core
