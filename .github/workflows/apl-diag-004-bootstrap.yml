@@ -1,5 +1,5 @@
 name: APL-DIAG-004 Bootstrap Apply
-# retry: 3
+# retry: 4
 
 on:
   push:
@@ -19,6 +19,12 @@ jobs:
         with:
           ref: feature/apl-diag-004-doctor
           fetch-depth: 0
+      - name: Install GUI test dependency
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk
+          python -c "import tkinter"
       - name: Apply verified existing-file patch
         shell: bash
         run: |
