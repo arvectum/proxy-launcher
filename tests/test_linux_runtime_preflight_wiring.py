@@ -78,8 +78,7 @@ class CoreMutationGateTests(unittest.TestCase):
     def tearDown(self):
         core._reset_proxy_backend_for_tests()
 
-    def test_enable_is_blocked_before_backend_mutation_when_preflight_fails(self):
-        backend = mock.Mock()
+    def test_enable_is_blocked_before_backend_creation_when_preflight_fails(self):
         error_status = backend_runtime.BackendOperationalStatus(
             backend_id="linux",
             platform_label="Linux / Astra Linux",
@@ -93,39 +92,40 @@ class CoreMutationGateTests(unittest.TestCase):
             backend_runtime,
             "require_enable_operational",
             side_effect=backend_runtime.BackendOperationalError(error_status),
-        ), mock.patch.object(core, "get_proxy_backend", return_value=backend):
+        ), mock.patch.object(backend_runtime, "create_backend") as create:
             self.assertFalse(core.enable_system_proxy())
-        backend.enable.assert_not_called()
+        create.assert_not_called()
 
-    def test_sync_no_proxy_is_blocked_before_backend_mutation(self):
-        backend = mock.Mock()
+    def test_sync_no_proxy_is_blocked_before_backend_creation(self):
         with mock.patch.object(
             backend_runtime,
             "require_enable_operational",
             side_effect=RuntimeError("preflight blocked"),
-        ), mock.patch.object(core, "get_proxy_backend", return_value=backend):
+        ), mock.patch.object(backend_runtime, "create_backend") as create:
             self.assertFalse(core.sync_client_no_proxy())
-        backend.sync_no_proxy.assert_not_called()
+        create.assert_not_called()
 
     def test_disable_remains_available_when_enable_preflight_would_fail(self):
         backend = mock.Mock()
+        backend.backend_id = "linux"
         backend.disable.return_value = True
         with mock.patch.object(
             backend_runtime,
             "require_enable_operational",
             side_effect=AssertionError("disable must not call preflight gate"),
-        ), mock.patch.object(core, "get_proxy_backend", return_value=backend):
+        ), mock.patch.object(backend_runtime, "create_backend", return_value=backend):
             self.assertTrue(core.disable_system_proxy())
         backend.disable.assert_called_once_with()
 
     def test_restore_pending_remains_available_when_preflight_degrades(self):
         backend = mock.Mock()
+        backend.backend_id = "linux"
         backend.restore_pending.return_value = True
         with mock.patch.object(
             backend_runtime,
             "require_enable_operational",
             side_effect=AssertionError("restore inspection must not call preflight gate"),
-        ), mock.patch.object(core, "get_proxy_backend", return_value=backend):
+        ), mock.patch.object(backend_runtime, "create_backend", return_value=backend):
             self.assertTrue(core.network_restore_pending())
         backend.restore_pending.assert_called_once_with()
 
