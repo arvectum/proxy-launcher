@@ -6,9 +6,11 @@ on:
       - proxy_backend.py
       - windows_backend.py
       - macos_backend.py
+      - linux_backend.py
       - tests/test_proxy_backend.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
+      - tests/test_linux_backend.py
       - core/**
       - .github/workflows/core-backends.yml
   push:
@@ -18,9 +20,11 @@ on:
       - proxy_backend.py
       - windows_backend.py
       - macos_backend.py
+      - linux_backend.py
       - tests/test_proxy_backend.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
+      - tests/test_linux_backend.py
       - core/**
       - .github/workflows/core-backends.yml
 
@@ -52,9 +56,11 @@ jobs:
           proxy_backend.py
           windows_backend.py
           macos_backend.py
+          linux_backend.py
           tests/test_proxy_backend.py
           tests/test_windows_backend.py
           tests/test_macos_backend.py
+          tests/test_linux_backend.py
 
       - name: Run backend contract tests
         run: >-
@@ -62,6 +68,19 @@ jobs:
           tests.test_proxy_backend
           tests.test_windows_backend
           tests.test_macos_backend
+          tests.test_linux_backend
+
+      - name: Verify Linux nmcli availability
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v nmcli >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y network-manager
+          fi
+          command -v nmcli
+          nmcli --version
 
       - name: Verify macOS networksetup surface
         if: runner.os == 'macOS'
