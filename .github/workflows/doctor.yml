@@ -1,0 +1,66 @@
+name: APL-DIAG-004 Doctor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_gui.py'
+      - 'secret_redaction.py'
+      - 'windows_diagnostics.py'
+      - 'doctor.py'
+      - 'tests/test_doctor.py'
+      - 'diagnostics/APL_DIAG_004_DOCTOR.md'
+      - 'tools/clean_build_windows.ps1'
+      - '.github/workflows/windows-p0.yml'
+      - '.github/workflows/doctor.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_gui.py'
+      - 'secret_redaction.py'
+      - 'windows_diagnostics.py'
+      - 'doctor.py'
+      - 'tests/test_doctor.py'
+      - 'diagnostics/APL_DIAG_004_DOCTOR.md'
+      - 'tools/clean_build_windows.ps1'
+      - '.github/workflows/windows-p0.yml'
+      - '.github/workflows/doctor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Doctor contract (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Compile diagnostics modules
+        run: python -m py_compile proxy_core.py proxy_gui.py secret_redaction.py windows_diagnostics.py doctor.py
+      - name: Run APL-DIAG-004 tests
+        run: python -m unittest tests.test_doctor -v
+      - name: Run full unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Native Windows Doctor smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP 'apl-diag-004-doctor.json'
+          python doctor.py --json --output $reportPath | Out-Null
+          $doctorExit = $LASTEXITCODE
+          if ($doctorExit -notin 0,1,2) { throw "Unexpected Doctor exit code: $doctorExit" }
+          if (-not (Test-Path -LiteralPath $reportPath)) { throw 'Doctor JSON was not created' }
+          $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($report.schema -ne 'arvectum.proxy.doctor.v1') { throw 'Unexpected Doctor schema' }
+          if ($report.overall -notin @('PASS','WARN','FAIL')) { throw 'Unexpected Doctor overall status' }
+          if ([int]$report.exit_code -ne $doctorExit) { throw 'Doctor JSON exit_code does not match process exit code' }
