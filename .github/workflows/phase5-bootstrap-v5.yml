@@ -1,0 +1,88 @@
+name: Phase 5 Config Security Bootstrap v5
+
+on:
+  push:
+    branches:
+      - phase5/config-security
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+
+      - name: Extract and run implementation payload
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/phase5-bootstrap.yml')
+          lines = source.read_text(encoding='utf-8').splitlines()
+          start_name = lines.index('      - name: Implement APL-SEC-001 through APL-SEC-005')
+          start = next(i for i in range(start_name + 1, len(lines)) if lines[i].strip() == 'run: |')
+          end = next(i for i in range(start + 1, len(lines)) if lines[i] == '      - name: Run Phase 5 tests before commit')
+          block = lines[start + 1:end]
+          Path('/tmp/phase5-implement.sh').write_text(
+              '\n'.join(line[10:] if line.startswith('          ') else line for line in block) + '\n',
+              encoding='utf-8')
+          PY
+          bash /tmp/phase5-implement.sh
+
+      - name: Repair generated source and diagnostics compatibility
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          core = Path('proxy_core.py')
+          text = core.read_text(encoding='utf-8')
+          bad = '_atomic_write_text(no_proxy_path(), "\n".join(lines) + "\n")'
+          good = r'_atomic_write_text(no_proxy_path(), "\n".join(lines) + "\n")'
+          if bad not in text:
+              raise SystemExit('expected generated newline defect not found')
+          core.write_text(text.replace(bad, good, 1), encoding='utf-8')
+
+          diag = Path('windows_diagnostics.py')
+          text = diag.read_text(encoding='utf-8')
+          replacements = {
+              '"settings_lastgood": _path_state(core.settings_backup_path()),':
+                  '"settings_lastgood": _path_state(core.settings_backup_path()) if hasattr(core, "settings_backup_path") else {"available": False},',
+              '"config_recovery": _path_state(core.config_recovery_path()),':
+                  '"config_recovery": _path_state(core.config_recovery_path()) if hasattr(core, "config_recovery_path") else {"available": False},',
+              '"config_quarantine": _path_state(core.config_quarantine_dir()),':
+                  '"config_quarantine": _path_state(core.config_quarantine_dir()) if hasattr(core, "config_quarantine_dir") else {"available": False},',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit('diagnostics compatibility anchor missing: ' + old)
+              text = text.replace(old, new)
+          diag.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Restore workflow directory to remote state
+        shell: bash
+        run: git restore -- .github/workflows
+
+      - name: Verify exact implementation
+        shell: bash
+        run: |
+          python -m py_compile proxy_core.py proxy_gui.py windows_diagnostics.py
+          python -m unittest tests.test_config_security -v
+          python -m unittest discover -s tests -v
+
+      - name: Commit verified code and docs
+        shell: bash
+        run: |
+          git config user.name "arvectum"
+          git config user.email "arvectum@gmail.com"
+          git add proxy_core.py windows_diagnostics.py README.md tests/test_config_security.py CONFIGURATION_MODEL.md STABLE_DATA_DIRECTORIES.md SECRETS_BOUNDARY.md ATOMIC_CONFIGURATION_WRITES.md CORRUPTED_CONFIGURATION_RECOVERY.md
+          git commit -m "APL-SEC: complete Phase 5 implementation"
+          git push origin HEAD:phase5/config-security
