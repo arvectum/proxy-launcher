@@ -1,0 +1,97 @@
+name: APL-LNX-007 Debian package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build_linux.sh'
+      - 'tools/build_linux_deb.sh'
+      - 'requirements-build.lock.txt'
+      - 'VERSION'
+      - 'linux_*.py'
+      - 'proxy_*.py'
+      - 'assets/**'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'tests/test_linux_deb_packaging.py'
+      - 'docs/APL_LNX_007_DEBIAN_PACKAGE.md'
+      - '.github/workflows/linux-deb.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'build_linux.sh'
+      - 'tools/build_linux_deb.sh'
+      - 'requirements-build.lock.txt'
+      - 'VERSION'
+      - 'linux_*.py'
+      - 'proxy_*.py'
+      - 'assets/**'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'tests/test_linux_deb_packaging.py'
+      - 'docs/APL_LNX_007_DEBIAN_PACKAGE.md'
+      - '.github/workflows/linux-deb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packaging prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-tk dpkg-dev file
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r requirements-build.lock.txt
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run APL-LNX-007 contract tests
+        run: .venv/bin/python -m unittest tests.test_linux_deb_packaging -v
+
+      - name: Build canonical Linux frozen artifact
+        run: ./build_linux.sh
+
+      - name: Build Debian package
+        run: ./tools/build_linux_deb.sh
+
+      - name: Inspect package metadata and payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb="$(find dist/deb -maxdepth 1 -type f -name 'arvectum-proxy-launcher_*.deb' -print -quit)"
+          test -n "$deb"
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb"
+          test "$(dpkg-deb -f "$deb" Package)" = "arvectum-proxy-launcher"
+          test "$(dpkg-deb -f "$deb" Version)" = "$(tr -d '[:space:]' < VERSION)"
+          dpkg-deb -f "$deb" Depends | grep -q 'network-manager'
+          root="$RUNNER_TEMP/deb-root"
+          mkdir -p "$root"
+          dpkg-deb -x "$deb" "$root"
+          test -x "$root/opt/arvectum-proxy-launcher/Arvectum Proxy Launcher"
+          test -x "$root/usr/bin/arvectum-proxy-launcher"
+          test -f "$root/usr/share/applications/arvectum-proxy-launcher.desktop"
+          test -f "$root/usr/share/icons/hicolor/256x256/apps/arvectum-proxy-launcher.png"
+          test -f "$root/usr/share/doc/arvectum-proxy-launcher/copyright"
+          test -f "$root/usr/share/doc/arvectum-proxy-launcher/THIRD_PARTY_NOTICES.txt"
+          file "$root/opt/arvectum-proxy-launcher/Arvectum Proxy Launcher" | grep -q ELF
+          ! dpkg-deb --ctrl-tarfile "$deb" | tar -tf - | grep -Eq '^\./(postinst|prerm|postrm)$'
+
+      - name: Upload .deb evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: apl-lnx-007-deb-${{ matrix.os }}
+          path: dist/deb/*.deb
+          if-no-files-found: error
