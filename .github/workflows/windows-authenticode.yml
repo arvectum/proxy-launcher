@@ -6,11 +6,14 @@ on:
       - main
       - 'release/**'
       - 'fix/**'
+      - 'feature/**'
     paths:
       - '.github/workflows/windows-authenticode.yml'
       - 'tools/windows_authenticode.ps1'
       - 'tests/test_windows_authenticode_foundation.py'
+      - 'tests/test_russian_signing_architecture.py'
       - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
+      - 'release/APL_REL_009_RUSSIAN_PRODUCTION_SIGNING_ARCHITECTURE.md'
       - 'RELEASE_POLICY.md'
   pull_request:
     branches:
@@ -20,7 +23,9 @@ on:
       - '.github/workflows/windows-authenticode.yml'
       - 'tools/windows_authenticode.ps1'
       - 'tests/test_windows_authenticode_foundation.py'
+      - 'tests/test_russian_signing_architecture.py'
       - 'release/APL_REL_008_WINDOWS_CODE_SIGNING.md'
+      - 'release/APL_REL_009_RUSSIAN_PRODUCTION_SIGNING_ARCHITECTURE.md'
       - 'RELEASE_POLICY.md'
   workflow_dispatch:
 
@@ -29,15 +34,15 @@ permissions:
 
 jobs:
   contract:
-    name: Authenticode contract tests
+    name: Authenticode and Russian signing contract tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.10'
-      - name: Validate signing foundation contract
-        run: python -m unittest tests.test_windows_authenticode_foundation -v
+      - name: Validate signing foundation and Russian architecture contracts
+        run: python -m unittest tests.test_windows_authenticode_foundation tests.test_russian_signing_architecture -v
 
   windows-signing-smoke:
     name: Sign and verify real Windows PE with ephemeral certificate
