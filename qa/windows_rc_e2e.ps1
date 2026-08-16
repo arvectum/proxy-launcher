@@ -33,6 +33,14 @@ $evidence = [ordered]@{
     phases = [ordered]@{}
 }
 
+function Get-RunValue([string]$Name) {
+    $item = Get-ItemProperty -Path $runPath -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return $null }
+    $property = $item.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return [string]$property.Value
+}
+
 function Invoke-Setup([string]$Path, [string]$Label) {
     $log = Join-Path $PWD "windows-rc-$Label.log"
     $p = Start-Process -FilePath $Path -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/LOG=$log") -PassThru -Wait
@@ -45,22 +53,22 @@ function Invoke-Setup([string]$Path, [string]$Label) {
 }
 
 function Invoke-Status([string]$Label) {
-    if (-not (Test-Path -LiteralPath $exe)) { throw "$Label: installed executable is missing" }
+    if (-not (Test-Path -LiteralPath $exe)) { throw "${Label}: installed executable is missing" }
     $p = Start-Process -FilePath $exe -ArgumentList '--status' -PassThru -Wait
-    if ($p.ExitCode -ne 0) { throw "$Label: --status failed with exit code $($p.ExitCode)" }
+    if ($p.ExitCode -ne 0) { throw "${Label}: --status failed with exit code $($p.ExitCode)" }
 }
 
 function Invoke-Uninstall([string]$Label) {
     $uninstaller = Join-Path $installRoot 'unins000.exe'
-    if (-not (Test-Path -LiteralPath $uninstaller)) { throw "$Label: uninstaller is missing" }
+    if (-not (Test-Path -LiteralPath $uninstaller)) { throw "${Label}: uninstaller is missing" }
     $log = Join-Path $PWD "windows-rc-$Label-uninstall.log"
     $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$log") -PassThru -Wait
     if ($p.ExitCode -ne 0) {
         if (Test-Path $log) { Get-Content $log }
-        throw "$Label: uninstall failed with exit code $($p.ExitCode)"
+        throw "${Label}: uninstall failed with exit code $($p.ExitCode)"
     }
-    if (Test-Path -LiteralPath $exe) { throw "$Label: uninstall left installed executable" }
-    if (Test-Path -LiteralPath $repair) { throw "$Label: uninstall left cached repair installer" }
+    if (Test-Path -LiteralPath $exe) { throw "${Label}: uninstall left installed executable" }
+    if (Test-Path -LiteralPath $repair) { throw "${Label}: uninstall left cached repair installer" }
 }
 
 function Assert-CurrentMetadata {
@@ -145,7 +153,7 @@ Invoke-Status 'repair-current'
 if (Test-Path -LiteralPath ($exe + '.new')) { throw 'repair left stale .new artifact' }
 if (Test-Path -LiteralPath ($exe + '.old')) { throw 'repair left stale .old artifact' }
 if (Test-Path -LiteralPath (Join-Path $stateRoot 'proxy_core.pid')) { throw 'repair left stale PID file' }
-$recoveryAfterRepair = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+$recoveryAfterRepair = Get-RunValue 'ArvectumProxyLauncherRecovery'
 if ($recoveryAfterRepair) { throw 'repair left stale owned recovery autostart value' }
 if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'repair modified persistent proxy settings' }
 if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'repair modified persistent no-proxy rules' }
@@ -158,9 +166,9 @@ New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -Value $ownedStart
 $foreignRecovery = '"' + $env:SystemRoot + '\System32\cmd.exe" /c echo foreign'
 New-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -Value $foreignRecovery -PropertyType String -Force | Out-Null
 Invoke-Uninstall 'final'
-$mainAfter = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue).ArvectumProxyLauncher
+$mainAfter = Get-RunValue 'ArvectumProxyLauncher'
 if ($mainAfter) { throw 'uninstall left owned main autostart value' }
-$foreignAfter = (Get-ItemProperty -Path $runPath -Name 'ArvectumProxyLauncherRecovery' -ErrorAction SilentlyContinue).ArvectumProxyLauncherRecovery
+$foreignAfter = Get-RunValue 'ArvectumProxyLauncherRecovery'
 if ($foreignAfter -ne $foreignRecovery) { throw 'uninstall modified foreign recovery autostart value' }
 if ((Get-FileHash -LiteralPath $settings -Algorithm SHA256).Hash -ne $settingsHash) { throw 'uninstall modified persistent proxy settings' }
 if ((Get-FileHash -LiteralPath $noProxy -Algorithm SHA256).Hash -ne $noProxyHash) { throw 'uninstall modified persistent no-proxy rules' }
