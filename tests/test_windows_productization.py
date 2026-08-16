@@ -65,7 +65,7 @@ class WindowsProductizationTests(unittest.TestCase):
     def test_rc_e2e_covers_complete_lifecycle(self):
         script = read("qa/windows_rc_e2e.ps1")
         for marker in (
-            "PASS (INSTALL)", "PASS (UPGRADE)", "PASS (REPAIR)",
+            "Assert-InstallMode 'INSTALL'", "Assert-InstallMode 'UPGRADE'", "Assert-InstallMode 'REPAIR'",
             "fresh_install_smoke", "fresh_uninstall", "upgrade", "repair", "uninstall",
             "configuration_preserved", "foreign_startup_preserved",
         ):
