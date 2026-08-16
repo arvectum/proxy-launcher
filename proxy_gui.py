@@ -1206,7 +1206,9 @@ class Launcher:
             return False
         try:
             import xml.etree.ElementTree as ET
-            root = ET.fromstring(xml)
+            # Task XML is produced locally by Windows schtasks for a fixed task name;
+            # it is not remote/user-supplied XML. Keep ElementTree dependency-free.
+            root = ET.fromstring(xml)  # nosec B314
         except Exception:
             return False
 
