@@ -330,6 +330,18 @@ def settings_path():
     return os.path.join(data_dir(), "proxy_settings.json")
 
 
+def settings_backup_path():
+    return os.path.join(data_dir(), "proxy_settings.lastgood.json")
+
+
+def config_recovery_path():
+    return os.path.join(data_dir(), "config_recovery.json")
+
+
+def config_quarantine_dir():
+    return os.path.join(data_dir(), "quarantine")
+
+
 def no_proxy_path():
     return os.path.join(data_dir(), "no_proxy.txt")
 
@@ -360,7 +372,22 @@ def _log(msg):
     return structured_log(msg)
 
 
+CONFIG_VERSION = 1
+CONFIG_SCHEMA = "arvectum.proxy.settings.v1"
+CONFIG_RECOVERY_SCHEMA = "arvectum.proxy.settings_recovery.v1"
+_MAX_UPSTREAMS = 16
+_CONFIG_ALLOWED_TOP_LEVEL = {
+    "config_version", "local_http_port", "local_socks_port",
+    "local_pac_port", "pac_path", "upstream",
+}
+_RUNTIME_UPSTREAM_KEYS = {"host", "port", "username", "password"}
+_DISK_UPSTREAM_KEYS = {
+    "host", "port", "username", "password",
+    "credentials_dpapi", "password_dpapi",
+}
+
 DEFAULT_SETTINGS = {
+    "config_version": CONFIG_VERSION,
     "local_http_port": 8080,
     "local_socks_port": 1080,
     "local_pac_port": 8082,
@@ -369,6 +396,276 @@ DEFAULT_SETTINGS = {
         {"host": "", "port": 8000, "username": "", "password": ""}
     ],
 }
+
+
+def _json_clone(value):
+    return json.loads(json.dumps(value))
+
+
+def _validate_port(value, field):
+    if isinstance(value, bool) or not isinstance(value, int) or not (1 <= value <= 65535):
+        raise ValueError("%s must be an integer from 1 to 65535" % field)
+    return value
+
+
+def _validate_host(value, field="upstream.host"):
+    if not isinstance(value, str):
+        raise ValueError("%s must be a string" % field)
+    value = value.strip()
+    if len(value) > 512:
+        raise ValueError("%s is too long" % field)
+    if any(ord(ch) < 32 or ch.isspace() for ch in value):
+        raise ValueError("%s contains whitespace/control characters" % field)
+    if any(part in value for part in ("://", "/", "\\", "@")):
+        raise ValueError("%s must be a host/address, not a URL" % field)
+    return value
+
+
+def _validate_pac_path(value):
+    if not isinstance(value, str):
+        raise ValueError("pac_path must be a string")
+    if not value.startswith("/") or len(value) > 256:
+        raise ValueError("pac_path must be an absolute local path up to 256 characters")
+    if any(ord(ch) < 32 or ch.isspace() for ch in value) or "?" in value or "#" in value:
+        raise ValueError("pac_path contains unsafe characters")
+    return value
+
+
+def _validate_config_version(value):
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("config_version must be a non-negative integer")
+    if value > CONFIG_VERSION:
+        raise ValueError("unsupported future config_version %s" % value)
+    return value
+
+
+def _validate_upstream_list(value, storage=False):
+    if not isinstance(value, list):
+        raise ValueError("upstream must be a list")
+    if len(value) > _MAX_UPSTREAMS:
+        raise ValueError("upstream contains more than %d entries" % _MAX_UPSTREAMS)
+    allowed = _DISK_UPSTREAM_KEYS if storage else _RUNTIME_UPSTREAM_KEYS
+    result = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, dict):
+            raise ValueError("upstream[%d] must be an object" % index)
+        unknown = set(raw) - allowed
+        if unknown:
+            raise ValueError("upstream[%d] contains unknown keys: %s" % (
+                index, ", ".join(sorted(unknown))))
+        up = {
+            "host": _validate_host(raw.get("host", ""), "upstream[%d].host" % index),
+            "port": _validate_port(raw.get("port", 8000), "upstream[%d].port" % index),
+        }
+        if storage:
+            for key in ("username", "password", "credentials_dpapi", "password_dpapi"):
+                if key in raw:
+                    if not isinstance(raw[key], str):
+                        raise ValueError("upstream[%d].%s must be a string" % (index, key))
+                    up[key] = raw[key]
+            if up.get("credentials_dpapi") and any(
+                    key in up for key in ("username", "password", "password_dpapi")):
+                raise ValueError("credentials_dpapi cannot be mixed with legacy/plaintext credentials")
+            if "password" in up and "password_dpapi" in up:
+                raise ValueError("password and password_dpapi cannot coexist")
+        else:
+            username = raw.get("username", "")
+            password = raw.get("password", "")
+            if not isinstance(username, str) or not isinstance(password, str):
+                raise ValueError("runtime upstream credentials must be strings")
+            up["username"] = username
+            up["password"] = password
+        result.append(up)
+    return result
+
+
+def _validate_settings_model(settings, storage=False):
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be an object")
+    unknown = set(settings) - _CONFIG_ALLOWED_TOP_LEVEL
+    if unknown:
+        raise ValueError("settings contain unknown keys: %s" % ", ".join(sorted(unknown)))
+    _validate_config_version(settings.get("config_version"))
+    result = {
+        "config_version": CONFIG_VERSION,
+        "local_http_port": _validate_port(
+            settings.get("local_http_port", DEFAULT_SETTINGS["local_http_port"]),
+            "local_http_port"),
+        "local_socks_port": _validate_port(
+            settings.get("local_socks_port", DEFAULT_SETTINGS["local_socks_port"]),
+            "local_socks_port"),
+        "local_pac_port": _validate_port(
+            settings.get("local_pac_port", DEFAULT_SETTINGS["local_pac_port"]),
+            "local_pac_port"),
+        "pac_path": _validate_pac_path(
+            settings.get("pac_path", DEFAULT_SETTINGS["pac_path"])),
+    }
+    ports = {
+        result["local_http_port"], result["local_socks_port"], result["local_pac_port"]
+    }
+    if len(ports) != 3:
+        raise ValueError("local HTTP, SOCKS5 and PAC ports must be distinct")
+    upstream_default = [{"host": "", "port": 8000}] if storage else DEFAULT_SETTINGS["upstream"]
+    result["upstream"] = _validate_upstream_list(
+        settings.get("upstream", upstream_default), storage=storage)
+    return result
+
+
+def _validate_runtime_settings(settings):
+    return _validate_settings_model(settings, storage=False)
+
+
+def _validate_serialized_settings(settings):
+    return _validate_settings_model(settings, storage=True)
+
+
+def _disk_contains_plaintext_credentials(settings):
+    if not isinstance(settings, dict):
+        return False
+    for up in settings.get("upstream") or []:
+        if isinstance(up, dict) and ("username" in up or "password" in up):
+            if bool(up.get("username")) or bool(up.get("password")):
+                return True
+    return False
+
+
+def _fsync_parent_dir(path):
+    if is_windows():
+        return
+    try:
+        fd = os.open(path or ".", os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def _atomic_write_bytes(path, payload):
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    temporary = "%s.tmp.%d.%d" % (path, os.getpid(), threading.get_ident())
+    try:
+        with open(temporary, "wb") as stream:
+            try:
+                if not is_windows():
+                    os.chmod(temporary, 0o600)
+            except OSError:
+                pass
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        _fsync_parent_dir(parent)
+    finally:
+        if os.path.exists(temporary):
+            try:
+                os.remove(temporary)
+            except OSError:
+                pass
+
+
+def _atomic_write_json(path, value):
+    payload = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    _atomic_write_bytes(path, payload)
+
+
+def _atomic_write_text(path, value):
+    _atomic_write_bytes(path, value.encode("utf-8"))
+
+
+def _safe_recovery_reason(value):
+    return str(value).replace("\r", " ").replace("\n", " ")[:500]
+
+
+def _load_serialized_settings(path):
+    with io.open(path, "r", encoding="utf-8") as stream:
+        return _validate_serialized_settings(json.load(stream))
+
+
+def _runtime_settings_from_disk(settings):
+    return _validate_runtime_settings(_decode_upstream_secrets(settings))
+
+
+def _quarantine_corrupt_file(path, reason):
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as stream:
+            raw = stream.read()
+        digest = hashlib.sha256(raw).hexdigest()
+        os.makedirs(config_quarantine_dir(), exist_ok=True)
+        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        target = os.path.join(
+            config_quarantine_dir(),
+            "%s.corrupt-%s-%s" % (os.path.basename(path), stamp, digest[:12]))
+        if os.path.exists(target):
+            target += "-%d-%d" % (os.getpid(), threading.get_ident())
+        os.replace(path, target)
+        _fsync_parent_dir(os.path.dirname(path) or ".")
+        _fsync_parent_dir(config_quarantine_dir())
+        try:
+            _atomic_write_json(target + ".meta.json", {
+                "schema": CONFIG_RECOVERY_SCHEMA,
+                "reason": _safe_recovery_reason(reason),
+                "sha256": digest,
+                "source_name": os.path.basename(path),
+                "quarantined_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            })
+        except Exception as meta_error:
+            _log("config quarantine metadata write error: %r" % meta_error)
+        _log("corrupted configuration quarantined: %s" % target)
+        return target
+    except Exception as error:
+        _log("config quarantine error: %r" % error)
+        return None
+
+
+def _record_configuration_recovery(reason, quarantined, recovered_from):
+    try:
+        _atomic_write_json(config_recovery_path(), {
+            "schema": CONFIG_RECOVERY_SCHEMA,
+            "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "reason": _safe_recovery_reason(reason),
+            "quarantined": os.path.basename(quarantined) if quarantined else None,
+            "recovered_from": recovered_from,
+        })
+    except Exception as error:
+        _log("config recovery evidence write error: %r" % error)
+
+
+def _recover_corrupt_settings(error):
+    primary = settings_path()
+    quarantined = _quarantine_corrupt_file(primary, error)
+    if quarantined is None and os.path.exists(primary):
+        _record_configuration_recovery(error, None, "defaults_preserved_primary")
+        return _json_clone(DEFAULT_SETTINGS)
+
+    backup = settings_backup_path()
+    if os.path.exists(backup):
+        try:
+            disk = _load_serialized_settings(backup)
+            runtime = _runtime_settings_from_disk(disk)
+            restore_disk = disk
+            if is_windows() and _disk_contains_plaintext_credentials(disk):
+                restore_disk = _validate_serialized_settings(_encode_settings_for_disk(runtime))
+            _atomic_write_json(primary, restore_disk)
+            _record_configuration_recovery(error, quarantined, "lastgood")
+            _log("settings recovered from last-known-good configuration")
+            return runtime
+        except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as backup_error:
+            _quarantine_corrupt_file(backup, backup_error)
+        except OSError as backup_error:
+            _log("last-known-good settings recovery I/O error: %r" % backup_error)
+
+    _record_configuration_recovery(error, quarantined, "programmatic_defaults")
+    _log("settings recovery fell back to programmatic defaults")
+    return _json_clone(DEFAULT_SETTINGS)
 
 
 def _dpapi_protect_text(value):
@@ -506,7 +803,7 @@ def _decode_upstream_secrets(settings):
 
 
 def _encode_settings_for_disk(settings):
-    data = json.loads(json.dumps(settings))
+    data = _validate_runtime_settings(settings)
     encoded = []
     for raw in data.get("upstream") or []:
         up = dict(raw)
@@ -524,8 +821,8 @@ def _encode_settings_for_disk(settings):
                     raise RuntimeError("Windows DPAPI could not protect upstream credentials")
                 up["credentials_dpapi"] = protected
         else:
-            # Source-level tests on non-Windows keep the legacy representation.
-            # Client builds are Windows-only and therefore always use DPAPI.
+            # Source-level tests on non-Windows retain a legacy plaintext
+            # representation; production Windows builds always use DPAPI.
             up["username"] = username
             up["password"] = password
         encoded.append(up)
@@ -533,59 +830,84 @@ def _encode_settings_for_disk(settings):
     return data
 
 
-def load_settings(migrate_legacy=True):
-    """Load runtime settings, optionally migrating legacy plaintext credentials.
+def load_settings(migrate_legacy=True, recover_corrupt=None):
+    """Load governed runtime settings.
 
-    Diagnostic/read-only callers pass ``migrate_legacy=False`` so inspecting
-    settings can never rewrite proxy_settings.json as a side effect.
+    Normal application reads migrate legacy plaintext credentials and recover
+    structurally corrupted settings. Diagnostic callers use
+    ``migrate_legacy=False``; by default that also makes corruption handling
+    read-only so inspection never mutates user state.
     """
-    data = json.loads(json.dumps(DEFAULT_SETTINGS))
+    if recover_corrupt is None:
+        recover_corrupt = bool(migrate_legacy)
+    data = _json_clone(DEFAULT_SETTINGS)
     p = settings_path()
     if not os.path.exists(p):
         return data
     try:
-        with io.open(p, "r", encoding="utf-8") as f:
-            loaded = json.load(f)
-        if isinstance(loaded, dict):
-            data.update(loaded)
-        runtime = _decode_upstream_secrets(data)
-        # Transparent RC2 -> RC2.1 migration: an existing plaintext password is
-        # protected as soon as the new Windows build first reads the settings.
-        # If DPAPI is unavailable we keep the old file untouched so the proxy
-        # does not lose credentials; the failure is visible in proxy_core.log.
-        legacy_plaintext = any(
-            isinstance(up, dict)
-            and "credentials_dpapi" not in up
-            and "password_dpapi" not in up
-            and (bool(up.get("username")) or bool(up.get("password")))
-            for up in (loaded.get("upstream") or [])
-        ) if isinstance(loaded, dict) else False
-        if legacy_plaintext and is_windows() and migrate_legacy:
-            if save_settings(runtime):
-                _log("legacy plaintext upstream credentials migrated to DPAPI")
-            else:
-                _log("legacy plaintext upstream credentials migration to DPAPI failed")
-        return runtime
-    except Exception as e:
-        _log("settings read error: %r" % e)
-    return data
+        loaded = _load_serialized_settings(p)
+        runtime = _runtime_settings_from_disk(loaded)
+    except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as error:
+        _log("settings validation/read error: %r" % error)
+        return _recover_corrupt_settings(error) if recover_corrupt else data
+    except OSError as error:
+        # I/O failures are not classified as corruption. Never rename or
+        # overwrite a file that might merely be locked/unavailable.
+        _log("settings I/O error: %r" % error)
+        return data
+    except Exception as error:
+        _log("settings read error: %r" % error)
+        return data
+
+    legacy_plaintext = _disk_contains_plaintext_credentials(loaded)
+    if legacy_plaintext and is_windows() and migrate_legacy:
+        if save_settings(runtime):
+            _log("legacy plaintext upstream credentials migrated to DPAPI")
+        else:
+            _log("legacy plaintext upstream credentials migration to DPAPI failed")
+    return runtime
 
 
 def save_settings(settings):
-    tmp = settings_path() + ".tmp"
+    p = settings_path()
+    legacy_tmp = p + ".tmp"
     try:
-        disk_settings = _encode_settings_for_disk(settings)
-        with io.open(tmp, "w", encoding="utf-8") as f:
-            json.dump(disk_settings, f, indent=2, ensure_ascii=False)
-            f.flush()
-        os.replace(tmp, settings_path())
-        _log("settings saved")
+        if os.path.exists(legacy_tmp):
+            try:
+                os.remove(legacy_tmp)
+            except OSError:
+                pass
+        runtime = _validate_runtime_settings(settings)
+        disk_settings = _validate_serialized_settings(_encode_settings_for_disk(runtime))
+        os.makedirs(data_dir(), exist_ok=True)
+
+        if os.path.exists(p):
+            try:
+                previous = _load_serialized_settings(p)
+            except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as error:
+                quarantined = _quarantine_corrupt_file(p, error)
+                if quarantined is None and os.path.exists(p):
+                    raise RuntimeError("existing corrupted settings could not be quarantined")
+            except OSError:
+                raise
+            else:
+                # Never preserve a second plaintext copy during the legacy
+                # Windows -> DPAPI migration. The existing primary is replaced
+                # only after DPAPI protection and fsync succeed.
+                if not (is_windows() and _disk_contains_plaintext_credentials(previous)):
+                    _atomic_write_json(settings_backup_path(), previous)
+                else:
+                    _log("last-known-good snapshot skipped for plaintext legacy credentials")
+
+        _atomic_write_json(p, disk_settings)
+        _log("settings saved atomically")
         return True
-    except Exception as e:
-        _log("settings save error: %r" % e)
+    except Exception as error:
+        _log("settings save error: %r" % error)
         try:
-            os.remove(tmp)
-        except Exception:
+            if os.path.exists(legacy_tmp):
+                os.remove(legacy_tmp)
+        except OSError:
             pass
         return False
 
@@ -622,17 +944,24 @@ def load_no_proxy():
 
 def save_no_proxy(domains):
     try:
-        with io.open(no_proxy_path(), "w", encoding="utf-8") as f:
-            f.write("# Список исключений (no_proxy). По одному домену на строку.\n")
-            f.write("# Сайты из списка открываются напрямую, минуя прокси.\n")
-            f.write("# Строки, начинающиеся с #, игнорируются.\n")
-            f.write("# Изменения применяются сразу, перезапуск не нужен.\n")
-            f.write("\n")
-            for d in domains:
-                f.write(d + "\n")
-        _log("no_proxy saved: %d domains" % len(domains))
-    except Exception as e:
-        _log("no_proxy save error: %r" % e)
+        normalized = []
+        for raw in domains:
+            domain = clean_domain(str(raw))
+            if domain and domain not in normalized:
+                normalized.append(domain)
+        lines = [
+            "# Список исключений (no_proxy). По одному домену на строку.",
+            "# Сайты из списка открываются напрямую, минуя прокси.",
+            "# Строки, начинающиеся с #, игнорируются.",
+            "# Изменения применяются сразу, перезапуск не нужен.",
+            "",
+        ] + normalized
+        _atomic_write_text(no_proxy_path(), "\n".join(lines) + "\n")
+        _log("no_proxy saved atomically: %d domains" % len(normalized))
+        return True
+    except Exception as error:
+        _log("no_proxy save error: %r" % error)
+        return False
 
 
 def clean_domain(value):
