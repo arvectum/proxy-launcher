@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Parse consumer verification scripts
+      - name: Parse consumer verification scripts as UTF-8
         shell: powershell
         run: |
           $files = @(
@@ -55,13 +55,19 @@ jobs:
           foreach ($file in $files) {
             $tokens = $null
             $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
+            $text = [System.IO.File]::ReadAllText(
               (Resolve-Path $file),
+              [System.Text.Encoding]::UTF8
+            )
+            [System.Management.Automation.Language.Parser]::ParseInput(
+              $text,
               [ref]$tokens,
               [ref]$errors
             ) | Out-Null
             if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error $_.Message }
+              $errors | ForEach-Object {
+                Write-Error ("line {0}, col {1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
               throw "PowerShell parse failed: $file"
             }
           }
