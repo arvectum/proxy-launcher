@@ -56,6 +56,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Parse APL-REL-010 PowerShell runner
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\tools\rutoken_cryptopro_poc.ps1').Path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            throw "rutoken_cryptopro_poc.ps1 has $($errors.Count) PowerShell parse error(s)."
+          }
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.10'
