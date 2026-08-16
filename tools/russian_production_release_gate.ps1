@@ -2,40 +2,23 @@
 .SYNOPSIS
     Fail-closed Russian production publication gate for APL-REL-013.
 .DESCRIPTION
-    Proves that an exact final release set is internally consistent with the
-    governed REL-011/REL-012 Russian release-evidence chain before publication.
-
-    The gate:
-      * validates version/tag/commit metadata against signing-evidence.json;
-      * requires the currently governed ООО «Арвектум» release-evidence signer;
-      * runs the REL-012 verifier against the untouched final directory;
-      * performs a disposable negative tamper test and requires verification FAIL;
-      * binds the release to the local Git tag and canonical main ancestry;
-      * emits a non-secret publication decision OUTSIDE the signed release set.
-
-    It never accepts a PIN, never exports a private key and never creates a
-    production signature. The owner-operated REL-011 signing ceremony must have
-    already completed successfully.
+    Validates the exact final Russian release set after APL-REL-011 signing and
+    APL-REL-012 consumer verification. It also requires a negative tamper test,
+    exact Git provenance, and emits a non-secret PUBLISH decision outside the
+    signed release directory. It never signs, stores a PIN, or exports a key.
 #>
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$ReleaseDirectory,
-
-    [Parameter(Mandatory = $true)]
-    [string]$Version,
-
+    [Parameter(Mandatory = $true)] [string]$ReleaseDirectory,
+    [Parameter(Mandatory = $true)] [string]$Version,
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')]
     [string]$GitTag,
-
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-fA-F]{40}$')]
     [string]$GitCommit,
-
     [string]$ExpectedSignerThumbprint = 'EE1CFA955BA22F03C39C76B183D94CD37494582E',
-
     [string]$DecisionOutputPath
 )
 
@@ -79,23 +62,18 @@ function Invoke-ReleaseVerifier([string]$Directory, [bool]$ExpectSuccess) {
             throw 'Negative tamper test unexpectedly passed. Publication is forbidden.'
         }
     }
-
-    return [ordered]@{
-        exit_code = $exitCode
-        expected_success = $ExpectSuccess
-    }
 }
 
-$releasePath = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
-if (-not (Test-Path -LiteralPath $releasePath -PathType Container)) {
+if (-not (Test-Path -LiteralPath $ReleaseDirectory -PathType Container)) {
     throw "Release directory does not exist: $ReleaseDirectory"
 }
+$releasePath = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
 
 if ($GitTag -notmatch ('^v' + [regex]::Escape($Version) + '(?:$|[-+])')) {
     throw "Version/tag mismatch: Version=$Version GitTag=$GitTag"
 }
 
-$requiredEvidence = @(
+$required = @(
     'SHA256SUMS.txt',
     'SHA256SUMS.txt.sig',
     'signer-certificate.cer',
@@ -103,15 +81,13 @@ $requiredEvidence = @(
     'verify_russian_release.ps1',
     'VERIFY_RUSSIAN_RELEASE.cmd'
 )
-foreach ($name in $requiredEvidence) {
+foreach ($name in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $releasePath $name) -PathType Leaf)) {
         throw "Required final-release file is missing: $name"
     }
 }
 
-$evidencePath = Join-Path $releasePath 'signing-evidence.json'
-$evidence = Get-Content -LiteralPath $evidencePath -Raw -Encoding UTF8 | ConvertFrom-Json
-
+$evidence = Get-Content -LiteralPath (Join-Path $releasePath 'signing-evidence.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($evidence.product -ne 'Arvectum Proxy Launcher') { throw 'Unexpected product in signing evidence.' }
 if ($evidence.task -ne 'APL-REL-011') { throw 'Signing evidence was not produced by APL-REL-011.' }
 if ($evidence.signing_mode -ne 'russian-qualified-evidence') { throw 'Unexpected signing mode.' }
@@ -128,17 +104,20 @@ $evidenceThumbprint = Normalize-Thumbprint ([string]$evidence.signer_thumbprint)
 if ($evidenceThumbprint -ne $expectedThumbprint) {
     throw "Signer thumbprint is not the governed ООО «Арвектум» release-evidence identity: $evidenceThumbprint"
 }
-if (([string]$evidence.signer_subject) -notmatch 'АРВЕКТУМ') { throw 'Signing evidence subject does not identify АРВЕКТУМ.' }
+if (([string]$evidence.signer_subject) -notmatch 'АРВЕКТУМ') {
+    throw 'Signing evidence subject does not identify АРВЕКТУМ.'
+}
 
-# The final download set must first pass exactly as the customer receives it.
-$positive = Invoke-ReleaseVerifier -Directory $releasePath -ExpectSuccess $true
+# Positive check: exact customer download set must pass first.
+Invoke-ReleaseVerifier -Directory $releasePath -ExpectSuccess $true
 
-# Verify the release/tag/commit provenance from the repository containing this gate.
+# Provenance check: exact clean release commit, exact tag, canonical main ancestry.
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repoRoot
 try {
-    $inside = Invoke-Git @('rev-parse', '--is-inside-work-tree')
-    if ($inside -ne 'true') { throw 'APL-REL-013 must run from the Proxy Launcher Git worktree.' }
+    if ((Invoke-Git @('rev-parse', '--is-inside-work-tree')) -ne 'true') {
+        throw 'APL-REL-013 must run from the Proxy Launcher Git worktree.'
+    }
 
     $head = (Invoke-Git @('rev-parse', 'HEAD')).ToLowerInvariant()
     if ($head -ne $GitCommit.ToLowerInvariant()) {
@@ -151,46 +130,45 @@ try {
     }
 
     & git merge-base --is-ancestor $GitCommit main 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Release commit is not an ancestor of canonical local main.'
-    }
+    if ($LASTEXITCODE -ne 0) { throw 'Release commit is not an ancestor of canonical local main.' }
 
-    $dirty = Invoke-Git @('status', '--porcelain')
-    if ($dirty) { throw 'Git worktree is not clean. Publication gate requires a clean exact-release checkout.' }
+    if (Invoke-Git @('status', '--porcelain')) {
+        throw 'Git worktree is not clean. Publication gate requires a clean exact-release checkout.'
+    }
 }
 finally {
     Pop-Location
 }
 
-# Prove fail-closed behavior on a disposable copy without mutating the real release.
+# Negative check on a disposable copy. The real final release is never modified.
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('apl-rel-013-' + [Guid]::NewGuid().ToString('N'))
 $tempRelease = Join-Path $tempRoot 'release'
 New-Item -ItemType Directory -Path $tempRelease -Force | Out-Null
 try {
-    Copy-Item -LiteralPath (Join-Path $releasePath '*') -Destination $tempRelease -Recurse -Force
+    Copy-Item -Path (Join-Path $releasePath '*') -Destination $tempRelease -Recurse -Force
 
     $assetNames = @($evidence.assets | ForEach-Object { [string]$_.name })
     $tamperName = $assetNames | Where-Object {
         $_ -ne 'verify_russian_release.ps1' -and $_ -ne 'VERIFY_RUSSIAN_RELEASE.cmd'
     } | Select-Object -First 1
-    if (-not $tamperName) {
-        $tamperName = $assetNames | Select-Object -First 1
-    }
+    if (-not $tamperName) { $tamperName = $assetNames | Select-Object -First 1 }
     if (-not $tamperName) { throw 'No signed asset is available for the mandatory negative tamper test.' }
 
     $tamperPath = Join-Path $tempRelease $tamperName
-    if (-not (Test-Path -LiteralPath $tamperPath -PathType Leaf)) { throw "Tamper-test asset is missing: $tamperName" }
+    if (-not (Test-Path -LiteralPath $tamperPath -PathType Leaf)) {
+        throw "Tamper-test asset is missing: $tamperName"
+    }
     [System.IO.File]::AppendAllText($tamperPath, "`r`nAPL-REL-013-TAMPER-TEST", [System.Text.Encoding]::UTF8)
-    $negative = Invoke-ReleaseVerifier -Directory $tempRelease -ExpectSuccess $false
+    Invoke-ReleaseVerifier -Directory $tempRelease -ExpectSuccess $false
 }
 finally {
-    if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $tempRoot) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    }
 }
 
 if (-not $DecisionOutputPath) {
-    $parent = Split-Path -Parent $releasePath
-    $leaf = Split-Path -Leaf $releasePath
-    $DecisionOutputPath = Join-Path $parent ($leaf + '.production-release-gate.json')
+    $DecisionOutputPath = Join-Path (Split-Path -Parent $releasePath) ((Split-Path -Leaf $releasePath) + '.production-release-gate.json')
 }
 $decisionFullPath = [System.IO.Path]::GetFullPath($DecisionOutputPath)
 $releasePrefix = $releasePath.TrimEnd('\') + '\'
