@@ -44,10 +44,10 @@ def test_gate_requires_exact_version_tag_commit_and_canonical_main_provenance():
     assert "Version/tag mismatch" in text
     assert "evidence.git_tag" in text
     assert "evidence.git_commit" in text
-    assert "rev-parse', 'HEAD" in text
-    assert 'rev-parse\', "$GitTag^{commit}"' in text
+    assert "@('rev-parse', 'HEAD')" in text
+    assert 'Invoke-Git @(\'rev-parse\', "$GitTag^{commit}")' in text
     assert "merge-base --is-ancestor" in text
-    assert "status', '--porcelain" in text
+    assert "@('status', '--porcelain')" in text
     assert "Current HEAD is not the exact release commit" in text
     assert "Git worktree is not clean" in text
 
