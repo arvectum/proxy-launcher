@@ -135,10 +135,7 @@ def _collect_proxy_state():
 def _collect_wininet():
     if not core.is_windows():
         return {"available": False, "reason": "not_windows", "values": {}}
-    return {
-        "available": True,
-        "values": core._read_internet_settings(),
-    }
+    return {"available": True, "values": core._read_internet_settings()}
 
 
 def _collect_environment_proxy():
@@ -206,8 +203,6 @@ def _collect_listeners():
 
 
 def _interface_fallback(reason=None):
-    # Do not resolve even the local hostname here: resolver traffic would break
-    # the collector's strict no-external-network contract.
     result = {
         "source": "unavailable",
         "hostname": socket.gethostname(),
@@ -242,13 +237,7 @@ def _collect_network_interfaces():
     )
     try:
         proc = subprocess.run(
-            [
-                powershell,
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy", "Bypass",
-                "-Command", script,
-            ],
+            [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -332,7 +321,11 @@ def _sanitized_log_text(path, max_lines=LOG_MAX_LINES):
                     ))
     except Exception as exc:
         return json.dumps({"log_read_error": _error_text(exc)}, ensure_ascii=False) + "\n"
-    return ("\n".join(lines) + "\n") if lines else ""
+    if not lines:
+        return ""
+    # Final whole-tail redaction catches secret syntax that spans physical
+    # lines, notably PEM private-key BEGIN/END blocks.
+    return redact_text("\n".join(lines) + "\n")
 
 
 def _log_candidates():
