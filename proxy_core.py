@@ -10,11 +10,17 @@ implementation, CLI lifecycle and existing private test seams stay intact.
 APL-LNX-003 gates only *new* Linux/Astra mutations on the read-only
 NetworkManager preflight. Disable/recovery paths intentionally remain reachable
 when readiness later degrades.
+
+APL-LNX-004 adds a one-shot, explicit PolicyKit interaction context. Ordinary
+CLI/service execution remains fail-closed on ``auth_required``; only a Linux GUI
+child marked after user confirmation may attempt the NetworkManager mutation,
+and that child injects ``nmcli --ask`` only for mutation commands.
 """
 
 import sys as _runtime_sys
 
 import backend_runtime as _backend_runtime
+import linux_policykit_ux as _linux_policykit_ux
 from proxy_backend import ProxyBackendConfig as _ProxyBackendConfig
 
 # Source-contract index for release guards that intentionally inspect the
@@ -117,14 +123,24 @@ def backend_operational_view():
     return _backend_runtime.operational_status_view(backend_operational_status())
 
 
+def _interactive_policykit_context():
+    return _linux_policykit_ux.policykit_interaction_requested(
+        _effective_runtime_platform()
+    )
+
+
 def get_proxy_backend():
     """Return the process-local concrete backend selected for the runtime host."""
     global _SELECTED_BACKEND
     if _SELECTED_BACKEND is None:
+        linux_runner = None
+        if _interactive_policykit_context():
+            linux_runner = _linux_policykit_ux.run_nmcli_with_policykit
         _SELECTED_BACKEND = _backend_runtime.create_backend(
             platform=_effective_runtime_platform(),
             legacy_core=_CAPTURED_WINDOWS_CORE,
             logger=_core._log,
+            linux_runner=linux_runner,
         )
         _core._log("system proxy backend selected: %s" % _SELECTED_BACKEND.backend_id)
     return _SELECTED_BACKEND
@@ -143,8 +159,25 @@ def _backend_failure(operation, error):
 
 
 def _require_new_mutation_operational():
-    """Guard enabling/reconfiguration; never use this on disable/recovery."""
-    return _backend_runtime.require_enable_operational(_effective_runtime_platform())
+    """Guard enabling/reconfiguration; never use this on disable/recovery.
+
+    APL-LNX-004 permits exactly one additional state: ``auth_required`` may pass
+    this guard when the current Linux child was explicitly marked by the GUI.
+    This does not grant privileges. It only allows the real nmcli mutation to
+    ask NetworkManager/polkit for authorization. All unmarked callers stay
+    fail-closed exactly as in APL-LNX-003.
+    """
+    platform = _effective_runtime_platform()
+    status = _backend_runtime.operational_status_for_platform(platform)
+    if status.can_enable:
+        return status
+    if (
+        str(platform).lower().startswith("linux")
+        and status.state == _backend_runtime.OperationalState.AUTH_REQUIRED
+        and _interactive_policykit_context()
+    ):
+        return status
+    raise _backend_runtime.BackendOperationalError(status)
 
 
 def enable_system_proxy():
@@ -208,6 +241,8 @@ _core.backend_operational_status = backend_operational_status
 _core.backend_operational_view = backend_operational_view
 _core.get_proxy_backend = get_proxy_backend
 _core._reset_proxy_backend_for_tests = _reset_proxy_backend_for_tests
+_core._interactive_policykit_context = _interactive_policykit_context
+_core._require_new_mutation_operational = _require_new_mutation_operational
 _core.enable_system_proxy = enable_system_proxy
 _core.disable_system_proxy = disable_system_proxy
 _core.system_proxy_enabled = system_proxy_enabled
