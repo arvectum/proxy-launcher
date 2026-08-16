@@ -75,13 +75,18 @@ def test_end_user_ux_is_russian_and_never_overclaims_windows_trust():
     assert "RELEASE-EVIDENCE-ONLY" in verifier
 
 
-def test_one_click_launcher_runs_only_the_bundled_verifier():
+def test_one_click_launcher_runs_only_the_bundled_verifier_and_decodes_utf8_explicitly():
     text = LAUNCHER.read_text(encoding="utf-8")
     lowered = text.lower()
     assert "%~dp0verify_russian_release.ps1" in lowered
+    assert "apl_verify_script" in lowered
+    assert "apl_verify_dir" in lowered
     assert "-noprofile" in lowered
     assert "-executionpolicy bypass" in lowered
-    assert "-releasedirectory \"%~dp0\"" in lowered
+    assert "readalltext" in lowered
+    assert "text.encoding]::utf8" in lowered
+    assert "[scriptblock]::create" in lowered
+    assert "-releasedirectory $env:apl_verify_dir" in lowered
     assert "pause" in lowered
 
 
@@ -112,6 +117,8 @@ def test_workflow_is_non_secret_and_checks_powershell_syntax():
     assert "contents: read" in text
     assert "pytest" in lowered
     assert "windows-latest" in lowered
-    assert "parser]::parsefile" in lowered
+    assert "parser]::parseinput" in lowered
+    assert "readalltext" in lowered
+    assert "text.encoding]::utf8" in lowered
     assert "${{ secrets." not in lowered
     assert "-sfsign" not in lowered
