@@ -6,12 +6,19 @@
     installs locked build dependencies, validates toolchain and versions, runs unit tests,
     compiles and packages the portable executable, verifies Windows branding metadata,
     verifies SHA256 checksum manifests, and produces a build-result.json manifest.
+
+    When -WheelhousePath is supplied, dependency installation is forced offline from the
+    approved Windows x64 wheelhouse and every package is verified by pip against
+    requirements-build.windows-x64.hashes.txt using --require-hashes.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$PythonExecutable
+    [string]$PythonExecutable,
+
+    [Parameter(Mandatory = $false)]
+    [string]$WheelhousePath
 )
 
 Set-StrictMode -Version Latest
@@ -108,20 +115,65 @@ if ($isIsolated.Trim() -ne "True") {
 # ---------------------------------------------------------------------------
 # 4. Install Locked Build Toolchain
 # ---------------------------------------------------------------------------
-Write-Host "Installing pinned pip (25.3)..."
-& $VenvPython -m pip install --upgrade "pip==25.3"
-if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
-
 $LockFile = Join-Path $RepoRoot "requirements-build.lock.txt"
+$HashLockFile = Join-Path $RepoRoot "requirements-build.windows-x64.hashes.txt"
 if (-not (Test-Path -LiteralPath $LockFile)) {
     throw "Lock file requirements-build.lock.txt missing"
 }
-Write-Host "Installing pinned build dependencies from $LockFile..."
-& $VenvPython -m pip install --no-deps -r $LockFile
-if ($LASTEXITCODE -ne 0) { throw "Build dependencies installation failed" }
+
+$DependencyMode = "online-version-locked"
+$ResolvedWheelhouse = $null
+$WheelhouseManifestHash = $null
+
+if ($WheelhousePath) {
+    if (-not (Test-Path -LiteralPath $WheelhousePath -PathType Container)) {
+        throw "Wheelhouse path does not exist: $WheelhousePath"
+    }
+    if (-not (Test-Path -LiteralPath $HashLockFile)) {
+        throw "Hash lock requirements-build.windows-x64.hashes.txt missing"
+    }
+    $ResolvedWheelhouse = (Resolve-Path -LiteralPath $WheelhousePath).Path
+    Write-Host "Installing hash-locked build toolchain OFFLINE from $ResolvedWheelhouse..."
+
+    $previousNoIndex = $env:PIP_NO_INDEX
+    $previousDisableCheck = $env:PIP_DISABLE_PIP_VERSION_CHECK
+    try {
+        $env:PIP_NO_INDEX = "1"
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
+        & $VenvPython -m pip install `
+            --no-index `
+            --find-links $ResolvedWheelhouse `
+            --only-binary=:all: `
+            --no-deps `
+            --require-hashes `
+            -r $HashLockFile
+        if ($LASTEXITCODE -ne 0) { throw "Offline hash-locked build dependency installation failed" }
+    } finally {
+        $env:PIP_NO_INDEX = $previousNoIndex
+        $env:PIP_DISABLE_PIP_VERSION_CHECK = $previousDisableCheck
+    }
+    $DependencyMode = "offline-hash-locked"
+    $WheelhouseManifest = Join-Path $ResolvedWheelhouse "wheelhouse-manifest.json"
+    if (Test-Path -LiteralPath $WheelhouseManifest) {
+        $WheelhouseManifestHash = (Get-FileHash -LiteralPath $WheelhouseManifest -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+} else {
+    Write-Host "Installing pinned pip (26.1.2)..."
+    & $VenvPython -m pip install --upgrade "pip==26.1.2"
+    if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
+
+    Write-Host "Installing pinned build dependencies from $LockFile..."
+    & $VenvPython -m pip install --no-deps -r $LockFile
+    if ($LASTEXITCODE -ne 0) { throw "Build dependencies installation failed" }
+}
+
 & $VenvPython -m pip check
 if ($LASTEXITCODE -ne 0) { throw "pip check reported broken dependencies" }
 $ResolvedToolchain = & $VenvPython -m pip freeze --all
+$ActualPipVersion = (& $VenvPython -m pip --version).Split(' ')[1]
+if ($ActualPipVersion -ne "26.1.2") {
+    throw "Unexpected pip version after toolchain install: $ActualPipVersion (expected 26.1.2)"
+}
 
 # ---------------------------------------------------------------------------
 # 5. Read Version & Generate Canonical Windows VERSIONINFO
@@ -254,22 +306,29 @@ try {
     $GitCommit = "unknown"
 }
 $LockHash = (Get-FileHash -LiteralPath $LockFile -Algorithm SHA256).Hash.ToLowerInvariant()
+$HashLockHash = $null
+if (Test-Path -LiteralPath $HashLockFile) {
+    $HashLockHash = (Get-FileHash -LiteralPath $HashLockFile -Algorithm SHA256).Hash.ToLowerInvariant()
+}
 $Manifest = [ordered]@{
-    product               = "Arvectum Proxy Launcher"
-    company               = "ООО «Арвектум»"
-    version               = $ProductVersion
-    file_version          = $ExpectedFileVersion
-    platform              = "windows-x64"
-    format                = "portable"
-    python_version        = $ExpectedPyVersion
-    pip_version           = "25.3"
-    pyinstaller_version   = "6.22.0"
-    source_commit         = $GitCommit
-    artifact_name         = $ArtifactName
-    zip_file              = $ZipName
-    exe_sha256            = $ExeHash
-    zip_sha256            = $ZipHash
-    toolchain_lock_sha256 = $LockHash
+    product                    = "Arvectum Proxy Launcher"
+    company                    = "ООО «Арвектум»"
+    version                    = $ProductVersion
+    file_version               = $ExpectedFileVersion
+    platform                   = "windows-x64"
+    format                     = "portable"
+    python_version             = $ExpectedPyVersion
+    pip_version                = "26.1.2"
+    pyinstaller_version        = "6.22.0"
+    dependency_mode            = $DependencyMode
+    source_commit              = $GitCommit
+    artifact_name              = $ArtifactName
+    zip_file                   = $ZipName
+    exe_sha256                 = $ExeHash
+    zip_sha256                 = $ZipHash
+    toolchain_lock_sha256      = $LockHash
+    hash_lock_sha256           = $HashLockHash
+    wheelhouse_manifest_sha256 = $WheelhouseManifestHash
 }
 $ManifestJson = $Manifest | ConvertTo-Json -Depth 4
 Set-Content -LiteralPath (Join-Path $OutDir "build-result.json") -Value $ManifestJson -Encoding utf8
@@ -285,9 +344,11 @@ if ($env:GITHUB_OUTPUT -and (Test-Path -LiteralPath $env:GITHUB_OUTPUT)) {
     "exe_path=$BuiltExe" >> $env:GITHUB_OUTPUT
     "exe_sha256=$ExeHash" >> $env:GITHUB_OUTPUT
     "zip_sha256=$ZipHash" >> $env:GITHUB_OUTPUT
+    "dependency_mode=$DependencyMode" >> $env:GITHUB_OUTPUT
 }
 
 Write-Host "=== Build Completed Successfully ==="
 Write-Host "Artifact: $ArtifactName"
+Write-Host "Dependency mode: $DependencyMode"
 Write-Host "EXE SHA256: $ExeHash"
 Write-Host "ZIP SHA256: $ZipHash"
