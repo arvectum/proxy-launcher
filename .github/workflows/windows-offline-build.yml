@@ -1,0 +1,88 @@
+name: APL-IP-002-WIN offline hash-locked build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'requirements-build.lock.txt'
+      - 'requirements-build.windows-x64.hashes.txt'
+      - 'BUILD_PYTHON_VERSION'
+      - 'tools/prepare_windows_wheelhouse.ps1'
+      - 'tools/clean_build_windows.ps1'
+      - 'tests/test_windows_offline_build_contract.py'
+      - '.github/workflows/windows-offline-build.yml'
+      - 'proxy_*.py'
+      - 'windows_*.py'
+      - 'assets/**'
+      - 'release/**'
+      - 'qa/**'
+  push:
+    branches: [main]
+    paths:
+      - 'requirements-build.lock.txt'
+      - 'requirements-build.windows-x64.hashes.txt'
+      - 'BUILD_PYTHON_VERSION'
+      - 'tools/prepare_windows_wheelhouse.ps1'
+      - 'tools/clean_build_windows.ps1'
+      - 'tests/test_windows_offline_build_contract.py'
+      - '.github/workflows/windows-offline-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+          architecture: 'x64'
+
+      - name: Contract tests
+        shell: pwsh
+        run: python -m unittest tests.test_windows_offline_build_contract -v
+
+      - name: Acquire and hash-verify wheelhouse
+        id: wheelhouse
+        shell: pwsh
+        run: |
+          $path = & .\tools\prepare_windows_wheelhouse.ps1 -PythonExecutable python.exe -OutputDirectory "$env:RUNNER_TEMP\apl-wheelhouse"
+          if ($LASTEXITCODE -ne 0) { throw 'wheelhouse acquisition failed' }
+          $resolved = ($path | Select-Object -Last 1).Trim()
+          "path=$resolved" >> $env:GITHUB_OUTPUT
+
+      - name: Offline canonical portable build
+        shell: pwsh
+        env:
+          PIP_NO_INDEX: '1'
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+        run: |
+          .\tools\clean_build_windows.ps1 -PythonExecutable (Get-Command python.exe).Source -WheelhousePath '${{ steps.wheelhouse.outputs.path }}'
+          $result = Get-Content .\out\build-result.json -Raw | ConvertFrom-Json
+          if ($result.dependency_mode -ne 'offline-hash-locked') { throw 'canonical build did not use offline hash-locked dependency mode' }
+          if (-not $result.hash_lock_sha256) { throw 'missing hash-lock evidence' }
+          if (-not $result.wheelhouse_manifest_sha256) { throw 'missing wheelhouse manifest evidence' }
+          if ($result.pip_version -ne '26.1.2') { throw 'unexpected pip version' }
+
+      - name: Prove build script has no index fallback in offline mode
+        shell: pwsh
+        run: |
+          $text = Get-Content .\tools\clean_build_windows.ps1 -Raw
+          if ($text -notmatch '--no-index') { throw 'offline build is missing --no-index' }
+          if ($text -notmatch '--require-hashes') { throw 'offline build is missing --require-hashes' }
+          if ($text -notmatch '--only-binary=:all:') { throw 'offline build is missing binary-only enforcement' }
+
+      - name: Upload controlled-input and build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: apl-ip-002-win-offline-build-evidence
+          path: |
+            ${{ steps.wheelhouse.outputs.path }}/wheelhouse-manifest.json
+            out/build-result.json
+            out/SHA256SUMS.txt
+            out/*.zip
+          if-no-files-found: error
