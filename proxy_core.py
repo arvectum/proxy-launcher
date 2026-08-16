@@ -71,6 +71,23 @@ _CAPTURED_WINDOWS_CORE = _CapturedWindowsCore()
 _SELECTED_BACKEND = None
 
 
+def _effective_runtime_platform():
+    """Return the platform used by the facade while preserving legacy test seams.
+
+    Production behavior is identical to ``sys.platform``. Historical Windows
+    regression tests intentionally monkeypatch ``proxy_core.is_windows()`` while
+    running on non-Windows CI hosts; honoring that established seam keeps those
+    tests on the captured Windows backend instead of accidentally exercising the
+    Linux runtime composition layer.
+    """
+    try:
+        if _core.is_windows():
+            return "win32"
+    except Exception:
+        pass
+    return _runtime_sys.platform
+
+
 def resolved_backend_config(settings=None):
     """Build the single resolved OS-facing configuration for every backend."""
     settings = settings if settings is not None else _core.load_settings()
@@ -92,7 +109,7 @@ def resolved_backend_config(settings=None):
 
 def backend_operational_status():
     """Return current host readiness for product UX without changing the network."""
-    return _backend_runtime.operational_status_for_platform(_runtime_sys.platform)
+    return _backend_runtime.operational_status_for_platform(_effective_runtime_platform())
 
 
 def backend_operational_view():
@@ -101,11 +118,11 @@ def backend_operational_view():
 
 
 def get_proxy_backend():
-    """Return the process-local concrete backend selected from ``sys.platform``."""
+    """Return the process-local concrete backend selected for the runtime host."""
     global _SELECTED_BACKEND
     if _SELECTED_BACKEND is None:
         _SELECTED_BACKEND = _backend_runtime.create_backend(
-            platform=_runtime_sys.platform,
+            platform=_effective_runtime_platform(),
             legacy_core=_CAPTURED_WINDOWS_CORE,
             logger=_core._log,
         )
@@ -127,7 +144,7 @@ def _backend_failure(operation, error):
 
 def _require_new_mutation_operational():
     """Guard enabling/reconfiguration; never use this on disable/recovery."""
-    return _backend_runtime.require_enable_operational(_runtime_sys.platform)
+    return _backend_runtime.require_enable_operational(_effective_runtime_platform())
 
 
 def enable_system_proxy():
