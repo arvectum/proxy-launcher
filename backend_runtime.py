@@ -4,9 +4,14 @@
 APL-CORE-005 keeps platform detection in one small composition layer. Concrete
 backends remain independently testable and are imported only for the selected
 platform.
+
+APL-CORE-006 binds the selected backend to one explicit capability model so UI
+and callers do not infer feature support independently from ``sys.platform``.
 """
 
 import sys
+
+from capability_model import capabilities_for_backend
 
 
 class UnsupportedPlatformError(RuntimeError):
@@ -27,6 +32,11 @@ def backend_id_for_platform(platform=None):
     )
 
 
+def capabilities_for_platform(platform=None):
+    """Return the declared product capabilities for the selected platform."""
+    return capabilities_for_backend(backend_id_for_platform(platform))
+
+
 def create_backend(platform=None, legacy_core=None, logger=None):
     """Instantiate the concrete backend selected for *platform*.
 
@@ -36,6 +46,9 @@ def create_backend(platform=None, legacy_core=None, logger=None):
     Windows 0.2.3 mutation path byte-for-byte.
     """
     backend_id = backend_id_for_platform(platform)
+    # Fail closed if a governed backend somehow exists without a capability
+    # declaration. Selection and product UX must evolve as one reviewed unit.
+    capabilities_for_backend(backend_id)
     if backend_id == "windows":
         if legacy_core is None:
             raise RuntimeError(

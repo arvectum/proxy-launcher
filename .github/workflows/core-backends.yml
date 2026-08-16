@@ -5,6 +5,7 @@ on:
     paths:
       - proxy_backend.py
       - backend_runtime.py
+      - capability_model.py
       - proxy_core.py
       - proxy_core_legacy.py
       - windows_backend.py
@@ -13,10 +14,12 @@ on:
       - tests/test_proxy_backend.py
       - tests/test_backend_runtime.py
       - tests/test_backend_runtime_wiring.py
+      - tests/test_capability_model.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
       - core/**
+      - docs/APL_CORE_006_CAPABILITY_MODEL_UNSUPPORTED_FEATURE_UX.md
       - .github/workflows/core-backends.yml
   push:
     branches:
@@ -24,6 +27,7 @@ on:
     paths:
       - proxy_backend.py
       - backend_runtime.py
+      - capability_model.py
       - proxy_core.py
       - proxy_core_legacy.py
       - windows_backend.py
@@ -32,10 +36,12 @@ on:
       - tests/test_proxy_backend.py
       - tests/test_backend_runtime.py
       - tests/test_backend_runtime_wiring.py
+      - tests/test_capability_model.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
       - tests/test_linux_backend.py
       - core/**
+      - docs/APL_CORE_006_CAPABILITY_MODEL_UNSUPPORTED_FEATURE_UX.md
       - .github/workflows/core-backends.yml
 
 permissions:
@@ -65,6 +71,7 @@ jobs:
           python -m py_compile
           proxy_backend.py
           backend_runtime.py
+          capability_model.py
           proxy_core.py
           proxy_core_legacy.py
           windows_backend.py
@@ -73,6 +80,7 @@ jobs:
           tests/test_proxy_backend.py
           tests/test_backend_runtime.py
           tests/test_backend_runtime_wiring.py
+          tests/test_capability_model.py
           tests/test_windows_backend.py
           tests/test_macos_backend.py
           tests/test_linux_backend.py
@@ -83,6 +91,7 @@ jobs:
           tests.test_proxy_backend
           tests.test_backend_runtime
           tests.test_backend_runtime_wiring
+          tests.test_capability_model
           tests.test_windows_backend
           tests.test_macos_backend
           tests.test_linux_backend
