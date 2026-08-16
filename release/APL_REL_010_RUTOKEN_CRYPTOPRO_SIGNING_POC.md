@@ -91,7 +91,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\rutoken_cryptopro_poc.ps1 `
   -CertificateThumbprint "<THUMBPRINT>"
 ```
 
-If exactly one private-key certificate matches `Арвектум` in the subject, the script can select it automatically, but an explicit thumbprint is preferred for the governed run.
+An explicit thumbprint is the governed path and avoids ambiguity when several certificates are installed. The script falls back to automatic selection only when the selected certificate store contains exactly one certificate with an accessible private key.
 
 The script must **not** be passed a PIN. CryptoPro/Rutoken may prompt the owner interactively when the private key is used.
 
