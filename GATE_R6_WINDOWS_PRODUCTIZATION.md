@@ -2,9 +2,16 @@
 
 ## Gate status
 
-**PENDING CI EVIDENCE** on the implementation branch.
+**STATUS: PASS**
 
-This gate becomes PASS only when the exact branch/PR commit completes the Windows RC build, lifecycle E2E and executable acceptance matrix with no failed checks.
+Accepted implementation evidence:
+
+- PR: `#47` — `APL-WIN-010..013 — Windows productization and Gate R6`;
+- accepted implementation commit: `5538fe10dbb356fb771f13e6106c7840f401d87e`;
+- Windows installer workflow run: `31950894227` (`Windows installer`, run #168) — **SUCCESS**;
+- the same candidate commit also completed `Windows P0 portable`, `APL-DIAG-004 Doctor`, `SAST`, `Secret scan`, `Dependency vulnerability scan`, and `SBOM` with **SUCCESS**.
+
+The accepted Windows installer run completed the canonical portable build and final EXE metadata check, synthetic predecessor build, canonical Setup build and metadata check, full Windows RC lifecycle E2E, machine RC acceptance matrix, and evidence upload without a failed mandatory step.
 
 ## Scope
 
@@ -19,7 +26,7 @@ It consumes the already completed Windows safety foundations including rollback/
 
 ## Mandatory evidence
 
-Gate R6 requires all of the following from the same candidate commit:
+All mandatory Gate R6 evidence is PASS for the accepted implementation commit:
 
 1. canonical Windows clean build PASS;
 2. canonical Inno Setup build PASS;
@@ -55,10 +62,6 @@ The Russia-first signing architecture remains governed by APL-REL-009 and APL-RE
 
 This signing boundary does not invalidate the productization checks above; it prevents Gate R6 from claiming cryptographic publisher trust that has not yet been proven.
 
-## Closure rule
+## Closure
 
-After all required CI evidence is green for the implementation commit, update this document to:
-
-`STATUS: PASS`
-
-and record the accepted commit SHA / PR and evidence-producing workflow status. If any mandatory item fails, Gate R6 remains open.
+Gate R6 was closed only after exact-commit CI evidence was green. The subsequent closure commit changes this evidence record only and must itself retain the same CI invariants before merge to `main`.
