@@ -65,4 +65,4 @@ The platform-independent implementation lives in `recovery_state.py`. It perform
 
 ## Boundary with APL-REC-002
 
-APL-REC-001 defines *which transitions are legal*. APL-REC-002 defines *which evidence proves ownership and therefore authorizes those transitions*.
+APL-REC-001 defines *which transitions are legal*. APL-REC-002 defines *which evidence proves ownership and therefore authorizes those transitions*. The implemented ownership contract is documented in `RECOVERY_OWNERSHIP.md` and enforced by `recovery_ownership.py`.
