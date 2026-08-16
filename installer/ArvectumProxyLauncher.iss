@@ -135,5 +135,5 @@ var ErrorText: String;
 begin
   Result := RunInstalledUninstallHelper(ErrorText);
   if not Result then
-    MsgBox(ErrorText, mbError, MB_OK);
+    SuppressibleMsgBox(ErrorText, mbError, MB_OK, IDOK);
 end;
