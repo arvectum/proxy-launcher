@@ -16,6 +16,7 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
         self.assertIn("{srcexe}", iss)
         self.assertIn('Repair Arvectum Proxy Launcher', iss)
         self.assertIn('Type: files; Name: "{app}\\{#RepairExeName}"', iss)
+        self.assertIn("SuppressibleMsgBox(ErrorText", iss)
 
     def test_repair_does_not_execute_damaged_exe_when_no_recovery_is_pending(self):
         helper = self.read("installer/upgrade_helper.ps1")
