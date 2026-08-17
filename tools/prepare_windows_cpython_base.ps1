@@ -6,6 +6,10 @@
     python.org, verifies the release-manager identity, then emits a manifest with
     the exact SHA256 for controlled archival. This is an acquisition step, not a
     runtime dependency of Arvectum Proxy Launcher.
+
+    Bundle verification is explicitly performed with Sigstore's --offline mode.
+    This preserves cryptographic identity/bundle verification while preventing a
+    separate TUF metadata refresh from becoming a release-recovery network gate.
 #>
 
 [CmdletBinding()]
@@ -71,8 +75,9 @@ $VerifierVenvPython = Join-Path $VerifierVenv 'Scripts\python.exe'
 & $VerifierVenvPython -m pip install --disable-pip-version-check "sigstore==$($Lock['SIGSTORE_VERIFIER_VERSION'])"
 if ($LASTEXITCODE -ne 0) { throw 'Unable to install pinned Sigstore verifier' }
 
-Write-Host "Verifying CPython Sigstore identity $($Lock['PYTHON_SIGSTORE_CERT_IDENTITY'])..."
+Write-Host "Verifying CPython Sigstore identity $($Lock['PYTHON_SIGSTORE_CERT_IDENTITY']) in offline bundle mode..."
 & $VerifierVenvPython -m sigstore verify identity `
+    --offline `
     --cert-identity $Lock['PYTHON_SIGSTORE_CERT_IDENTITY'] `
     --cert-oidc-issuer $Lock['PYTHON_SIGSTORE_OIDC_ISSUER'] `
     --bundle $Bundle `
@@ -95,6 +100,8 @@ $Manifest = [ordered]@{
     oidc_issuer           = $Lock['PYTHON_SIGSTORE_OIDC_ISSUER']
     verifier_version      = $Lock['SIGSTORE_VERIFIER_VERSION']
     verification          = 'sigstore-identity-pass'
+    verification_mode     = 'offline-bundle'
+    trust_root_source     = 'sigstore-python-cache-or-baked-root'
     source_url            = $Lock['PYTHON_INSTALLER_URL']
     source_bundle_url     = $Lock['PYTHON_SIGSTORE_BUNDLE_URL']
 }

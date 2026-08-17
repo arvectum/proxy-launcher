@@ -33,11 +33,17 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
         self.assertIn('pip==26.1.2', BUILD)
         self.assertNotIn('pip==25.3', BUILD)
 
-    def test_wheelhouse_acquisition_is_hash_verified_and_binary_only(self):
-        for token in ('pip download', '--only-binary=:all:', '--no-deps', '--require-hashes'):
+    def test_wheelhouse_acquisition_is_hash_verified_binary_only_and_cross_targeted(self):
+        for token in (
+            'pip download', '--only-binary=:all:', '--no-deps', '--require-hashes',
+            '--platform', '--python-version', '--implementation', '--abi',
+            "'win_amd64'", "'cp'", 'TargetAbi',
+            'Expected exactly 8 approved wheels', 'Get-FileHash',
+            'SHA256 mismatch after download', 'wheelhouse-manifest.json',
+            'acquisition_python_version', 'target_pip_platform', 'target_abi',
+        ):
             self.assertIn(token, PREPARE)
-        self.assertIn('Expected exactly 8 approved wheels', PREPARE)
-        self.assertIn('wheelhouse-manifest.json', PREPARE)
+        self.assertNotIn('Wheelhouse acquisition requires CPython $ExpectedVersion 64-bit', PREPARE)
 
     def test_cpython_base_identity_is_locked(self):
         for token in (
@@ -51,10 +57,10 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
         ):
             self.assertIn(token, BASE_LOCK)
 
-    def test_cpython_acquisition_verifies_sigstore_identity(self):
+    def test_cpython_acquisition_verifies_sigstore_identity_offline(self):
         for token in (
-            'python-windows-base.lock', 'sigstore verify identity', '--cert-identity',
-            '--cert-oidc-issuer', '--bundle', 'sigstore-identity-pass',
+            'python-windows-base.lock', 'sigstore verify identity', '--offline', '--cert-identity',
+            '--cert-oidc-issuer', '--bundle', 'sigstore-identity-pass', 'offline-bundle',
             'cpython-base-manifest.json',
         ):
             self.assertIn(token, PREPARE_BASE)
@@ -66,6 +72,16 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
             'Include_pip=1', 'Include_tcltk=1',
         ):
             self.assertIn(token, INSTALL_BASE)
+
+    def test_verified_cpython_install_is_clean_host_control_with_failure_evidence(self):
+        for token in (
+            'clean or disposable Windows recovery host',
+            'cpython-install.log',
+            '0x{0:X8}',
+            'Installer log:',
+        ):
+            self.assertIn(token, INSTALL_BASE)
+        self.assertNotIn('New-Item -ItemType Directory -Path $Target', INSTALL_BASE)
 
     def test_final_manifest_records_dependency_evidence(self):
         for token in ('dependency_mode', 'hash_lock_sha256', 'wheelhouse_manifest_sha256'):
