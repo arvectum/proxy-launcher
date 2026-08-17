@@ -59,7 +59,7 @@ foreach ($RegistryPath in $RegistryPaths) {
             }
         }
     } catch {
-        throw "Unable to inspect existing CPython registration at $RegistryPath: $($_.Exception.Message)"
+        throw "Unable to inspect existing CPython registration at ${RegistryPath}: $($_.Exception.Message)"
     }
 }
 foreach ($Registered in $RegisteredInstalls) {
