@@ -44,7 +44,7 @@ P0.1 acceptance is fully satisfied. The governed archive can now be used as the 
 
 ### P0.2 Independent endpoint-denied recovery build
 
-Status: **IN PROGRESS — PREFLIGHT PASS / INSTALLER TOOLCHAIN BLOCKED**.
+Status: **IN PROGRESS — PREFLIGHT PASS / RECOVERY HOST BLOCKED / INSTALLER TOOLCHAIN BLOCKED**.
 
 Completed preflight sub-gate:
 
@@ -60,15 +60,37 @@ Completed preflight sub-gate:
 - installer recovery status: **BLOCKED_MISSING_PRESTAGED_INNO_6_7_1**;
 - non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`.
 
+Recovery-environment provisioning evidence:
+
+- Windows Sandbox unavailable on the current host;
+- no pre-existing clean/disposable Windows x64 VM;
+- reported host edition: `Windows 10 Home`;
+- reported build family: `26200`;
+- host architecture: x64;
+- RAM: 8 GB; free VM storage: 95 GB;
+- hardware virtualization reported: **NO**;
+- SLAT reported: **NO**;
+- Hyper-V classification: `HYPER_V_NOT_AVAILABLE`; management cmdlets unavailable;
+- VirtualBox / VMware / QEMU: not installed;
+- Windows installation ISO: not found;
+- dedicated recovery VM: not created;
+- current blocker: **HARDWARE_VIRTUALIZATION_DISABLED_OR_UNAVAILABLE**;
+- evidence: `docs/evidence/P0_2_HARDWARE_VIRTUALIZATION_BLOCKER.json`;
+- provisioning contract: `docs/P0_2_RECOVERY_ENVIRONMENT_PROVISIONING.md`.
+
 Required local/infrastructure boundary now:
 
-- run the exact GitVerse recovery checkout in a clean/disposable Windows x64 environment (Windows Sandbox or clean VM preferred);
-- deny public package/source endpoints for the actual controlled verification/install/build phase;
-- install governed CPython `3.12.10` x64 only from the P0.1 archive;
-- build the portable artifact using only the archived eight-wheel hash-locked wheelhouse;
-- generate endpoint-denial evidence, build-result evidence and an offline recovery SBOM without live package acquisition;
-- compare resulting artifact/product contract and classify any binary differences;
-- separately bring exact Inno Setup `6.7.1` under controlled/pre-staged storage and prove installer recovery before P0.2 can close.
+1. enable Intel VT-x or AMD-V/SVM hardware virtualization in BIOS/UEFI and reboot;
+2. re-verify from Windows that firmware virtualization is enabled before installing/provisioning a hypervisor;
+3. if virtualization cannot be exposed by this CPU/firmware, move P0.2 to another controlled x64 Windows-capable host rather than weakening acceptance;
+4. once virtualization is proven, provision a clean/resettable Windows x64 VM with hypervisor-level network disconnect capability and a clean baseline checkpoint/snapshot;
+5. run the exact GitVerse recovery checkout in that clean/disposable environment;
+6. deny public package/source endpoints for the actual controlled verification/install/build phase;
+7. install governed CPython `3.12.10` x64 only from the P0.1 archive;
+8. build the portable artifact using only the archived eight-wheel hash-locked wheelhouse;
+9. generate endpoint-denial evidence, build-result evidence and an offline recovery SBOM without live package acquisition;
+10. compare resulting artifact/product contract and classify any binary differences;
+11. separately bring exact Inno Setup `6.7.1` under controlled/pre-staged storage and prove installer recovery before P0.2 can close.
 
 Acceptance:
 
