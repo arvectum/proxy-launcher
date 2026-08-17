@@ -86,7 +86,7 @@ Apple production identity signing/notarization is not a functional correctness g
 - **DONE (P0.1 final Windows round-trip verifier)** — `ARVECTUM-1` was read natively on Windows; the offline ZIP and a fresh retrieval of the Mac mini primary copy each reported `30,996,168` bytes and SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`; both passed `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` at repository commit `1429e55959e9a3940b1f2e03e84f18fa7b05de0c`; ZIP, sidecar and evidence files byte-matched across primary/offline copies.
 - **DONE (P0.1 final offline storage human gate)** — after the Windows verifier, the operator safely ejected `ARVECTUM-1`, physically disconnected it and returned it to separate offline storage.
 - **DONE — [Win] P0.1** — controlled Windows build-input archive closure is complete. Final non-secret evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`. Canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
-- **LOCAL/INFRA DEBT — HIGH — [Win] P0.2** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare exact release evidence using only the P0.1 controlled archive.
+- **IN PROGRESS — [Win] P0.2** — preflight PASS: a fresh recovery checkout was obtained from GitVerse at exact commit `678efda6df68c93db8474c810abd73bca72735b2`; the governed P0.1 archive was staged at `30,996,168` bytes / SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886` and passed the canonical verifier again. Exact Inno Setup `6.7.1` is not currently pre-staged, so installer recovery remains blocked while the endpoint-denied disposable-host portable recovery proof proceeds. Evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`.
 - **MEDIUM** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
 
 ## 4. Per-application routing backlog
@@ -132,7 +132,7 @@ The remaining execution backlog is maintained in `docs/LOCAL_EXECUTION_BACKLOG.m
 
 ## 6. Immediate remaining execution order
 
-1. **[Win] P0.2 sovereign recovery build:** run an independent endpoint-denied/self-hosted/GitVerse recovery build using only the P0.1 controlled archive and compare release evidence.
+1. **[Win] P0.2 endpoint-denied portable recovery proof:** run the exact GitVerse checkout in a clean/disposable Windows x64 environment with public endpoints denied and only the P0.1 controlled archive available; produce portable build evidence/SBOM. In parallel, exact Inno Setup 6.7.1 must later be brought under controlled/pre-staged storage before installer recovery can close P0.2.
 2. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
 3. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
 4. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
