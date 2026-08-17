@@ -11,6 +11,8 @@ on:
       - 'tools/prepare_windows_cpython_base.ps1'
       - 'tools/install_verified_windows_cpython.ps1'
       - 'tools/prepare_windows_wheelhouse.ps1'
+      - 'tools/archive_windows_build_inputs.ps1'
+      - 'tools/verify_windows_build_input_archive.ps1'
       - 'tools/clean_build_windows.ps1'
       - 'tests/test_windows_offline_build_contract.py'
       - '.github/workflows/windows-offline-build.yml'
@@ -29,6 +31,8 @@ on:
       - 'tools/prepare_windows_cpython_base.ps1'
       - 'tools/install_verified_windows_cpython.ps1'
       - 'tools/prepare_windows_wheelhouse.ps1'
+      - 'tools/archive_windows_build_inputs.ps1'
+      - 'tools/verify_windows_build_input_archive.ps1'
       - 'tools/clean_build_windows.ps1'
       - 'tests/test_windows_offline_build_contract.py'
       - '.github/workflows/windows-offline-build.yml'
@@ -76,6 +80,25 @@ jobs:
           $resolved = ($path | Select-Object -Last 1).Trim()
           "path=$resolved" >> $env:GITHUB_OUTPUT
 
+      - name: Package and offline-verify P0.1 controlled archive contract
+        id: p0_1_archive
+        shell: pwsh
+        env:
+          PIP_NO_INDEX: '1'
+          PIP_DISABLE_PIP_VERSION_CHECK: '1'
+        run: |
+          $archiveOutput = & .\tools\archive_windows_build_inputs.ps1 `
+            -CpythonBaseDirectory '${{ steps.cpython.outputs.base }}' `
+            -WheelhouseDirectory '${{ steps.wheelhouse.outputs.path }}' `
+            -OutputDirectory "$env:RUNNER_TEMP\apl-p0-1"
+          if ($LASTEXITCODE -ne 0) { throw 'P0.1 controlled archive packaging failed' }
+          $archive = ($archiveOutput | Select-Object -Last 1).Trim()
+          & .\tools\verify_windows_build_input_archive.ps1 -ArchivePath $archive -RequireCurrentRepositoryLocks
+          if ($LASTEXITCODE -ne 0) { throw 'P0.1 controlled archive offline verification failed' }
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+          "sidecar=$archive.sha256" >> $env:GITHUB_OUTPUT
+          "evidence=$archive.evidence.json" >> $env:GITHUB_OUTPUT
+
       - name: Offline canonical portable build from verified CPython + wheelhouse
         shell: pwsh
         env:
@@ -106,6 +129,9 @@ jobs:
             ${{ steps.cpython.outputs.base }}/cpython-base-manifest.json
             ${{ steps.cpython.outputs.base }}/python-3.12.10-amd64.exe.sigstore
             ${{ steps.wheelhouse.outputs.path }}/wheelhouse-manifest.json
+            ${{ steps.p0_1_archive.outputs.archive }}
+            ${{ steps.p0_1_archive.outputs.sidecar }}
+            ${{ steps.p0_1_archive.outputs.evidence }}
             out/build-result.json
             out/SHA256SUMS.txt
             out/*.zip

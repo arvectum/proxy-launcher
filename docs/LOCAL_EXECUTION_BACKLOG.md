@@ -10,18 +10,29 @@ This file contains only work that cannot be truthfully completed by hosted repos
 
 ### P0.1 Archive controlled build inputs
 
+Status: **AUTONOMOUS PREPARATION COMPLETE / LOCAL-INFRA ACCEPTANCE PENDING**.
+
+Repository-side preparation is complete:
+
+- `tools/archive_windows_build_inputs.ps1` re-verifies the governed CPython/wheelhouse bytes and produces one self-contained ZIP, SHA-256 sidecar and preparation evidence record without network access;
+- `tools/verify_windows_build_input_archive.ps1` independently verifies the archive offline, including nested manifests, exact wheel count and governance locks;
+- `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md` is the canonical operator runbook and acceptance contract.
+
 Required local/infrastructure boundary:
 
 - choose an Arvectum/Russian-controlled artifact perimeter reachable during release recovery;
-- store the exact verified CPython 3.12.10 x64 bootstrap used by the canonical build;
-- store the exact verified Windows wheelhouse defined by `requirements-build.windows-x64.hashes.txt` plus `wheelhouse-manifest.json`;
+- acquire and verify the exact CPython 3.12.10 x64 bootstrap used by the canonical build;
+- acquire the exact verified Windows wheelhouse defined by `requirements-build.windows-x64.hashes.txt` plus `wheelhouse-manifest.json`;
+- build and offline-verify the P0.1 self-contained archive;
+- store the archive, SHA-256 sidecar and evidence record in the controlled perimeter;
 - record immutable SHA-256 values, retrieval path, access/retention policy and an offline copy location.
 
 Acceptance:
 
-- the controlled copy byte-matches the pinned/verified inputs;
-- a fresh build host can acquire all bootstrap/build inputs without PyPI or python.org;
-- the evidence record identifies the storage source and hashes without exposing secrets.
+- the controlled copy byte-matches the pinned/verified inputs and the locally prepared archive SHA-256;
+- the archive passes `tools/verify_windows_build_input_archive.ps1` without network access;
+- a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
+- the evidence record identifies the storage source, offline-copy location and hashes without exposing secrets.
 
 ### P0.2 Independent endpoint-denied recovery build
 

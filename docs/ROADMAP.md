@@ -76,9 +76,10 @@ Apple production identity signing/notarization is not a functional correctness g
 - **DONE (engineering control)** — canonical Windows build supports `offline-hash-locked` mode with `PIP_NO_INDEX=1`, `--no-index`, `--only-binary=:all:` and `--require-hashes`.
 - **DONE (CI control)** — dedicated Windows workflow acquires/validates the wheelhouse, then rebuilds portable with package-index access disabled.
 - **DONE (engineering control)** — exact CPython 3.12.10 x64 bootstrap identity is pinned and verified through Sigstore before installation in the controlled build workflow.
+- **DONE (engineering control)** — P0.1 adds a network-free self-contained CPython/wheelhouse archive packager, full-payload SHA-256 manifest and independent offline verifier (`tools/archive_windows_build_inputs.ps1`, `tools/verify_windows_build_input_archive.ps1`).
 - **DONE** — build-only `pip` baseline moved from `25.3` to `26.1.2`; frozen PyInstaller/application runtime inputs otherwise unchanged.
-- **LOCAL/INFRA DEBT — HIGH** — archive the verified CPython bootstrap and verified wheelhouse inside an Arvectum/Russian-controlled artifact perimeter so release recovery does not depend on reacquisition from foreign public endpoints.
-- **LOCAL/INFRA DEBT — HIGH** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare exact release evidence.
+- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING — [Win] P0.1** — copy the verified self-contained archive into an Arvectum/Russian-controlled artifact perimeter, verify the stored/retrieved bytes offline and record non-secret storage/retention/offline-copy evidence. Canonical runbook: `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md`.
+- **LOCAL/INFRA DEBT — HIGH — [Win] P0.2** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare exact release evidence using only the P0.1 controlled archive.
 - **MEDIUM** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
 
 ## 4. Per-application routing backlog
@@ -117,19 +118,20 @@ The roadmap was re-evaluated after the autonomous sweep and its merge to `main`.
 - **DONE** — all repository-side macOS acceptance preparation currently possible without a real Mac.
 - **DONE** — all APL-IP-001 engineering/provenance preparation currently possible without authorized human/legal judgment.
 - **DONE** — all safe Windows WFP work short of the product/signing stop-gate and privileged native enforcement.
-- **DONE** — CPython bootstrap identity pinning/verification and offline/hash-locked Windows build controls.
+- **DONE** — CPython bootstrap identity pinning/verification, offline/hash-locked Windows build controls and P0.1 self-contained archive/offline-verifier preparation.
 - **NO FURTHER AUTONOMOUS IMPLEMENTATION TASK IDENTIFIED** that can truthfully close one of the remaining gates without crossing a real-host, external-infrastructure, legal/human, signing, or product-policy boundary.
 
 The remaining execution backlog is maintained in `docs/LOCAL_EXECUTION_BACKLOG.md`.
 
 ## 6. Immediate remaining execution order
 
-1. **Windows sovereign-build infrastructure closure:** archive verified CPython + wheelhouse in an Arvectum/Russian-controlled perimeter; then run an independent endpoint-denied/self-hosted/GitVerse recovery build and compare evidence.
-2. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
-3. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
-4. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
-5. **APL-MAC-008:** run real Mac acceptance; close Gate R9 only from real-host evidence.
-6. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
+1. **[Win] P0.1 local/infrastructure acceptance:** acquire the governed bytes, create/verify the self-contained archive, store it in the selected Arvectum/Russian-controlled perimeter, verify the controlled copy and record storage/offline-copy evidence.
+2. **[Win] P0.2 sovereign recovery build:** run an independent endpoint-denied/self-hosted/GitVerse recovery build using only the P0.1 controlled archive and compare release evidence.
+3. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
+4. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
+5. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
+6. **APL-MAC-008:** run real Mac acceptance; close Gate R9 only from real-host evidence.
+7. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
 
 ## Completion rule
 
