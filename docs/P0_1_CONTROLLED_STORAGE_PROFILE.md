@@ -1,8 +1,8 @@
 # [Win] P0.1 — Arvectum controlled-storage profile
 
-Status: **PRIMARY TRANSFER VERIFIED / SEAL + OFFLINE-COPY EVIDENCE PENDING**
+Status: **PRIMARY STORAGE SEALED / OFFLINE-COPY + FINAL VERIFIER PENDING**
 
-This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires real byte transfer, re-verification and evidence from the named devices.
+This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires the independent offline copy, final canonical verification and completion evidence described below.
 
 ## Primary controlled perimeter
 
@@ -71,7 +71,7 @@ primary_archive_bytes = 30996168
 primary_archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
 primary_byte_match_windows_source = YES
 round_trip_canonical_verifier = NOT_YET_RUN
-primary_file_sealing = PENDING
+primary_file_sealing = PASS
 ```
 
 Canonical primary identifier:
@@ -80,7 +80,33 @@ Canonical primary identifier:
 /Users/Shared/Arvectum/ControlledArtifacts/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
 ```
 
-This closes the transfer/byte-match sub-gate only. It does not close P0.1: post-ingest read-only/immutable protection, the independent removable offline copy, final completion evidence and final canonical verification remain required.
+## Primary sealing evidence — PASS
+
+Date: `2026-08-17`
+
+The exact three transferred source artifacts were sealed on the Arvectum-controlled Mac mini after an additional byte-identity check.
+
+Recorded facts:
+
+```text
+mac_repository_commit = f8e420d0ecd2495afbd88b0dedb3a60435f95fd0
+primary_archive_bytes = 30996168
+primary_archive_sha256_before_seal = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+primary_archive_sha256_after_seal = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+primary_byte_identity_preserved = YES
+zip_read_only = YES
+zip_uchg = YES
+sidecar_read_only = YES
+sidecar_uchg = YES
+evidence_read_only = YES
+evidence_uchg = YES
+primary_directory_world_writable = NO
+access_policy_recorded = YES
+retention_policy_recorded = YES
+offline_device_available_at_seal_time = NO
+```
+
+This closes the primary controlled-storage transfer, byte-match and post-ingest sealing sub-gates. P0.1 remains open only for the independent physically separate removable offline copy, its verification/disconnection evidence, final canonical Windows round-trip verification and `P0_1_COMPLETION_EVIDENCE.json`.
 
 ## Primary access policy
 
