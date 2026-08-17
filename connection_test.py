@@ -76,7 +76,11 @@ def _open_url(url, timeout, proxy_url=None):
             response.close()
     except urllib.error.HTTPError as exc:
         # HTTP 4xx/5xx still proves that DNS/TCP/TLS/HTTP connectivity worked.
-        return int(exc.code), exc.geturl() or url
+        try:
+            final_url = exc.geturl() or url
+        except (AttributeError, KeyError):
+            final_url = url
+        return int(exc.code), final_url
 
 
 def _check_direct_internet(target_url, timeout):

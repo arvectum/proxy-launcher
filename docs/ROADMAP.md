@@ -49,8 +49,8 @@ For controlled Astra deployments, `.deb` is preferred because it avoids the addi
 - **DONE** — APL-IP-002-MAC — macOS stack & dependency sovereignty audit (conditional pass).
 - **DONE** — integration hardening: macOS preflight is wired into the common backend operational gate before new `enable/sync` mutations; recovery/disable remains reachable.
 - **DONE** — local-work reduction: `qa/collect_macos_acceptance_preflight.sh` collects read-only OS/app/DMG/LaunchAgent/rollback-metadata evidence.
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — APL-MAC-008 — real macOS GUI/system-proxy/autostart/crash-recovery acceptance.
-- **LOCAL/NATIVE DEBT** — Gate R9 — close only from APL-MAC-008 real-host evidence.
+- **DONE** — APL-MAC-008 — real macOS GUI/system-proxy/autostart/crash-recovery acceptance.
+- **DONE** — Gate R9 — close only from APL-MAC-008 real-host evidence.
 
 Apple production identity signing/notarization is not a functional correctness gate in the current Russian-first release strategy; it remains a later distribution-policy task unless priorities change.
 
