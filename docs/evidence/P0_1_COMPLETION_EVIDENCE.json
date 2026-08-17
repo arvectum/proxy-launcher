@@ -2,9 +2,9 @@
   "task": "P0.1",
   "product": "Arvectum Proxy Launcher",
   "verification_status": "PASS",
-  "closure_status": "PENDING_FINAL_WINDOWS_SAFE_EJECT_CONFIRMATION",
+  "closure_status": "CLOSED",
   "recorded_date": "2026-08-17",
-  "source": "operator final Windows round-trip report",
+  "source": "operator final Windows round-trip report plus final human safe-eject confirmation",
   "repository": {
     "verification_commit": "1429e55959e9a3940b1f2e03e84f18fa7b05de0c"
   },
@@ -35,7 +35,9 @@
     "software_eject_after_creation_on_macos": "PASS",
     "physical_disconnect_after_creation": true,
     "windows_roundtrip_canonical_verifier": "PASS",
-    "final_windows_safe_eject": "HUMAN_ACTION_REQUIRED"
+    "final_windows_safe_eject": "PASS_HUMAN_CONFIRMED",
+    "final_physical_disconnect": true,
+    "stored_separately_from_primary": true
   },
   "cross_copy": {
     "zip_byte_match": true,
@@ -45,7 +47,5 @@
   "governance": {
     "secrets_in_evidence": false
   },
-  "remaining_before_repository_closure": [
-    "Safely eject ARVECTUM-1 from the Windows verification host, physically unplug it, and return it to separate offline storage."
-  ]
+  "remaining_before_repository_closure": []
 }
