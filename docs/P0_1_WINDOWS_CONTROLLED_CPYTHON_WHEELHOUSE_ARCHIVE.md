@@ -23,6 +23,14 @@ No application runtime dependency is added by P0.1.
 
 As with any offline Sigstore verification, this trades live trust-root freshness for deterministic availability: the verifier uses the latest cached trust root or the root baked into the pinned sigstore-python version. Therefore the governed verifier version remains pinned, and future maintenance may separately archive a refreshed trust configuration if stronger revocation freshness is required for disconnected recovery.
 
+### Traditional installer collision boundary
+
+The traditional python.org Windows full installer is a registered product installer, not a portable extractor. Upstream CPython intentionally does not guarantee an independent side-by-side installation of the same registered feature version. On a developer/acquisition laptop that already has Python `3.12` registered, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation may enter maintenance/modify behavior or fail instead of creating an isolated copy.
+
+That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean-host recovery-install control used by hosted CI and by P0.2. It now fails explicitly when it detects a conflicting registered Python feature version instead of relying on ambiguous bootstrapper behavior.
+
+For wheelhouse acquisition, `tools/prepare_windows_wheelhouse.ps1` may use an existing trusted local CPython only when it is exactly the governed `BUILD_PYTHON_VERSION` (`3.12.10`) and 64-bit. The downloader does not establish artifact integrity: the committed hash lock, exact eight-wheel name allowlist and independent PowerShell SHA-256 checks do. Any mismatch remains fatal.
+
 ## Repository-side tooling added
 
 ### `tools/archive_windows_build_inputs.ps1`
@@ -66,14 +74,12 @@ $ErrorActionPreference = 'Stop'
   -VerifierPython python.exe `
   -OutputDirectory .\artifact\windows-cpython-base
 
-# Install the already verified CPython bootstrap into an isolated build path.
-$ControlledPython = .\tools\install_verified_windows_cpython.ps1 `
-  -VerifiedBaseDirectory .\artifact\windows-cpython-base `
-  -TargetDirectory .\artifact\controlled-python
-
-# Acquire the exact hash-locked Windows wheel set with that controlled CPython.
+# P0.1 does NOT require installing a second registered CPython on this laptop.
+# The wheelhouse acquisition tool itself requires exactly CPython 3.12.10 64-bit
+# and independently validates the exact eight allowed wheel names and hashes.
+$AcquisitionPython = (Get-Command python.exe -ErrorAction Stop).Source
 .\tools\prepare_windows_wheelhouse.ps1 `
-  -PythonExecutable $ControlledPython `
+  -PythonExecutable $AcquisitionPython `
   -OutputDirectory .\artifact\windows-wheelhouse
 
 # Package already-verified bytes. This step itself performs no network access.
@@ -87,6 +93,14 @@ $Archive = .\tools\archive_windows_build_inputs.ps1 `
   -ArchivePath $Archive `
   -RequireCurrentRepositoryLocks
 ```
+
+If the local `python.exe` is not exactly CPython `3.12.10` 64-bit, do **not** weaken the version gate. Use another trusted local `3.12.10` x64 interpreter for acquisition, or perform the acquisition on a clean Windows host. Do not install/modify/uninstall an existing developer Python merely to close P0.1.
+
+## Clean-host recovery-install control
+
+`tools/install_verified_windows_cpython.ps1` is intentionally retained and CI exercises it on a clean Windows hosted runner after Sigstore acquisition. This proves that the archived installer can create the governed runtime when the host is in the recovery state expected by P0.2.
+
+If the script reports an existing CPython feature-version registration, that is a host-state collision, not permission to bypass verification or modify registry state. P0.2 must use a clean independent recovery host (self-hosted runner, VM or equivalent controlled machine) and install only from the controlled P0.1 archive.
 
 ## Controlled-perimeter transfer
 
@@ -114,6 +128,8 @@ P0.1 may be marked **DONE** only when all of the following are evidenced:
 - storage retrieval path/identifier, retention policy and access policy are recorded without secrets;
 - no PyPI/python.org access is required to verify or retrieve the controlled archived build inputs.
 
+Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Recovery installation is a clean-host control exercised by CI and required again during P0.2.
+
 A GitHub Actions artifact, a local staging directory, documentation alone, or a successful hosted build does **not** close P0.1.
 
 ## Evidence to return
@@ -122,6 +138,7 @@ Return a concise report containing:
 
 - exact repository commit SHA used;
 - Windows edition/version and architecture;
+- acquisition Python executable/version/architecture used for the wheelhouse;
 - prepared archive filename, byte size and SHA-256;
 - CPython installer filename and SHA-256 from `cpython-base-manifest.json`;
 - CPython `verification_mode` and expected identity/OIDC issuer;
