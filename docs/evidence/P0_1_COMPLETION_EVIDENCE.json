@@ -1,0 +1,51 @@
+{
+  "task": "P0.1",
+  "product": "Arvectum Proxy Launcher",
+  "verification_status": "PASS",
+  "closure_status": "PENDING_FINAL_WINDOWS_SAFE_EJECT_CONFIRMATION",
+  "recorded_date": "2026-08-17",
+  "source": "operator final Windows round-trip report",
+  "repository": {
+    "verification_commit": "1429e55959e9a3940b1f2e03e84f18fa7b05de0c"
+  },
+  "archive": {
+    "filename": "arvectum-windows-build-inputs-cpython-3.12.10-x64.zip",
+    "bytes": 30996168,
+    "sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886"
+  },
+  "primary": {
+    "role": "Arvectum-controlled Mac mini",
+    "canonical_path": "/Users/Shared/Arvectum/ControlledArtifacts/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/",
+    "retrieved_to_windows": "C:\\Temp\\proxy-launcher-p0-1-primary-roundtrip",
+    "bytes": 30996168,
+    "sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "read_only_uchg_prior_evidence": "PASS",
+    "access_policy_recorded": true,
+    "retention_policy_recorded": true,
+    "roundtrip_canonical_windows_verifier": "PASS"
+  },
+  "offline": {
+    "label": "ARVECTUM-1",
+    "filesystem": "exFAT",
+    "capacity": "16.0 GB",
+    "windows_drive_letter_at_verification": "D:",
+    "windows_path_at_verification": "D:\\ProxyLauncher\\windows-build-inputs\\sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886\\",
+    "bytes": 30996168,
+    "sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "software_eject_after_creation_on_macos": "PASS",
+    "physical_disconnect_after_creation": true,
+    "windows_roundtrip_canonical_verifier": "PASS",
+    "final_windows_safe_eject": "HUMAN_ACTION_REQUIRED"
+  },
+  "cross_copy": {
+    "zip_byte_match": true,
+    "sidecar_byte_match": true,
+    "evidence_byte_match": true
+  },
+  "governance": {
+    "secrets_in_evidence": false
+  },
+  "remaining_before_repository_closure": [
+    "Safely eject ARVECTUM-1 from the Windows verification host, physically unplug it, and return it to separate offline storage."
+  ]
+}
