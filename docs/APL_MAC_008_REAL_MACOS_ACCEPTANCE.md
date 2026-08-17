@@ -1,6 +1,6 @@
 # APL-MAC-008 — Real macOS acceptance
 
-Status: **AUTONOMOUS PREPARATION COMPLETE / REAL HOST EXECUTION PENDING**
+Status: **DONE — REAL HOST PASS**
 
 Gate: **R9 remains OPEN until all required real-host checks below pass on a real Mac in a normal interactive Aqua session.** Hosted CI, mocks and packaging inspection are supporting evidence only.
 

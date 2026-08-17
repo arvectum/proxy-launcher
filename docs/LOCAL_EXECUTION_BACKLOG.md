@@ -117,29 +117,9 @@ Do **not** use test-signing/developer mode as a production workaround.
 
 If path 1 or 2 is chosen, the next local work becomes native install/update/remove ownership, signing, privileged WFP enforcement, loop prevention, crash/reboot rollback and real Windows acceptance.
 
-## P4 — APL-MAC-008 real macOS acceptance + Gate R9
+## P4 — APL-MAC-008 real macOS acceptance + Gate R9 — DONE
 
-Required local boundary: a real Mac with a normal interactive user session.
-
-Start with:
-
-```bash
-bash qa/collect_macos_acceptance_preflight.sh
-```
-
-Then execute the real acceptance matrix, including:
-
-- `.app`/DMG launch and GUI;
-- `networksetup` capability/preflight;
-- enable/sync/disable and exact rollback;
-- LaunchAgent/autostart ownership;
-- crash/restart/reboot recovery;
-- update/remove behavior and user-state preservation;
-- diagnostics/support bundle privacy review.
-
-Gate R9 closes only from real-host evidence.
-
-Apple production signing/notarization remains a later distribution-policy task under the current Russian-first strategy, not a functional correctness gate.
+Closed from real MacBook acceptance evidence on 2026-08-17.
 
 ## P5 — controlled Linux/macOS build-input mirrors
 
