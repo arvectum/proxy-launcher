@@ -1,6 +1,11 @@
 <#
 .SYNOPSIS
     Install an already Sigstore-verified CPython bootstrap into an isolated path.
+.DESCRIPTION
+    This is a recovery/build-host control, not a P0.1 acquisition-laptop prerequisite.
+    The traditional python.org installer may enter maintenance/modify behavior when an
+    equivalent Python installation already exists, so this script is intended for a
+    clean or disposable Windows recovery host.
 #>
 
 [CmdletBinding()]
@@ -30,7 +35,6 @@ if ((Get-Item -LiteralPath $Installer).Length -ne [int64]$Manifest.installer_byt
 
 $Target = [System.IO.Path]::GetFullPath($TargetDirectory)
 if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse -Force }
-New-Item -ItemType Directory -Path $Target -Force | Out-Null
 $Log = Join-Path $Base 'cpython-install.log'
 
 $Arguments = @(
@@ -49,7 +53,11 @@ $Arguments = @(
     "/log", $Log
 )
 $Process = Start-Process -FilePath $Installer -ArgumentList $Arguments -Wait -PassThru
-if ($Process.ExitCode -ne 0) { throw "CPython installer failed with exit code $($Process.ExitCode)" }
+if ($Process.ExitCode -ne 0) {
+    $UnsignedExitCode = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$Process.ExitCode), 0)
+    $ExitCodeHex = '0x{0:X8}' -f $UnsignedExitCode
+    throw "CPython installer failed with exit code $($Process.ExitCode) ($ExitCodeHex). Installer log: $Log"
+}
 
 $Python = Join-Path $Target 'python.exe'
 if (-not (Test-Path -LiteralPath $Python)) { throw 'Installed CPython python.exe not found' }

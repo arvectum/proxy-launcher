@@ -36,7 +36,9 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
     def test_wheelhouse_acquisition_is_hash_verified_and_binary_only(self):
         for token in ('pip download', '--only-binary=:all:', '--no-deps', '--require-hashes'):
             self.assertIn(token, PREPARE)
+        self.assertIn('Wheelhouse acquisition requires CPython', PREPARE)
         self.assertIn('Expected exactly 8 approved wheels', PREPARE)
+        self.assertIn('Get-FileHash', PREPARE)
         self.assertIn('wheelhouse-manifest.json', PREPARE)
 
     def test_cpython_base_identity_is_locked(self):
@@ -66,6 +68,16 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
             'Include_pip=1', 'Include_tcltk=1',
         ):
             self.assertIn(token, INSTALL_BASE)
+
+    def test_verified_cpython_install_is_clean_host_control_with_failure_evidence(self):
+        for token in (
+            'clean or disposable Windows recovery host',
+            'cpython-install.log',
+            '0x{0:X8}',
+            'Installer log:',
+        ):
+            self.assertIn(token, INSTALL_BASE)
+        self.assertNotIn('New-Item -ItemType Directory -Path $Target', INSTALL_BASE)
 
     def test_final_manifest_records_dependency_evidence(self):
         for token in ('dependency_mode', 'hash_lock_sha256', 'wheelhouse_manifest_sha256'):
