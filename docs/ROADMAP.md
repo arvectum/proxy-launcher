@@ -82,8 +82,10 @@ Apple production identity signing/notarization is not a functional correctness g
 - **DONE (P0.1 primary transfer/byte-match sub-gate)** — the exact ZIP, sidecar and evidence JSON were transferred over authenticated private-LAN SCP to the canonical Arvectum-controlled Mac mini directory; remote size is `30,996,168` bytes, remote SHA-256 is the same `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, byte-match with the Windows source is **YES**.
 - **DONE (P0.1 primary sealing sub-gate)** — the three primary artifacts are read-only and `uchg`, the canonical directory is not world-writable, access/retention policy is recorded, and SHA-256 remained `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886` before/after sealing.
 - **DONE (P0.1 removable offline-copy software verification/eject sub-gate)** — the exact three-file governed set was copied to external/removable `ARVECTUM-1` (`exFAT`, `16.0 GB`), ZIP/sidecar/evidence byte-match the primary copy, archive size is `30,996,168`, SHA-256 is `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, `sync` passed, `diskutil eject` passed and the volume was no longer mounted.
-- **DONE (P0.1 physical-disconnection human sub-gate)** — after successful software eject, the human operator physically unplugged `ARVECTUM-1` from the Mac mini on `2026-08-17`; the device is no longer attached to the primary controlled host.
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING — [Win] P0.1** — remaining work is limited to attaching/retrieving the exact offline bytes on Windows, running the final canonical verifier with current repository locks and package-index access disabled, safely ejecting the flash drive and storing it separately from the Mac mini, and producing final non-secret `P0_1_COMPLETION_EVIDENCE.json`. Canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
+- **DONE (P0.1 physical-disconnection human sub-gate)** — after successful software eject, the human operator physically unplugged `ARVECTUM-1` from the Mac mini on `2026-08-17`.
+- **DONE (P0.1 final Windows round-trip verifier)** — `ARVECTUM-1` was read natively on Windows; the offline ZIP and a fresh retrieval of the Mac mini primary copy each reported `30,996,168` bytes and SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`; both passed `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` at repository commit `1429e55959e9a3940b1f2e03e84f18fa7b05de0c`; ZIP, sidecar and evidence files byte-matched across primary/offline copies.
+- **DONE (P0.1 final offline storage human gate)** — after the Windows verifier, the operator safely ejected `ARVECTUM-1`, physically disconnected it and returned it to separate offline storage.
+- **DONE — [Win] P0.1** — controlled Windows build-input archive closure is complete. Final non-secret evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`. Canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
 - **LOCAL/INFRA DEBT — HIGH — [Win] P0.2** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare exact release evidence using only the P0.1 controlled archive.
 - **MEDIUM** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
 
@@ -130,12 +132,11 @@ The remaining execution backlog is maintained in `docs/LOCAL_EXECUTION_BACKLOG.m
 
 ## 6. Immediate remaining execution order
 
-1. **[Win] P0.1 final closure:** connect `ARVECTUM-1` to the Windows verification host, run the canonical verifier with current repository locks and package-index access disabled against the exact offline bytes, safely eject and store the flash drive separately, then write final `P0_1_COMPLETION_EVIDENCE.json`.
-2. **[Win] P0.2 sovereign recovery build:** run an independent endpoint-denied/self-hosted/GitVerse recovery build using only the P0.1 controlled archive and compare release evidence.
-3. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
-4. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
-5. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
-6. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
+1. **[Win] P0.2 sovereign recovery build:** run an independent endpoint-denied/self-hosted/GitVerse recovery build using only the P0.1 controlled archive and compare release evidence.
+2. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
+3. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
+4. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
+5. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
 
 ## Completion rule
 
