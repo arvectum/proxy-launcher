@@ -1,8 +1,8 @@
 # [Win] P0.1 — Arvectum controlled-storage profile
 
-Status: **PRIMARY STORAGE SEALED / OFFLINE-COPY + FINAL VERIFIER PENDING**
+Status: **PRIMARY + OFFLINE COPY VERIFIED / PHYSICAL DISCONNECTION + FINAL VERIFIER PENDING**
 
-This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires the independent offline copy, final canonical verification and completion evidence described below.
+This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires physical disconnection/separate storage of the verified removable copy, final canonical Windows verification and completion evidence described below.
 
 ## Primary controlled perimeter
 
@@ -106,7 +106,7 @@ retention_policy_recorded = YES
 offline_device_available_at_seal_time = NO
 ```
 
-This closes the primary controlled-storage transfer, byte-match and post-ingest sealing sub-gates. P0.1 remains open only for the independent physically separate removable offline copy, its verification/disconnection evidence, final canonical Windows round-trip verification and `P0_1_COMPLETION_EVIDENCE.json`.
+This closes the primary controlled-storage transfer, byte-match and post-ingest sealing sub-gates.
 
 ## Primary access policy
 
@@ -136,36 +136,64 @@ The operator must record `ls -lO` output or equivalent evidence proving the resu
 
 ## Independent offline copy
 
-The second copy must be on a physically separate removable device that is disconnected after verification.
+The second copy is on a physically separate removable device that must be disconnected after verification and stored separately from the Mac mini.
 
-Canonical volume label:
+Governed volume label for the current physical offline device:
 
 ```text
-ARVECTUM-OFFLINE-01
+ARVECTUM-1
 ```
 
-Recommended device format on the Mac mini is an encrypted APFS volume. The encryption password/key is operational secret material and must not appear in Git, evidence JSON or screenshots intended for the repository.
+`ARVECTUM-1` deliberately supersedes the earlier proposed `ARVECTUM-OFFLINE-01` label because the target filesystem/formatting workflow imposed a shorter practical volume-label constraint. The shorter label is the canonical governed identifier for this physical copy.
+
+The current device is an external/removable `16.0 GB` exFAT volume. exFAT is accepted for this P0.1 copy because integrity is anchored by SHA-256 and byte-for-byte comparison, and the cross-platform format allows the final Windows round-trip verifier to read the device natively. Filesystem encryption is not a P0.1 integrity acceptance gate; operational secrets must never appear in Git or evidence.
 
 Canonical offline path:
 
 ```text
-/Volumes/ARVECTUM-OFFLINE-01/ProxyLauncher/windows-build-inputs/sha256-<FULL_ARCHIVE_SHA256>/
+/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-<FULL_ARCHIVE_SHA256>/
 ```
 
 For the current first archive:
 
 ```text
-/Volumes/ARVECTUM-OFFLINE-01/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
+/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
 ```
 
-After copying:
+## Independent offline-copy evidence — PASS (software verification/eject)
 
-1. calculate SHA-256 from the removable device;
-2. require equality with the Windows acquisition-host hash and the Mac mini primary-copy hash;
-3. verify the archive structure using the repository verifier after retrieving the exact offline bytes back to a Windows verification location, or otherwise perform an equivalent byte-for-byte verification followed by the canonical Windows verifier;
-4. eject the removable volume cleanly;
-5. physically disconnect the device;
-6. store it separately from the Mac mini.
+Date: `2026-08-17`
+
+The governed three-file archive set was copied from the sealed Mac mini primary store to the physically separate removable volume and verified from the volume itself before software eject.
+
+Recorded facts:
+
+```text
+offline_copy_execution_repository_commit = 8e5c87e01d085e1c085a2db1746e1c83ae4ff8b4
+offline_physical_identifier_at_execution = /dev/disk4
+offline_partition_identifier_at_execution = disk4s1
+offline_device_label = ARVECTUM-1
+offline_filesystem = exFAT
+offline_capacity = 16.0 GB
+offline_mount_point_before_eject = /Volumes/ARVECTUM-1
+offline_external_removable = YES
+offline_archive_bytes = 30996168
+offline_archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+offline_zip_byte_match_primary = YES
+offline_sidecar_byte_match_primary = YES
+offline_evidence_byte_match_primary = YES
+secrets_introduced = NO
+sync_completed = YES
+final_pre_eject_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+diskutil_eject = PASS
+volume_mounted_after_eject = NO
+physical_disconnection = PENDING_HUMAN_OPERATOR
+stored_separately_from_primary = PENDING_HUMAN_OPERATOR
+```
+
+The `/dev/disk4` and `disk4s1` identifiers are execution-time observations only and are not permanent device identities; they may change on future attachment. The governed identity is the volume label `ARVECTUM-1`, the canonical archive path and the exact archive SHA-256.
+
+After software eject, the human operator must physically unplug `ARVECTUM-1` and store it separately from the Mac mini. After that human fact is confirmed, retrieve the exact offline bytes on Windows and run the canonical verifier.
 
 A continuously connected development/work SSD, another directory on the Mac mini, a GitHub artifact, Downloads/Desktop, or a synchronized public-cloud folder does **not** satisfy the independent offline-copy gate.
 
@@ -203,12 +231,14 @@ Primary controlled storage must report:
 
 Independent offline copy must report:
 
-- device label `ARVECTUM-OFFLINE-01` or a deliberately substituted governed identifier;
+- device label `ARVECTUM-1`;
 - canonical filesystem identifier;
 - exact archive SHA-256;
 - byte-match with primary: `YES`;
 - physically disconnected after verification: `YES`;
 - stored separately from the primary Mac mini: `YES`.
+
+Final verification must report canonical Windows verifier **PASS** against the exact controlled/retrieved bytes and final `P0_1_COMPLETION_EVIDENCE.json` must contain no secrets.
 
 Only after all of those facts are real and evidenced may the final record state:
 
