@@ -25,9 +25,9 @@ As with any offline Sigstore verification, this trades live trust-root freshness
 
 ### Traditional installer collision boundary
 
-The traditional python.org Windows full installer is a registered product installer, not a portable extractor. Upstream CPython intentionally does not guarantee an independent side-by-side installation of the same registered feature version. On a developer/acquisition laptop that already has Python `3.12` registered, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation may enter maintenance/modify behavior or fail instead of creating an isolated copy.
+The traditional python.org Windows full installer is a registered product installer, not a portable extractor. Upstream CPython intentionally does not guarantee an independent side-by-side installation of the same registered feature version. On a developer/acquisition laptop that already has an equivalent traditional Python installation, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation may enter maintenance/modify behavior or fail instead of creating an isolated copy.
 
-That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean-host recovery-install control used by hosted CI and by P0.2. It now fails explicitly when it detects a conflicting registered Python feature version instead of relying on ambiguous bootstrapper behavior.
+That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean/disposable-host recovery-install control used by hosted CI and by P0.2. It does not infer collisions from PEP 514 registry entries alone, because tool-managed Python distributions may register those entries without representing the same traditional installer product. On a real installer failure it records the installer log and reports both decimal and hexadecimal exit-code forms.
 
 For wheelhouse acquisition, `tools/prepare_windows_wheelhouse.ps1` may use an existing trusted local CPython only when it is exactly the governed `BUILD_PYTHON_VERSION` (`3.12.10`) and 64-bit. The downloader does not establish artifact integrity: the committed hash lock, exact eight-wheel name allowlist and independent PowerShell SHA-256 checks do. Any mismatch remains fatal.
 
@@ -98,9 +98,9 @@ If the local `python.exe` is not exactly CPython `3.12.10` 64-bit, do **not** we
 
 ## Clean-host recovery-install control
 
-`tools/install_verified_windows_cpython.ps1` is intentionally retained and CI exercises it on a clean Windows hosted runner after Sigstore acquisition. This proves that the archived installer can create the governed runtime when the host is in the recovery state expected by P0.2.
+`tools/install_verified_windows_cpython.ps1` is intentionally retained and CI exercises it on a Windows hosted runner after Sigstore acquisition. This proves that the archived installer can create the governed runtime in the disposable recovery-style environment used by the test.
 
-If the script reports an existing CPython feature-version registration, that is a host-state collision, not permission to bypass verification or modify registry state. P0.2 must use a clean independent recovery host (self-hosted runner, VM or equivalent controlled machine) and install only from the controlled P0.1 archive.
+P0.2 must repeat the install from the controlled P0.1 archive on an independent clean/disposable recovery host (self-hosted runner, VM or equivalent controlled machine). If the traditional installer fails there, preserve `cpython-install.log` and the exact decimal/hex exit code; do not modify registry state or weaken verification to force the install.
 
 ## Controlled-perimeter transfer
 
@@ -128,7 +128,7 @@ P0.1 may be marked **DONE** only when all of the following are evidenced:
 - storage retrieval path/identifier, retention policy and access policy are recorded without secrets;
 - no PyPI/python.org access is required to verify or retrieve the controlled archived build inputs.
 
-Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Recovery installation is a clean-host control exercised by CI and required again during P0.2.
+Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Recovery installation is a clean/disposable-host control exercised by CI and required again during P0.2.
 
 A GitHub Actions artifact, a local staging directory, documentation alone, or a successful hosted build does **not** close P0.1.
 
