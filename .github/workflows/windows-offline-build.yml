@@ -47,11 +47,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # This interpreter is only the verifier bootstrap. It is not used to build
-      # the product after the official CPython installer is independently verified.
+      # Deliberately newer than the governed build runtime. This interpreter is only
+      # the verifier/acquisition transport and proves that P0.1 wheel acquisition is
+      # cross-targeted rather than coupled to a local CPython 3.12.10 installation.
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12.10'
+          python-version: '3.14.7'
           architecture: 'x64'
 
       - name: Contract tests
@@ -71,13 +72,18 @@ jobs:
           "base=$base" >> $env:GITHUB_OUTPUT
           "python=$python" >> $env:GITHUB_OUTPUT
 
-      - name: Acquire and hash-verify exact wheelhouse
+      - name: Acquire exact CPython 3.12 Windows wheelhouse from Python 3.14 transport
         id: wheelhouse
         shell: pwsh
         run: |
-          $path = & .\tools\prepare_windows_wheelhouse.ps1 -PythonExecutable '${{ steps.cpython.outputs.python }}' -OutputDirectory "$env:RUNNER_TEMP\apl-wheelhouse"
-          if ($LASTEXITCODE -ne 0) { throw 'wheelhouse acquisition failed' }
+          $path = & .\tools\prepare_windows_wheelhouse.ps1 -PythonExecutable python.exe -OutputDirectory "$env:RUNNER_TEMP\apl-wheelhouse"
+          if ($LASTEXITCODE -ne 0) { throw 'cross-target wheelhouse acquisition failed' }
           $resolved = ($path | Select-Object -Last 1).Trim()
+          $manifest = Get-Content (Join-Path $resolved 'wheelhouse-manifest.json') -Raw | ConvertFrom-Json
+          if ($manifest.python_version -ne '3.12.10') { throw 'wheelhouse target Python version is not 3.12.10' }
+          if ($manifest.target_pip_platform -ne 'win_amd64') { throw 'wheelhouse target pip platform is not win_amd64' }
+          if ($manifest.target_abi -ne 'cp312') { throw 'wheelhouse target ABI is not cp312' }
+          if ($manifest.acquisition_python_version -ne '3.14.7') { throw 'CI did not prove acquisition from Python 3.14.7' }
           "path=$resolved" >> $env:GITHUB_OUTPUT
 
       - name: Package and offline-verify P0.1 controlled archive contract

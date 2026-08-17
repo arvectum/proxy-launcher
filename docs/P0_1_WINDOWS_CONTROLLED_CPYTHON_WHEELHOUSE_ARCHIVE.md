@@ -25,11 +25,27 @@ As with any offline Sigstore verification, this trades live trust-root freshness
 
 ### Traditional installer collision boundary
 
-The traditional python.org Windows full installer is a registered product installer, not a portable extractor. Upstream CPython intentionally does not guarantee an independent side-by-side installation of the same registered feature version. On a developer/acquisition laptop that already has an equivalent traditional Python installation, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation may enter maintenance/modify behavior or fail instead of creating an isolated copy.
+The traditional python.org Windows full installer is a registered product installer, not a portable extractor. On a developer/acquisition laptop that already has an equivalent registered Python installation, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation can enter maintenance/modify behavior or fail instead of creating an isolated copy.
 
-That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean/disposable-host recovery-install control used by hosted CI and by P0.2. It does not infer collisions from PEP 514 registry entries alone, because tool-managed Python distributions may register those entries without representing the same traditional installer product. On a real installer failure it records the installer log and reports both decimal and hexadecimal exit-code forms.
+That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean/disposable-host recovery-install control used by hosted CI and by P0.2. On a real installer failure it records the installer log and reports both decimal and hexadecimal exit-code forms.
 
-For wheelhouse acquisition, `tools/prepare_windows_wheelhouse.ps1` may use an existing trusted local CPython only when it is exactly the governed `BUILD_PYTHON_VERSION` (`3.12.10`) and 64-bit. The downloader does not establish artifact integrity: the committed hash lock, exact eight-wheel name allowlist and independent PowerShell SHA-256 checks do. Any mismatch remains fatal.
+### Acquisition interpreter vs governed target interpreter
+
+The Python executable that runs `pip download` is only an **acquisition transport**. It does not define which wheels enter the archive.
+
+`tools/prepare_windows_wheelhouse.ps1` explicitly supplies all cross-target compatibility dimensions to pip:
+
+- `--platform win_amd64`;
+- `--python-version 3.12.10` (from `BUILD_PYTHON_VERSION`);
+- `--implementation cp`;
+- `--abi cp312`;
+- `--only-binary=:all:`;
+- `--no-deps`;
+- `--require-hashes`.
+
+Therefore a trusted local CPython such as `3.14.7` may perform acquisition without being the governed build runtime. The output is accepted only if it still contains exactly the eight committed wheel filenames and every wheel independently matches the committed SHA-256 lock. The wheelhouse manifest records both the governed target tags and the acquisition Python/pip versions.
+
+The controlled offline product build itself still uses verified CPython `3.12.10` x64. Hosted CI deliberately acquires the governed 3.12 wheelhouse from CPython `3.14.7`, then builds the product with the separately verified/installed CPython `3.12.10`, proving this separation.
 
 ## Repository-side tooling added
 
@@ -69,15 +85,16 @@ Run from a clean Windows x64 checkout of the exact P0.1 commit/PR after reposito
 ```powershell
 $ErrorActionPreference = 'Stop'
 
-# Existing trusted local Python is used only to acquire/verify the locked CPython bootstrap.
+# Existing trusted local Python is used only to acquire/verify governed bytes.
+$AcquisitionPython = (Get-Command python.exe -ErrorAction Stop).Source
+
 .\tools\prepare_windows_cpython_base.ps1 `
-  -VerifierPython python.exe `
+  -VerifierPython $AcquisitionPython `
   -OutputDirectory .\artifact\windows-cpython-base
 
 # P0.1 does NOT require installing a second registered CPython on this laptop.
-# The wheelhouse acquisition tool itself requires exactly CPython 3.12.10 64-bit
-# and independently validates the exact eight allowed wheel names and hashes.
-$AcquisitionPython = (Get-Command python.exe -ErrorAction Stop).Source
+# The downloader explicitly targets CPython 3.12.10 / win_amd64 / cp312 even
+# when the acquisition interpreter is a newer trusted CPython such as 3.14.7.
 .\tools\prepare_windows_wheelhouse.ps1 `
   -PythonExecutable $AcquisitionPython `
   -OutputDirectory .\artifact\windows-wheelhouse
@@ -94,7 +111,7 @@ $Archive = .\tools\archive_windows_build_inputs.ps1 `
   -RequireCurrentRepositoryLocks
 ```
 
-If the local `python.exe` is not exactly CPython `3.12.10` 64-bit, do **not** weaken the version gate. Use another trusted local `3.12.10` x64 interpreter for acquisition, or perform the acquisition on a clean Windows host. Do not install/modify/uninstall an existing developer Python merely to close P0.1.
+The acquisition interpreter does **not** have to equal `BUILD_PYTHON_VERSION`. It must be a working trusted CPython with pip. Any incompatibility in cross-target acquisition remains fail-closed because pip must satisfy the explicit 3.12.10/win_amd64/cp312 target and the output must subsequently pass the exact filename and SHA-256 allowlists.
 
 ## Clean-host recovery-install control
 
@@ -118,8 +135,9 @@ After copying, run `tools/verify_windows_build_input_archive.ps1` directly again
 
 P0.1 may be marked **DONE** only when all of the following are evidenced:
 
-- CPython is exactly `3.12.10` x64 and its acquisition manifest records `sigstore-identity-pass`;
+- the archived CPython installer is exactly `3.12.10` x64 and its acquisition manifest records `sigstore-identity-pass`;
 - CPython identity verification used the governed offline bundle mode and expected identity/OIDC issuer;
+- wheelhouse target metadata is exactly CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`;
 - the wheelhouse contains exactly the eight governed wheels and byte-matches the committed SHA-256 lock;
 - the self-contained ZIP passes the offline verifier;
 - the archive SHA-256 recorded at creation exactly matches the controlled-storage copy/retrieval;
@@ -128,7 +146,7 @@ P0.1 may be marked **DONE** only when all of the following are evidenced:
 - storage retrieval path/identifier, retention policy and access policy are recorded without secrets;
 - no PyPI/python.org access is required to verify or retrieve the controlled archived build inputs.
 
-Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Recovery installation is a clean/disposable-host control exercised by CI and required again during P0.2.
+Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Equality between acquisition-Python version and target-Python version is also **not** a gate. Recovery installation is a clean/disposable-host control exercised by CI and required again during P0.2.
 
 A GitHub Actions artifact, a local staging directory, documentation alone, or a successful hosted build does **not** close P0.1.
 
@@ -138,7 +156,8 @@ Return a concise report containing:
 
 - exact repository commit SHA used;
 - Windows edition/version and architecture;
-- acquisition Python executable/version/architecture used for the wheelhouse;
+- acquisition Python executable/version/architecture and pip version used for the wheelhouse;
+- governed target tags from `wheelhouse-manifest.json`;
 - prepared archive filename, byte size and SHA-256;
 - CPython installer filename and SHA-256 from `cpython-base-manifest.json`;
 - CPython `verification_mode` and expected identity/OIDC issuer;

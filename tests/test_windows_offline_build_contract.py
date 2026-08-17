@@ -33,13 +33,17 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
         self.assertIn('pip==26.1.2', BUILD)
         self.assertNotIn('pip==25.3', BUILD)
 
-    def test_wheelhouse_acquisition_is_hash_verified_and_binary_only(self):
-        for token in ('pip download', '--only-binary=:all:', '--no-deps', '--require-hashes'):
+    def test_wheelhouse_acquisition_is_hash_verified_binary_only_and_cross_targeted(self):
+        for token in (
+            'pip download', '--only-binary=:all:', '--no-deps', '--require-hashes',
+            '--platform', '--python-version', '--implementation', '--abi',
+            "'win_amd64'", "'cp'", 'TargetAbi',
+            'Expected exactly 8 approved wheels', 'Get-FileHash',
+            'SHA256 mismatch after download', 'wheelhouse-manifest.json',
+            'acquisition_python_version', 'target_pip_platform', 'target_abi',
+        ):
             self.assertIn(token, PREPARE)
-        self.assertIn('Wheelhouse acquisition requires CPython', PREPARE)
-        self.assertIn('Expected exactly 8 approved wheels', PREPARE)
-        self.assertIn('Get-FileHash', PREPARE)
-        self.assertIn('wheelhouse-manifest.json', PREPARE)
+        self.assertNotIn('Wheelhouse acquisition requires CPython $ExpectedVersion 64-bit', PREPARE)
 
     def test_cpython_base_identity_is_locked(self):
         for token in (
