@@ -10,7 +10,7 @@ This file contains only work that cannot be truthfully completed by hosted repos
 
 ### P0.1 Archive controlled build inputs
 
-Status: **LOCAL ACQUISITION/VERIFICATION COMPLETE / CONTROLLED-STORAGE + OFFLINE-COPY ACCEPTANCE PENDING**.
+Status: **PRIMARY CONTROLLED STORAGE COMPLETE / OFFLINE COPY + FINAL VERIFIER PENDING**.
 
 Repository-side preparation is complete:
 
@@ -33,18 +33,30 @@ Completed local acquisition/verification sub-gate:
 - CPython installer: `python-3.12.10-amd64.exe`, SHA-256 `67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb`, Sigstore offline-bundle identity verification **PASS**;
 - wheelhouse target: CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, exactly eight governed wheels, hash-lock SHA-256 `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`, verification **PASS**.
 
+Completed primary controlled-storage sub-gate:
+
+- exact governed ZIP, sidecar and evidence JSON transferred over authenticated private-LAN SCP to the canonical Arvectum-controlled Mac mini directory;
+- primary archive bytes: `30996168`;
+- primary SHA-256 before seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- primary SHA-256 after seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- byte identity preserved: **YES**;
+- all three source artifacts read-only: **YES**;
+- all three source artifacts `uchg`: **YES**;
+- primary directory world-writable: **NO**;
+- access policy recorded: **YES**;
+- retention policy recorded: **YES**;
+- sealing repository commit: `f8e420d0ecd2495afbd88b0dedb3a60435f95fd0`.
+
 Remaining local/infrastructure boundary:
 
-- transfer the exact governed ZIP, `.sha256` sidecar and `.evidence.json` from the Windows acquisition host into the canonical Mac mini primary directory under `sha256-4a55f101...`;
-- verify the Mac mini primary copy is byte-identical to SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- make the three source artifacts read-only/immutable per the storage profile and record non-secret proof;
-- create the independent copy on a physically separate removable device, verify the same SHA-256, eject and physically disconnect it, and store it separately from the Mac mini;
-- produce final `P0_1_COMPLETION_EVIDENCE.json` containing storage identifiers, hashes, access/retention policy status and no secrets;
-- re-run the canonical Windows archive verifier against the controlled/retrieved bytes as required by the storage profile.
+- attach a physically separate removable device; the continuously attached `ArvectumSSD` does not qualify;
+- create the governed offline copy under the `ARVECTUM-OFFLINE-01` identifier (or an explicitly substituted governed identifier), verify SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, eject and physically disconnect it, and store it separately from the Mac mini;
+- re-run the canonical Windows archive verifier against exact controlled/retrieved primary and offline bytes as required by the storage profile;
+- produce final `P0_1_COMPLETION_EVIDENCE.json` containing storage identifiers, hashes, access/retention policy status, verifier results and no secrets.
 
 Acceptance:
 
-- the controlled copy byte-matches the locally verified archive SHA-256;
+- the sealed primary controlled copy byte-matches the locally verified archive SHA-256;
 - the archive passes `tools/verify_windows_build_input_archive.ps1` without network access from the controlled/retrieved bytes;
 - a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
 - the independent offline copy byte-matches the primary controlled copy and is physically disconnected after verification;
