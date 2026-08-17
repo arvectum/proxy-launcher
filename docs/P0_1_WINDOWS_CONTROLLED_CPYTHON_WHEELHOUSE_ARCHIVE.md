@@ -1,8 +1,8 @@
 # [Win] P0.1 — controlled CPython + wheelhouse archive
 
-Status: **AUTONOMOUS PREPARATION COMPLETE / LOCAL-INFRA ACCEPTANCE PENDING**
+Status: **DONE / P0.1 CLOSED 2026-08-17**
 
-P0.1 closes the remaining Windows build-input archival boundary. Repository-side acquisition, pinning and offline/hash-locked build controls already existed; this task adds the missing self-contained archive and offline verification layer needed before the bytes are moved into an Arvectum/Russian-controlled artifact perimeter.
+P0.1 closes the Windows build-input archival boundary. Repository-side acquisition, pinning and offline/hash-locked build controls are backed by a self-contained archive, an Arvectum-controlled primary copy, a physically separate removable offline copy and final Windows round-trip verification.
 
 ## Governed inputs
 
@@ -19,52 +19,37 @@ No application runtime dependency is added by P0.1.
 
 ### Sigstore network boundary
 
-`prepare_windows_cpython_base.ps1` downloads the governed CPython installer and its official `.sigstore` bundle, but the identity verification itself is explicitly executed with `sigstore verify identity --offline`. For bundle verification, this prevents an unrelated TUF metadata refresh from becoming a release-recovery availability dependency while retaining the signature, certificate identity/OIDC issuer and bundled transparency evidence checks. The manifest records `verification_mode=offline-bundle` and the trust-root source used by sigstore-python.
-
-As with any offline Sigstore verification, this trades live trust-root freshness for deterministic availability: the verifier uses the latest cached trust root or the root baked into the pinned sigstore-python version. Therefore the governed verifier version remains pinned, and future maintenance may separately archive a refreshed trust configuration if stronger revocation freshness is required for disconnected recovery.
+`prepare_windows_cpython_base.ps1` downloads the governed CPython installer and its official `.sigstore` bundle, but identity verification is explicitly executed with `sigstore verify identity --offline`. This prevents a live TUF refresh from becoming a recovery availability dependency while retaining signature, certificate identity/OIDC issuer and bundled transparency evidence checks. The manifest records `verification_mode=offline-bundle` and the trust-root source used by sigstore-python.
 
 ### Traditional installer collision boundary
 
-The traditional python.org Windows full installer is a registered product installer, not a portable extractor. On a developer/acquisition laptop that already has an equivalent registered Python installation, a second `python-3.12.10-amd64.exe /quiet TargetDir=...` invocation can enter maintenance/modify behavior or fail instead of creating an isolated copy.
-
-That machine state is **not a P0.1 acceptance requirement**. P0.1 archives the already Sigstore-verified CPython installer bytes; it does not require installing those bytes on the acquisition laptop. `tools/install_verified_windows_cpython.ps1` remains the canonical clean/disposable-host recovery-install control used by hosted CI and by P0.2. On a real installer failure it records the installer log and reports both decimal and hexadecimal exit-code forms.
+The python.org Windows full installer is a registered product installer, not a portable extractor. A developer/acquisition laptop with an equivalent registered Python installation is therefore not required to install the archived interpreter during P0.1. `tools/install_verified_windows_cpython.ps1` remains the canonical clean/disposable-host recovery-install control for P0.2.
 
 ### Acquisition interpreter vs governed target interpreter
 
-The Python executable that runs `pip download` is only an **acquisition transport**. It does not define which wheels enter the archive.
-
-`tools/prepare_windows_wheelhouse.ps1` explicitly supplies all cross-target compatibility dimensions to pip:
+The Python executable that runs `pip download` is only an acquisition transport. `tools/prepare_windows_wheelhouse.ps1` explicitly targets:
 
 - `--platform win_amd64`;
-- `--python-version 3.12.10` (from `BUILD_PYTHON_VERSION`);
+- `--python-version 3.12.10`;
 - `--implementation cp`;
 - `--abi cp312`;
 - `--only-binary=:all:`;
 - `--no-deps`;
 - `--require-hashes`.
 
-Therefore a trusted local CPython such as `3.14.7` may perform acquisition without being the governed build runtime. The output is accepted only if it still contains exactly the eight committed wheel filenames and every wheel independently matches the committed SHA-256 lock. The wheelhouse manifest records both the governed target tags and the acquisition Python/pip versions.
+A newer trusted CPython can therefore perform acquisition, while the controlled product build itself still uses verified CPython `3.12.10` x64.
 
-The controlled offline product build itself still uses verified CPython `3.12.10` x64. Hosted CI deliberately acquires the governed 3.12 wheelhouse from CPython `3.14.7`, then builds the product with the separately verified/installed CPython `3.12.10`, proving this separation.
-
-## Repository-side tooling added
+## Repository-side tooling
 
 ### `tools/archive_windows_build_inputs.ps1`
 
-Network-free packager that:
+Network-free packager that re-checks CPython/wheelhouse manifests and hashes, copies only governed files, embeds governance locks, emits `controlled-archive-manifest.json`, and produces one ZIP plus SHA-256 sidecar and preparation evidence JSON.
 
-1. re-checks the CPython acquisition manifest, installer size/SHA-256 and Sigstore-verification result;
-2. re-checks `wheelhouse-manifest.json`, the committed hash-lock digest and all eight wheel sizes/SHA-256 values;
-3. copies only governed files into a clean staging tree;
-4. embeds the four governance locks required to identify the build-input set;
-5. emits `controlled-archive-manifest.json` with every payload path, size and SHA-256;
-6. creates one ZIP plus a SHA-256 sidecar and a local preparation evidence JSON.
+Canonical archive name:
 
-Default archive name:
-
-`arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`
-
-The local preparation evidence intentionally reports `ARCHIVE_PREPARED_NOT_YET_CONTROLLED_PERIMETER_PROVEN`; creating the ZIP on the build laptop alone does not close P0.1.
+```text
+arvectum-windows-build-inputs-cpython-3.12.10-x64.zip
+```
 
 ### `tools/verify_windows_build_input_archive.ps1`
 
@@ -73,101 +58,116 @@ Network-free verifier that:
 - verifies the ZIP against its SHA-256 sidecar before extraction;
 - rejects missing/unexpected payload files;
 - verifies every payload byte against `controlled-archive-manifest.json`;
-- re-verifies the nested CPython and wheelhouse manifests;
+- re-verifies nested CPython and wheelhouse manifests;
 - requires exactly eight governed wheels;
 - validates archived governance locks;
-- with `-RequireCurrentRepositoryLocks`, requires the archived locks to byte-match the current checkout.
+- with `-RequireCurrentRepositoryLocks`, requires archived locks to byte-match the current checkout.
 
-## Local acquisition and archive preparation
+## Governed archive identity
 
-Run from a clean Windows x64 checkout of the exact P0.1 commit/PR after repository checks pass.
+```text
+archive = arvectum-windows-build-inputs-cpython-3.12.10-x64.zip
+archive_bytes = 30996168
+archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+cpython_version = 3.12.10
+cpython_architecture = x64
+cpython_installer = python-3.12.10-amd64.exe
+cpython_installer_sha256 = 67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb
+cpython_sigstore_verification = PASS
+cpython_verification_mode = offline-bundle
+wheelhouse_platform = win_amd64
+wheelhouse_implementation = cp
+wheelhouse_abi = cp312
+wheel_count = 8
+wheelhouse_hash_lock_sha256 = 6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943
+```
+
+## Controlled primary storage — PASS
+
+Canonical Arvectum-controlled primary directory:
+
+```text
+/Users/Shared/Arvectum/ControlledArtifacts/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
+```
+
+The exact ZIP, sidecar and preparation evidence JSON were transferred over authenticated private-LAN SCP, byte-matched the Windows source, and the three source files were then made read-only and `uchg`. The primary directory is not world-writable. Access and retention policies are recorded in `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
+
+## Independent removable offline copy — PASS
+
+Governed device label:
+
+```text
+ARVECTUM-1
+```
+
+Device characteristics at creation:
+
+```text
+filesystem = exFAT
+capacity = 16.0 GB
+external_removable = YES
+```
+
+Canonical macOS path used during creation:
+
+```text
+/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
+```
+
+The ZIP, sidecar and evidence byte-matched the primary copy, SHA-256 was verified from the removable device, `sync` passed, macOS software eject passed, and the device was physically disconnected from the primary host.
+
+## Final Windows round-trip verification — PASS
+
+Verification repository commit:
+
+```text
+1429e55959e9a3940b1f2e03e84f18fa7b05de0c
+```
+
+The exact offline bytes on `ARVECTUM-1` and a fresh retrieval of the Mac mini primary copy were both verified on Windows with package-index access disabled and:
 
 ```powershell
-$ErrorActionPreference = 'Stop'
-
-# Existing trusted local Python is used only to acquire/verify governed bytes.
-$AcquisitionPython = (Get-Command python.exe -ErrorAction Stop).Source
-
-.\tools\prepare_windows_cpython_base.ps1 `
-  -VerifierPython $AcquisitionPython `
-  -OutputDirectory .\artifact\windows-cpython-base
-
-# P0.1 does NOT require installing a second registered CPython on this laptop.
-# The downloader explicitly targets CPython 3.12.10 / win_amd64 / cp312 even
-# when the acquisition interpreter is a newer trusted CPython such as 3.14.7.
-.\tools\prepare_windows_wheelhouse.ps1 `
-  -PythonExecutable $AcquisitionPython `
-  -OutputDirectory .\artifact\windows-wheelhouse
-
-# Package already-verified bytes. This step itself performs no network access.
-$Archive = .\tools\archive_windows_build_inputs.ps1 `
-  -CpythonBaseDirectory .\artifact\windows-cpython-base `
-  -WheelhouseDirectory .\artifact\windows-wheelhouse `
-  -OutputDirectory .\artifact\p0-1
-
-# Verify the prepared archive offline and require governance-lock byte equality.
 .\tools\verify_windows_build_input_archive.ps1 `
-  -ArchivePath $Archive `
+  -ArchivePath <exact-controlled-zip> `
   -RequireCurrentRepositoryLocks
 ```
 
-The acquisition interpreter does **not** have to equal `BUILD_PYTHON_VERSION`. It must be a working trusted CPython with pip. Any incompatibility in cross-target acquisition remains fail-closed because pip must satisfy the explicit 3.12.10/win_amd64/cp312 target and the output must subsequently pass the exact filename and SHA-256 allowlists.
+Both returned:
 
-## Clean-host recovery-install control
+```text
+P0.1 CONTROLLED ARCHIVE VERIFICATION: PASS
+```
 
-`tools/install_verified_windows_cpython.ps1` is intentionally retained and CI exercises it on a Windows hosted runner after Sigstore acquisition. This proves that the archived installer can create the governed runtime in the disposable recovery-style environment used by the test.
+Both ZIPs reported `30996168` bytes and SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`. ZIP, sidecar and evidence files byte-matched between retrieved primary and offline copies.
 
-P0.2 must repeat the install from the controlled P0.1 archive on an independent clean/disposable recovery host (self-hosted runner, VM or equivalent controlled machine). If the traditional installer fails there, preserve `cpython-install.log` and the exact decimal/hex exit code; do not modify registry state or weaken verification to force the install.
+After the verifier, the operator safely ejected `ARVECTUM-1` from Windows, physically disconnected it and returned it to separate offline storage.
 
-## Controlled-perimeter transfer
+## P0.1 acceptance — CLOSED
 
-The operator must copy all three files produced for the archive into the chosen Arvectum/Russian-controlled storage location:
+All acceptance requirements are evidenced:
 
-- the ZIP;
-- `<archive>.zip.sha256`;
-- `<archive>.zip.evidence.json`.
+- exact CPython `3.12.10` x64 installer identity and Sigstore offline-bundle verification: **PASS**;
+- exact eight-wheel CPython `3.12.10` / `win_amd64` / `cp312` wheelhouse: **PASS**;
+- self-contained ZIP offline verifier: **PASS**;
+- controlled primary archive byte identity: **PASS**;
+- primary access/retention/sealing controls: **PASS**;
+- separate removable offline copy: **PASS**;
+- final Windows canonical verifier against offline bytes: **PASS**;
+- final Windows canonical verifier against retrieved primary bytes: **PASS**;
+- primary/offline ZIP, sidecar and evidence byte-match: **PASS**;
+- final safe eject, physical disconnect and separate storage: **PASS**;
+- secrets in final evidence: **NO**.
 
-The controlled storage copy must have an explicit retrieval path/identifier, access policy, retention policy and a second offline copy location. Secrets/credentials must not be placed in the evidence record.
+```text
+P0.1 CLOSED: YES
+```
 
-After copying, run `tools/verify_windows_build_input_archive.ps1` directly against the controlled-storage copy (or against a fresh byte-for-byte retrieval from it), with public package endpoints unavailable during verification.
+Canonical completion evidence:
 
-## P0.1 acceptance
+```text
+docs/evidence/P0_1_COMPLETION_EVIDENCE.json
+```
 
-P0.1 may be marked **DONE** only when all of the following are evidenced:
+## Next action
 
-- the archived CPython installer is exactly `3.12.10` x64 and its acquisition manifest records `sigstore-identity-pass`;
-- CPython identity verification used the governed offline bundle mode and expected identity/OIDC issuer;
-- wheelhouse target metadata is exactly CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`;
-- the wheelhouse contains exactly the eight governed wheels and byte-matches the committed SHA-256 lock;
-- the self-contained ZIP passes the offline verifier;
-- the archive SHA-256 recorded at creation exactly matches the controlled-storage copy/retrieval;
-- the archive and sidecar are stored inside the selected Arvectum/Russian-controlled perimeter;
-- a separate offline copy location is recorded;
-- storage retrieval path/identifier, retention policy and access policy are recorded without secrets;
-- no PyPI/python.org access is required to verify or retrieve the controlled archived build inputs.
-
-Local installation of the CPython installer on the acquisition laptop is **not** a P0.1 acceptance gate. Equality between acquisition-Python version and target-Python version is also **not** a gate. Recovery installation is a clean/disposable-host control exercised by CI and required again during P0.2.
-
-A GitHub Actions artifact, a local staging directory, documentation alone, or a successful hosted build does **not** close P0.1.
-
-## Evidence to return
-
-Return a concise report containing:
-
-- exact repository commit SHA used;
-- Windows edition/version and architecture;
-- acquisition Python executable/version/architecture and pip version used for the wheelhouse;
-- governed target tags from `wheelhouse-manifest.json`;
-- prepared archive filename, byte size and SHA-256;
-- CPython installer filename and SHA-256 from `cpython-base-manifest.json`;
-- CPython `verification_mode` and expected identity/OIDC issuer;
-- wheel count and hash-lock SHA-256 from `wheelhouse-manifest.json`;
-- offline verifier final PASS output;
-- controlled storage type and non-secret retrieval path/identifier;
-- offline-copy type/path identifier;
-- access/retention policy summary;
-- explicit statement whether P0.1 is fully closed.
-
-## Next action after P0.1 PASS
-
-**[Win] P0.2 — independent endpoint-denied sovereign recovery build.** Use only the controlled P0.1 archive as the CPython/wheelhouse source, deny public package endpoints during install/build, produce portable + installer + release evidence/SBOM, and compare the resulting release evidence with the canonical candidate.
+**[Win] P0.2 — independent endpoint-denied sovereign recovery build.** Use only the controlled P0.1 archive as the CPython/wheelhouse source, deny public package endpoints during install/build, produce portable + installer + release evidence/SBOM, and compare resulting release evidence with the canonical candidate.
