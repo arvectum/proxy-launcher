@@ -2,9 +2,41 @@
 
 Status: **REQUIRED / LOCAL-INFRASTRUCTURE BLOCKER**.
 
-The endpoint-denied portable recovery proof cannot start on the current execution host because Windows Sandbox is unavailable/managed and no pre-existing clean/disposable Windows x64 VM is available. The recorded blocker is `NO_DISPOSABLE_WINDOWS_RECOVERY_ENVIRONMENT`.
+The endpoint-denied portable recovery proof cannot start on the current execution host. The first attempt established that Windows Sandbox is unavailable/managed and no pre-existing clean/disposable Windows x64 VM exists. The follow-up provisioning audit then found a stronger host-level blocker: hardware virtualization and SLAT were reported unavailable/disabled, Hyper-V is unavailable on the reported Home edition, no third-party hypervisor is installed, and no Windows installation ISO is staged.
 
-This is not a portable-build failure. P0.2 remains open and the next boundary is to provision a disposable Windows x64 environment without weakening the existing acceptance contract.
+This is not a portable-build failure. P0.2 remains open and the next boundary is to enable/prove hardware virtualization in BIOS/UEFI, then provision a controlled disposable Windows x64 VM without weakening the existing endpoint-denial acceptance contract.
+
+## Recorded host observations — 2026-08-17
+
+- reported Windows edition: `Windows 10 Home`;
+- reported build family: `26200`;
+- architecture: x64;
+- RAM: 8 GB;
+- free VM storage: 95 GB;
+- hardware virtualization: **NO**;
+- SLAT: **NO**;
+- Windows Sandbox: **NO**;
+- Hyper-V: `HYPER_V_NOT_AVAILABLE`;
+- Hyper-V management cmdlets: **NO**;
+- VirtualBox: not installed;
+- VMware: not installed;
+- QEMU: not installed;
+- Windows install media: not found;
+- dedicated VM `ARVECTUM-P0-2-RECOVERY`: not created.
+
+Evidence: `docs/evidence/P0_2_HARDWARE_VIRTUALIZATION_BLOCKER.json`.
+
+The reported product-name/build combination should be treated as an execution-report identity rather than a release-family assertion; the P0.2 gate depends on the actual virtualization capabilities, not the marketing name returned by a particular Windows inventory API.
+
+## Immediate human boundary
+
+1. Enter the host BIOS/UEFI and enable Intel Virtualization Technology / VT-x, or AMD-V / SVM Mode as appropriate for the CPU/firmware.
+2. Reboot Windows.
+3. Verify from Windows that firmware virtualization is enabled before installing any hypervisor.
+4. Only after that proof, provision a local x64 hypervisor suitable for a clean/resettable VM. On a Home edition where Client Hyper-V is unavailable, a third-party path such as Oracle VirtualBox is acceptable if the exact installed version is recorded and the VM network adapter can be positively disconnected for the governed build phase.
+5. Stage verified Windows x64 installation media and create the dedicated `ARVECTUM-P0-2-RECOVERY` VM with a clean baseline snapshot/checkpoint.
+
+Do not install a hypervisor before the virtualization re-check passes; if the CPU/firmware genuinely cannot expose the required hardware virtualization, this Windows host is not suitable for P0.2 and another controlled x64 host must be used.
 
 ## Required environment properties
 
