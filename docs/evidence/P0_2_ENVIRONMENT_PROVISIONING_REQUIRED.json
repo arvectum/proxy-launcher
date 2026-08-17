@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "task": "P0.2",
+  "date": "2026-08-17",
+  "status": "PROVISIONING_REQUIRED",
+  "blocker": "NO_DISPOSABLE_WINDOWS_RECOVERY_ENVIRONMENT",
+  "required_next_boundary": {
+    "environment": "clean/disposable Windows x64 recovery environment",
+    "acceptable_examples": [
+      "Windows Sandbox",
+      "clean Hyper-V Windows x64 VM",
+      "clean VMware/VirtualBox Windows x64 VM",
+      "equivalent owner-controlled disposable Windows x64 host"
+    ],
+    "endpoint_denial_required_during_build": true,
+    "normal_developer_session_accepted": false
+  },
+  "source_commit_for_recovery_drill": "678efda6df68c93db8474c810abd73bca72735b2",
+  "installer_toolchain_blocker": "BLOCKED_MISSING_PRESTAGED_INNO_6_7_1",
+  "p0_2_closed": false,
+  "secrets_in_evidence": false
+}
