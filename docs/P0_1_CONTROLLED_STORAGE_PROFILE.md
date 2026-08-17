@@ -114,13 +114,16 @@ The current P0.1 acceptance attempt is bound to:
 
 ```text
 repository_commit = 74753f5fc78daf7484ce555922d5f7ac997fc138
+verification_repository_commit = 60c456aa90ef8c6269ca79fdde9ad5861ebb6398
 archive = arvectum-windows-build-inputs-cpython-3.12.10-x64.zip
-archive_bytes = 28737536
+archive_bytes = 30996168
 archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
 cpython_installer_sha256 = 67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb
 wheelhouse_hash_lock_sha256 = 6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943
 wheel_count = 8
 ```
+
+The earlier operator report that recorded `archive_bytes = 28737536` was incorrect metadata. The surviving local archive reports `30996168` bytes, retains the exact same governed SHA-256 above, and passed `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` at repository commit `60c456aa90ef8c6269ca79fdde9ad5861ebb6398`. Therefore this is the same SHA-addressed governed archive identity; it is not a replacement archive and must not be marked lost or retired.
 
 If the local archive is regenerated and its ZIP SHA-256 changes, do not silently substitute it for this instance. Re-run local verification, create a new SHA256-named controlled directory and report the new identity explicitly.
 
