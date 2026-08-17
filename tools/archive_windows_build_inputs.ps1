@@ -124,8 +124,9 @@ try {
     Copy-Item -LiteralPath $PythonBaseLockPath -Destination (Join-Path $GovernanceStage 'python-windows-base.lock')
 
     $FileEntries = @()
+    $StagePrefix = $Stage.TrimEnd('\') + '\'
     foreach ($file in @(Get-ChildItem -LiteralPath $Stage -File -Recurse | Sort-Object FullName)) {
-        $relative = [System.IO.Path]::GetRelativePath($Stage, $file.FullName).Replace('\','/')
+        $relative = $file.FullName.Substring($StagePrefix.Length).Replace('\','/')
         $FileEntries += [ordered]@{
             path = $relative
             bytes = $file.Length
