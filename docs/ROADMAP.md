@@ -130,8 +130,7 @@ The remaining execution backlog is maintained in `docs/LOCAL_EXECUTION_BACKLOG.m
 3. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
 4. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
 5. **ROUTE-003 product decision:** resolve the WFP kernel-signing stop-gate before native implementation.
-6. **APL-MAC-008:** run real Mac acceptance; close Gate R9 only from real-host evidence.
-7. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
+6. After Windows routing policy is resolved/proven, consider Astra cgroup/nftables per-app prototype; macOS per-app only after entitlement/distribution proof.
 
 ## Completion rule
 
