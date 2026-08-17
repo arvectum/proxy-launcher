@@ -17,6 +17,12 @@ The archive is built only from already verified repository-governed inputs:
 
 No application runtime dependency is added by P0.1.
 
+### Sigstore network boundary
+
+`prepare_windows_cpython_base.ps1` downloads the governed CPython installer and its official `.sigstore` bundle, but the identity verification itself is explicitly executed with `sigstore verify identity --offline`. For bundle verification, this prevents an unrelated TUF metadata refresh from becoming a release-recovery availability dependency while retaining the signature, certificate identity/OIDC issuer and bundled transparency evidence checks. The manifest records `verification_mode=offline-bundle` and the trust-root source used by sigstore-python.
+
+As with any offline Sigstore verification, this trades live trust-root freshness for deterministic availability: the verifier uses the latest cached trust root or the root baked into the pinned sigstore-python version. Therefore the governed verifier version remains pinned, and future maintenance may separately archive a refreshed trust configuration if stronger revocation freshness is required for disconnected recovery.
+
 ## Repository-side tooling added
 
 ### `tools/archive_windows_build_inputs.ps1`
@@ -99,6 +105,7 @@ After copying, run `tools/verify_windows_build_input_archive.ps1` directly again
 P0.1 may be marked **DONE** only when all of the following are evidenced:
 
 - CPython is exactly `3.12.10` x64 and its acquisition manifest records `sigstore-identity-pass`;
+- CPython identity verification used the governed offline bundle mode and expected identity/OIDC issuer;
 - the wheelhouse contains exactly the eight governed wheels and byte-matches the committed SHA-256 lock;
 - the self-contained ZIP passes the offline verifier;
 - the archive SHA-256 recorded at creation exactly matches the controlled-storage copy/retrieval;
@@ -117,6 +124,7 @@ Return a concise report containing:
 - Windows edition/version and architecture;
 - prepared archive filename, byte size and SHA-256;
 - CPython installer filename and SHA-256 from `cpython-base-manifest.json`;
+- CPython `verification_mode` and expected identity/OIDC issuer;
 - wheel count and hash-lock SHA-256 from `wheelhouse-manifest.json`;
 - offline verifier final PASS output;
 - controlled storage type and non-secret retrieval path/identifier;

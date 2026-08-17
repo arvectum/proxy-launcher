@@ -51,10 +51,10 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
         ):
             self.assertIn(token, BASE_LOCK)
 
-    def test_cpython_acquisition_verifies_sigstore_identity(self):
+    def test_cpython_acquisition_verifies_sigstore_identity_offline(self):
         for token in (
-            'python-windows-base.lock', 'sigstore verify identity', '--cert-identity',
-            '--cert-oidc-issuer', '--bundle', 'sigstore-identity-pass',
+            'python-windows-base.lock', 'sigstore verify identity', '--offline', '--cert-identity',
+            '--cert-oidc-issuer', '--bundle', 'sigstore-identity-pass', 'offline-bundle',
             'cpython-base-manifest.json',
         ):
             self.assertIn(token, PREPARE_BASE)
