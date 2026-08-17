@@ -2,7 +2,81 @@
 
 Status: **DONE — REAL HOST PASS**
 
-Gate: **R9 remains OPEN until all required real-host checks below pass on a real Mac in a normal interactive Aqua session.** Hosted CI, mocks and packaging inspection are supporting evidence only.
+Gate: **R9 CLOSED from the real-host acceptance recorded below.**
+
+Gate R9 required all mandatory real-host checks to pass on a real Mac in a normal interactive Aqua session; hosted CI, mocks and packaging inspection alone were not sufficient.
+
+## Real-host acceptance result
+
+Date: 2026-08-17
+
+Result: PASS
+
+Candidate:
+0e83da8f270d3d9fe95e2743e641ff150b7014d2
+
+Product:
+0.2.3
+
+Host:
+- MacBook Pro (M2)
+- macOS 26.6.1 (25G76)
+- arm64
+- interactive Aqua session
+
+Package:
+- Arvectum_Proxy_Launcher-0.2.3-arm64.dmg
+- SHA256:
+  f006b1cb30358e2ae6b8e3fabdc514878e201efd5a33071bfcbd16dcb8e4f86b
+- hdiutil verify: PASS
+- bundle id: ru.arvectum.proxylauncher
+
+Network acceptance:
+- baseline SHA256:
+  8edbdaa388801b82ab156243f5eb770442b4b1e855138fbbcb4f9993851e5549
+- real enable: PASS
+- bypass sync: PASS
+- normal disable exact rollback: PASS
+- crash/relaunch recovery: PASS
+- real reboot/login recovery: PASS
+- final comparator: PASS
+- pending rollback after cleanup: NO
+
+Authorization:
+- normal interactive user: YES
+- whole app as root: NO
+- sudo networksetup: NO
+- system authorization prompt observed: NO
+- direct networksetup mutation succeeded under tested host/user policy
+
+Autostart:
+- canonical LaunchAgent: PASS
+- real login launch: PASS
+- legacy LaunchAgent: absent
+
+Mutable state:
+- canonical Application Support root: PASS
+- state outside .app: PASS
+- update/replacement preservation: PASS
+
+Diagnostics:
+- privacy review: PASS
+- credentials absent
+- environment dump absent
+- browser/home-directory data absent
+- rollback contents absent
+
+Final safety state:
+- proxy OFF
+- network restored to proven baseline
+- pending rollback: NO
+- test-only bypass: NO
+
+Gate:
+- APL-MAC-008: DONE
+- Gate R9: DONE
+
+Raw machine/network evidence remains private and is intentionally not committed.
 
 ## Purpose
 
