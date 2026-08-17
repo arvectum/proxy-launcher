@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "task": "P0.2",
+  "phase": "endpoint-denied-portable-recovery",
+  "result": "NOT_STARTED",
+  "reason": "NO_DISPOSABLE_WINDOWS_RECOVERY_ENVIRONMENT",
+  "portable_build_result": null,
+  "portable_build_failed": false,
+  "portable_build_passed": false,
+  "p0_2_closed": false,
+  "secrets_in_evidence": false
+}
