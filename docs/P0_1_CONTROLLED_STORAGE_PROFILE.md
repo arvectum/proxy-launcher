@@ -1,8 +1,8 @@
 # [Win] P0.1 — Arvectum controlled-storage profile
 
-Status: **PRIMARY + OFFLINE COPY VERIFIED / PHYSICAL DISCONNECTION + FINAL VERIFIER PENDING**
+Status: **DONE / P0.1 CLOSED 2026-08-17**
 
-This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires physical disconnection/separate storage of the verified removable copy, final canonical Windows verification and completion evidence described below.
+This document defines the completed controlled-storage perimeter for P0.1 and records the real primary/offline storage, round-trip verification and final human safe-eject evidence used to close the gate.
 
 ## Primary controlled perimeter
 
@@ -32,20 +32,15 @@ Therefore its canonical primary directory is:
 /Users/Shared/Arvectum/ControlledArtifacts/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
 ```
 
-The directory must contain exactly the transfer evidence set required by P0.1:
+The governed transfer set is:
 
 - `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
 - `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip.sha256`;
-- `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip.evidence.json`;
-- final `P0_1_COMPLETION_EVIDENCE.json` after both controlled copies are proven.
+- `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip.evidence.json`.
 
-A private SMB share may be enabled temporarily for transfer from the Windows acquisition host. Recommended share name:
+Final repository completion evidence is stored at `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`.
 
-```text
-ArvectumControlledArtifacts
-```
-
-The SMB endpoint is transport only. The canonical identifier in evidence is the Mac mini filesystem path plus archive SHA-256, not a transient IP address. Guest access and public Internet exposure are forbidden.
+A private SMB/SCP endpoint may be enabled temporarily for controlled transfer. Network endpoints are transport only; the canonical identifier in evidence is the Mac mini filesystem path plus archive SHA-256, not a transient IP address. Guest access and public Internet exposure are forbidden.
 
 ## Primary transfer evidence — PASS
 
@@ -70,7 +65,7 @@ primary_evidence_copied = YES
 primary_archive_bytes = 30996168
 primary_archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
 primary_byte_match_windows_source = YES
-round_trip_canonical_verifier = NOT_YET_RUN
+round_trip_canonical_verifier = PASS
 primary_file_sealing = PASS
 ```
 
@@ -103,29 +98,19 @@ evidence_uchg = YES
 primary_directory_world_writable = NO
 access_policy_recorded = YES
 retention_policy_recorded = YES
-offline_device_available_at_seal_time = NO
 ```
-
-This closes the primary controlled-storage transfer, byte-match and post-ingest sealing sub-gates.
 
 ## Primary access policy
 
 - Access is limited to authorized Arvectum administrator/operator accounts.
 - Guest/anonymous access is disabled.
 - Write permission is allowed only during controlled ingest or an explicitly approved maintenance operation.
-- Immediately after byte verification, the three source artifacts are made read-only and marked with the macOS user immutable flag (`uchg`) where supported.
-- If SMB write access was enabled for ingest, it is removed or the share is returned to read-only after verification.
+- The three source artifacts are read-only and marked with the macOS user immutable flag (`uchg`).
+- If file-sharing write access is enabled for ingest, it is removed or returned to read-only after verification.
 - Any future replacement is stored under a new full-SHA256 directory. Existing verified bytes are not overwritten in place.
 - Credentials, passwords, private keys and tokens must never be written into repository evidence.
 
-Suggested post-verification protection on the Mac mini:
-
-```bash
-chmod 0444 <archive.zip> <archive.zip.sha256> <archive.zip.evidence.json>
-chflags uchg <archive.zip> <archive.zip.sha256> <archive.zip.evidence.json>
-```
-
-The operator must record `ls -lO` output or equivalent evidence proving the resulting state. An authorized administrator can deliberately clear `uchg`; therefore integrity continues to be anchored by the recorded SHA-256 and repeated verification, not by the filesystem flag alone.
+An authorized administrator can deliberately clear `uchg`; therefore integrity remains anchored by the recorded SHA-256 and repeated verification, not by the filesystem flag alone.
 
 ## Retention policy
 
@@ -134,39 +119,29 @@ The operator must record `ls -lO` output or equivalent evidence proving the resu
 - Deletion requires an explicit authorized Arvectum decision; it must never happen as part of ordinary cache cleanup, repository cleanup or workstation maintenance.
 - The SHA-256, repository commit, release relationship and deletion decision record must outlive the deleted binary copy.
 
-## Independent offline copy
+## Independent offline copy — PASS
 
-The second copy is on a physically separate removable device that must be disconnected after verification and stored separately from the Mac mini.
+The second copy is on a physically separate removable device that is disconnected after verification and stored separately from the Mac mini.
 
-Governed volume label for the current physical offline device:
+Governed volume label:
 
 ```text
 ARVECTUM-1
 ```
 
-`ARVECTUM-1` deliberately supersedes the earlier proposed `ARVECTUM-OFFLINE-01` label because the target filesystem/formatting workflow imposed a shorter practical volume-label constraint. The shorter label is the canonical governed identifier for this physical copy.
+`ARVECTUM-1` deliberately supersedes the earlier proposed `ARVECTUM-OFFLINE-01` label because the chosen exFAT formatting workflow required a shorter practical volume label. The shorter label is the canonical governed identifier for this physical copy.
 
-The current device is an external/removable `16.0 GB` exFAT volume. exFAT is accepted for this P0.1 copy because integrity is anchored by SHA-256 and byte-for-byte comparison, and the cross-platform format allows the final Windows round-trip verifier to read the device natively. Filesystem encryption is not a P0.1 integrity acceptance gate; operational secrets must never appear in Git or evidence.
+The device is an external/removable `16.0 GB` exFAT volume. exFAT is accepted because integrity is anchored by SHA-256 and byte-for-byte comparison, and the cross-platform format allowed the final Windows round-trip verifier to read the device natively. Filesystem encryption is not a P0.1 integrity acceptance gate.
 
-Canonical offline path:
-
-```text
-/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-<FULL_ARCHIVE_SHA256>/
-```
-
-For the current first archive:
+Canonical offline path used on macOS:
 
 ```text
 /Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
 ```
 
-## Independent offline-copy evidence — PASS (software verification/eject)
+### Offline-copy creation/eject evidence — PASS
 
 Date: `2026-08-17`
-
-The governed three-file archive set was copied from the sealed Mac mini primary store to the physically separate removable volume and verified from the volume itself before software eject.
-
-Recorded facts:
 
 ```text
 offline_copy_execution_repository_commit = 8e5c87e01d085e1c085a2db1746e1c83ae4ff8b4
@@ -187,23 +162,64 @@ sync_completed = YES
 final_pre_eject_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
 diskutil_eject = PASS
 volume_mounted_after_eject = NO
-physical_disconnection = PENDING_HUMAN_OPERATOR
-stored_separately_from_primary = PENDING_HUMAN_OPERATOR
+physical_disconnection_after_creation = YES
 ```
 
-The `/dev/disk4` and `disk4s1` identifiers are execution-time observations only and are not permanent device identities; they may change on future attachment. The governed identity is the volume label `ARVECTUM-1`, the canonical archive path and the exact archive SHA-256.
-
-After software eject, the human operator must physically unplug `ARVECTUM-1` and store it separately from the Mac mini. After that human fact is confirmed, retrieve the exact offline bytes on Windows and run the canonical verifier.
+The `/dev/disk4` and `disk4s1` identifiers were execution-time observations only and are not permanent device identities. The governed identity is the volume label `ARVECTUM-1`, the archive path and the exact archive SHA-256.
 
 A continuously connected development/work SSD, another directory on the Mac mini, a GitHub artifact, Downloads/Desktop, or a synchronized public-cloud folder does **not** satisfy the independent offline-copy gate.
 
+## Final Windows round-trip verification — PASS
+
+Date: `2026-08-17`
+
+Verification repository commit:
+
+```text
+1429e55959e9a3940b1f2e03e84f18fa7b05de0c
+```
+
+Offline copy on Windows:
+
+```text
+label = ARVECTUM-1
+filesystem = exFAT
+capacity = 16.0 GB
+drive_letter_at_verification = D:
+archive_bytes = 30996168
+archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+canonical_windows_verifier = PASS
+```
+
+Fresh retrieval of Mac mini primary copy to Windows:
+
+```text
+retrieved_to = C:\Temp\proxy-launcher-p0-1-primary-roundtrip
+archive_bytes = 30996168
+archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+canonical_windows_verifier = PASS
+```
+
+Cross-copy comparison:
+
+```text
+zip_byte_match = YES
+sidecar_byte_match = YES
+evidence_byte_match = YES
+```
+
+The verifier was run with package-index access disabled in the process environment and with `-RequireCurrentRepositoryLocks`.
+
+After final verification, the human operator safely ejected `ARVECTUM-1` from Windows, physically disconnected it and returned it to separate offline storage.
+
 ## First-archive identity
 
-The current P0.1 acceptance attempt is bound to:
+The completed P0.1 archive is bound to:
 
 ```text
 repository_commit = 74753f5fc78daf7484ce555922d5f7ac997fc138
 verification_repository_commit = 60c456aa90ef8c6269ca79fdde9ad5861ebb6398
+final_roundtrip_repository_commit = 1429e55959e9a3940b1f2e03e84f18fa7b05de0c
 archive = arvectum-windows-build-inputs-cpython-3.12.10-x64.zip
 archive_bytes = 30996168
 archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
@@ -212,38 +228,33 @@ wheelhouse_hash_lock_sha256 = 6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f
 wheel_count = 8
 ```
 
-The earlier operator report that recorded `archive_bytes = 28737536` was incorrect metadata. The surviving local archive reports `30996168` bytes, retains the exact same governed SHA-256 above, and passed `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` at repository commit `60c456aa90ef8c6269ca79fdde9ad5861ebb6398`. Therefore this is the same SHA-addressed governed archive identity; it is not a replacement archive and must not be marked lost or retired.
+The earlier operator report that recorded `archive_bytes = 28737536` was incorrect metadata. The surviving archive reports `30996168` bytes, retains the governed SHA-256 above, and repeatedly passed the canonical verifier. It is the same SHA-addressed governed archive identity, not a replacement archive.
 
-If the local archive is regenerated and its ZIP SHA-256 changes, do not silently substitute it for this instance. Re-run local verification, create a new SHA256-named controlled directory and report the new identity explicitly.
+If a future archive is regenerated and its ZIP SHA-256 changes, do not silently substitute it for this instance. Re-run verification, create a new SHA256-named controlled directory and report the new identity explicitly.
 
-## Required evidence before P0.1 may close
+## P0.1 closure
 
-Primary controlled storage must report:
+All required facts are now real and evidenced:
 
-- host role: `Arvectum-controlled Mac mini`;
-- canonical filesystem identifier;
-- exact archive SHA-256;
-- byte-match with acquisition host: `YES`;
-- archive verification: `PASS`;
-- access policy recorded: `YES`;
-- retention policy recorded: `YES`;
-- post-ingest files protected/read-only: `YES`.
-
-Independent offline copy must report:
-
-- device label `ARVECTUM-1`;
-- canonical filesystem identifier;
-- exact archive SHA-256;
-- byte-match with primary: `YES`;
-- physically disconnected after verification: `YES`;
-- stored separately from the primary Mac mini: `YES`.
-
-Final verification must report canonical Windows verifier **PASS** against the exact controlled/retrieved bytes and final `P0_1_COMPLETION_EVIDENCE.json` must contain no secrets.
-
-Only after all of those facts are real and evidenced may the final record state:
+- primary canonical filesystem identifier: recorded;
+- exact archive SHA-256: recorded and repeated across all copies;
+- byte-match with acquisition source: **YES**;
+- primary read-only/immutable sealing: **PASS**;
+- access policy: **RECORDED**;
+- retention policy: **RECORDED**;
+- independent offline device `ARVECTUM-1`: **VERIFIED**;
+- offline byte-match with primary: **YES**;
+- physical disconnection after creation: **YES**;
+- final Windows canonical verifier against offline bytes: **PASS**;
+- final Windows canonical verifier against retrieved primary bytes: **PASS**;
+- final safe eject and physical disconnect from Windows: **YES**;
+- separate offline storage: **YES**;
+- final evidence contains secrets: **NO**.
 
 ```text
 P0.1 CLOSED: YES
 ```
 
-The next roadmap action is then `[Win] P0.2 — independent endpoint-denied sovereign recovery build`.
+Canonical completion record: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`.
+
+The next roadmap action is `[Win] P0.2 — independent endpoint-denied sovereign recovery build`.
