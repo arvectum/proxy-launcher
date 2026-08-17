@@ -44,19 +44,46 @@ P0.1 acceptance is fully satisfied. The governed archive can now be used as the 
 
 ### P0.2 Independent endpoint-denied recovery build
 
-Required local/infrastructure boundary:
+Status: **IN PROGRESS — PREFLIGHT PASS / INSTALLER TOOLCHAIN BLOCKED**.
 
-- Windows x64 build host outside the normal GitHub hosted-runner dependency path (self-hosted runner or equivalent controlled machine);
-- clean/disposable recovery host state suitable for the governed CPython installer;
-- public package endpoints denied during the actual install/build phase;
-- inputs supplied only from the controlled P0.1 CPython/wheelhouse archive.
+Completed preflight sub-gate:
+
+- canonical recovery target commit: `678efda6df68c93db8474c810abd73bca72735b2`;
+- fresh source recovery from GitVerse: **PASS**;
+- fresh recovery checkout path at execution: `C:\P0_2_STAGE\gitverse-source`;
+- exact GitVerse commit match: **YES**;
+- governed P0.1 archive staged at `C:\P0_2_STAGE\controlled-inputs`;
+- archive bytes: `30996168`;
+- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks`: **PASS**;
+- exact Inno Setup `6.7.1` / `ISCC.exe` found in standard locations or PATH: **NO**;
+- installer recovery status: **BLOCKED_MISSING_PRESTAGED_INNO_6_7_1**;
+- non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`.
+
+Required local/infrastructure boundary now:
+
+- run the exact GitVerse recovery checkout in a clean/disposable Windows x64 environment (Windows Sandbox or clean VM preferred);
+- deny public package/source endpoints for the actual controlled verification/install/build phase;
+- install governed CPython `3.12.10` x64 only from the P0.1 archive;
+- build the portable artifact using only the archived eight-wheel hash-locked wheelhouse;
+- generate endpoint-denial evidence, build-result evidence and an offline recovery SBOM without live package acquisition;
+- compare resulting artifact/product contract and classify any binary differences;
+- separately bring exact Inno Setup `6.7.1` under controlled/pre-staged storage and prove installer recovery before P0.2 can close.
 
 Acceptance:
 
-- canonical portable/installer build succeeds in offline/hash-locked mode;
-- release evidence and SBOM are produced;
+- clean/disposable Windows x64 recovery host is proven;
+- source recovery comes from GitVerse at the exact governed commit rather than GitHub;
+- public package/source endpoints remain denied during the actual install/build phase;
+- controlled P0.1 archive remains the sole CPython/wheelhouse input;
+- canonical portable build succeeds in `offline-hash-locked` mode;
+- exact Inno Setup `6.7.1` is controlled/pre-staged and the canonical installer build succeeds without live acquisition;
+- release evidence and offline recovery SBOM are produced;
 - hashes/diffs are compared against the canonical candidate and any expected nondeterminism is documented;
+- no unexplained artifact/product-contract difference remains;
 - GitVerse/self-hosted recovery procedure is proven rather than merely documented.
+
+P0.2 must remain open if the portable proof succeeds but Inno Setup `6.7.1` remains unavailable; do not weaken the installer acceptance gate.
 
 ## P1 — APL-LNX-010 real Astra Linux acceptance + Gate R8
 
