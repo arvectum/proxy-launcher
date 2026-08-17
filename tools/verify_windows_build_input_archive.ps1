@@ -72,10 +72,11 @@ try {
         Assert-Match $fullPath ([string]$entry.sha256) ([Int64]$entry.bytes)
     }
 
+    $TempPrefix = $Temp.TrimEnd('\') + '\'
     $ActualPayloadPaths = @(
         Get-ChildItem -LiteralPath $Temp -File -Recurse |
             Where-Object { $_.FullName -ne $OuterManifestPath } |
-            ForEach-Object { [System.IO.Path]::GetRelativePath($Temp, $_.FullName) } |
+            ForEach-Object { $_.FullName.Substring($TempPrefix.Length) } |
             Sort-Object
     )
     if (($ExpectedPaths -join "`n") -ne ($ActualPayloadPaths -join "`n")) { throw 'Archive contains missing or unexpected payload files' }
