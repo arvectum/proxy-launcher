@@ -10,7 +10,7 @@ This file contains only work that cannot be truthfully completed by hosted repos
 
 ### P0.1 Archive controlled build inputs
 
-Status: **PRIMARY CONTROLLED STORAGE COMPLETE / OFFLINE COPY + FINAL VERIFIER PENDING**.
+Status: **PRIMARY + OFFLINE COPY VERIFIED / PHYSICAL DISCONNECTION + FINAL WINDOWS VERIFIER PENDING**.
 
 Repository-side preparation is complete:
 
@@ -37,29 +37,42 @@ Completed primary controlled-storage sub-gate:
 
 - exact governed ZIP, sidecar and evidence JSON transferred over authenticated private-LAN SCP to the canonical Arvectum-controlled Mac mini directory;
 - primary archive bytes: `30996168`;
-- primary SHA-256 before seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- primary SHA-256 after seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- primary SHA-256 before/after seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
 - byte identity preserved: **YES**;
-- all three source artifacts read-only: **YES**;
-- all three source artifacts `uchg`: **YES**;
+- all three source artifacts read-only and `uchg`: **YES**;
 - primary directory world-writable: **NO**;
 - access policy recorded: **YES**;
-- retention policy recorded: **YES**;
-- sealing repository commit: `f8e420d0ecd2495afbd88b0dedb3a60435f95fd0`.
+- retention policy recorded: **YES**.
+
+Completed offline-copy software verification/eject sub-gate:
+
+- governed removable identifier: `ARVECTUM-1`;
+- execution-time device: `/dev/disk4`, partition `disk4s1`, external/removable **YES**;
+- filesystem: `exFAT`, capacity `16.0 GB`;
+- canonical offline path: `/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/`;
+- archive bytes: `30996168`;
+- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- ZIP/sidecar/evidence byte-match with primary: **YES**;
+- secrets introduced: **NO**;
+- `sync`: **PASS**;
+- final pre-eject SHA-256: **PASS / exact match**;
+- `diskutil eject`: **PASS**;
+- volume mounted after eject: **NO**.
 
 Remaining local/infrastructure boundary:
 
-- attach a physically separate removable device; the continuously attached `ArvectumSSD` does not qualify;
-- create the governed offline copy under the `ARVECTUM-OFFLINE-01` identifier (or an explicitly substituted governed identifier), verify SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, eject and physically disconnect it, and store it separately from the Mac mini;
-- re-run the canonical Windows archive verifier against exact controlled/retrieved primary and offline bytes as required by the storage profile;
-- produce final `P0_1_COMPLETION_EVIDENCE.json` containing storage identifiers, hashes, access/retention policy status, verifier results and no secrets.
+- physically unplug `ARVECTUM-1` and store it separately from the Mac mini; record that human fact without secrets;
+- attach/retrieve the exact offline bytes on Windows and run `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` with package-index access disabled;
+- if required by the final evidence contract, repeat canonical verifier against a retrieved primary controlled copy as well;
+- produce final `P0_1_COMPLETION_EVIDENCE.json` containing primary/offline identifiers, hashes, access/retention status, physical-disconnection/separate-storage facts, verifier results and no secrets.
 
 Acceptance:
 
 - the sealed primary controlled copy byte-matches the locally verified archive SHA-256;
-- the archive passes `tools/verify_windows_build_input_archive.ps1` without network access from the controlled/retrieved bytes;
+- the independent offline copy byte-matches the primary controlled copy;
+- the offline device is physically disconnected after verification and stored separately from the Mac mini;
+- the archive passes `tools/verify_windows_build_input_archive.ps1` without network/package-index access from exact controlled/retrieved bytes;
 - a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
-- the independent offline copy byte-matches the primary controlled copy and is physically disconnected after verification;
 - the evidence record identifies primary storage, offline-copy location, access/retention policy and hashes without exposing secrets.
 
 Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate, and the acquisition interpreter does not have to equal the governed build interpreter. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
