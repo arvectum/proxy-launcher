@@ -69,18 +69,15 @@ class WindowsOfflineBuildContractTests(unittest.TestCase):
         ):
             self.assertIn(token, INSTALL_BASE)
 
-    def test_verified_cpython_install_rejects_registered_side_by_side_collision(self):
+    def test_verified_cpython_install_is_clean_host_control_with_failure_evidence(self):
         for token in (
-            'HKEY_CURRENT_USER\\Software\\Python\\PythonCore',
-            'HKEY_LOCAL_MACHINE\\Software\\Python\\PythonCore',
-            'Existing CPython',
-            'does not reliably support an isolated side-by-side install',
-            'clean Windows host',
-            'P0.1 archive preparation itself does not require installing CPython',
-            '0x{0:X8}',
+            'clean or disposable Windows recovery host',
             'cpython-install.log',
+            '0x{0:X8}',
+            'Installer log:',
         ):
             self.assertIn(token, INSTALL_BASE)
+        self.assertNotIn('New-Item -ItemType Directory -Path $Target', INSTALL_BASE)
 
     def test_final_manifest_records_dependency_evidence(self):
         for token in ('dependency_mode', 'hash_lock_sha256', 'wheelhouse_manifest_sha256'):
