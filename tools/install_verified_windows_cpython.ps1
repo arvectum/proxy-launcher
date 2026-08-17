@@ -2,11 +2,10 @@
 .SYNOPSIS
     Install an already Sigstore-verified CPython bootstrap into an isolated path.
 .DESCRIPTION
-    This script is intended for a clean Windows recovery/build host. The traditional
-    python.org full installer does not provide reliable side-by-side installation of
-    the same registered Python feature version. If a conflicting registered Python
-    installation is detected, fail explicitly instead of entering an ambiguous
-    maintenance/modify path.
+    This is a recovery/build-host control, not a P0.1 acquisition-laptop prerequisite.
+    The traditional python.org installer may enter maintenance/modify behavior when an
+    equivalent Python installation already exists, so this script is intended for a
+    clean or disposable Windows recovery host.
 #>
 
 [CmdletBinding()]
@@ -35,39 +34,6 @@ if ($Hash -ne [string]$Manifest.installer_sha256) { throw 'Verified CPython inst
 if ((Get-Item -LiteralPath $Installer).Length -ne [int64]$Manifest.installer_bytes) { throw 'Verified CPython installer size changed after acquisition' }
 
 $Target = [System.IO.Path]::GetFullPath($TargetDirectory)
-
-# The traditional python.org installer is a registered product installer, not a
-# portable extractor. A previously registered install of the same feature version
-# can force the bootstrapper into maintenance/modify mode and ignore TargetDir.
-# Detect that state before touching the requested isolated target.
-$VersionParts = ([string]$Manifest.python_version).Split('.')
-if ($VersionParts.Count -lt 2) { throw 'Invalid CPython version in acquisition manifest' }
-$FeatureVersion = "$($VersionParts[0]).$($VersionParts[1])"
-$RegistryPaths = @(
-    "Registry::HKEY_CURRENT_USER\Software\Python\PythonCore\$FeatureVersion\InstallPath",
-    "Registry::HKEY_LOCAL_MACHINE\Software\Python\PythonCore\$FeatureVersion\InstallPath"
-)
-$RegisteredInstalls = @()
-foreach ($RegistryPath in $RegistryPaths) {
-    if (-not (Test-Path -LiteralPath $RegistryPath)) { continue }
-    try {
-        $RawPath = (Get-Item -LiteralPath $RegistryPath).GetValue('')
-        if ($RawPath) {
-            $RegisteredInstalls += [ordered]@{
-                registry = $RegistryPath
-                path     = [System.IO.Path]::GetFullPath([string]$RawPath)
-            }
-        }
-    } catch {
-        throw "Unable to inspect existing CPython registration at ${RegistryPath}: $($_.Exception.Message)"
-    }
-}
-foreach ($Registered in $RegisteredInstalls) {
-    if (-not [string]::Equals($Registered.path.TrimEnd('\'), $Target.TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Existing CPython $FeatureVersion registration detected at '$($Registered.path)' ($($Registered.registry)). The traditional python.org installer does not reliably support an isolated side-by-side install of the same registered version. Run this recovery-install step on a clean Windows host. P0.1 archive preparation itself does not require installing CPython on the acquisition laptop."
-    }
-}
-
 if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse -Force }
 $Log = Join-Path $Base 'cpython-install.log'
 
