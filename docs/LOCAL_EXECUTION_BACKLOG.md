@@ -8,74 +8,39 @@ This file contains only work that cannot be truthfully completed by hosted repos
 
 **Why first:** release recoverability and dependency sovereignty are higher risk than adding new features.
 
-### P0.1 Archive controlled build inputs
+### P0.1 Archive controlled build inputs — DONE
 
-Status: **PRIMARY + OFFLINE COPY VERIFIED / PHYSICAL DISCONNECTION + FINAL WINDOWS VERIFIER PENDING**.
+Status: **DONE / CLOSED 2026-08-17**.
 
-Repository-side preparation is complete:
-
-- `tools/archive_windows_build_inputs.ps1` re-verifies the governed CPython/wheelhouse bytes and produces one self-contained ZIP, SHA-256 sidecar and preparation evidence record without network access;
-- `tools/verify_windows_build_input_archive.ps1` independently verifies the archive offline, including nested manifests, exact wheel count and governance locks;
-- `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md` is the canonical operator runbook and acceptance contract;
-- `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md` defines the concrete Arvectum-controlled Mac mini primary perimeter, access/retention policy and physically separate offline-copy requirement;
-- CPython acquisition uses offline Sigstore bundle verification so live TUF refresh is not an availability dependency;
-- local P0.1 wheelhouse acquisition does not require installing or running the governed CPython `3.12.10` on the acquisition laptop: `prepare_windows_wheelhouse.ps1` explicitly cross-targets CPython `3.12.10` / `win_amd64` / `cp312` from a trusted local CPython transport, while exact eight-wheel filenames and SHA-256 values remain independently enforced;
-- CI deliberately proves this separation by acquiring the 3.12 wheelhouse from CPython `3.14.7`, then performing the offline product build with the separately verified/installed CPython `3.12.10` runtime;
-- `install_verified_windows_cpython.ps1` remains the clean/disposable-host recovery-install control for CI/P0.2, does not pre-create the target directory, and reports the installer log plus decimal/hex exit code on real failures.
-
-Completed local acquisition/verification sub-gate:
+Final governed archive:
 
 - archive: `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
 - archive bytes: `30996168`;
 - archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- canonical offline verifier: **PASS**;
-- verification repository commit: `60c456aa90ef8c6269ca79fdde9ad5861ebb6398`;
 - CPython installer: `python-3.12.10-amd64.exe`, SHA-256 `67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb`, Sigstore offline-bundle identity verification **PASS**;
-- wheelhouse target: CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, exactly eight governed wheels, hash-lock SHA-256 `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`, verification **PASS**.
+- wheelhouse target: CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, exactly eight governed wheels, hash-lock SHA-256 `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`.
 
-Completed primary controlled-storage sub-gate:
+Closed acceptance evidence:
 
-- exact governed ZIP, sidecar and evidence JSON transferred over authenticated private-LAN SCP to the canonical Arvectum-controlled Mac mini directory;
-- primary archive bytes: `30996168`;
-- primary SHA-256 before/after seal: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- byte identity preserved: **YES**;
-- all three source artifacts read-only and `uchg`: **YES**;
+- local archive verifier: **PASS**;
+- primary controlled storage: Arvectum-controlled Mac mini, exact ZIP/sidecar/evidence byte-match with Windows source **YES**;
+- primary three source artifacts read-only + `uchg`: **YES**;
 - primary directory world-writable: **NO**;
 - access policy recorded: **YES**;
-- retention policy recorded: **YES**.
+- retention policy recorded: **YES**;
+- independent removable offline copy: `ARVECTUM-1`, `exFAT`, `16.0 GB`;
+- ZIP/sidecar/evidence byte-match primary: **YES**;
+- macOS `sync` + software eject: **PASS**;
+- physical disconnect from primary host: **YES**;
+- final Windows offline-copy canonical verifier with current repository locks and package-index access disabled: **PASS** at commit `1429e55959e9a3940b1f2e03e84f18fa7b05de0c`;
+- fresh Windows retrieval of Mac mini primary copy canonical verifier: **PASS**;
+- primary/offline ZIP, sidecar and evidence byte-match after round trip: **YES**;
+- final Windows safe eject and physical disconnect: **YES, human confirmed**;
+- offline device returned to separate storage: **YES**;
+- final non-secret evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`;
+- secrets in evidence: **NO**.
 
-Completed offline-copy software verification/eject sub-gate:
-
-- governed removable identifier: `ARVECTUM-1`;
-- execution-time device: `/dev/disk4`, partition `disk4s1`, external/removable **YES**;
-- filesystem: `exFAT`, capacity `16.0 GB`;
-- canonical offline path: `/Volumes/ARVECTUM-1/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/`;
-- archive bytes: `30996168`;
-- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- ZIP/sidecar/evidence byte-match with primary: **YES**;
-- secrets introduced: **NO**;
-- `sync`: **PASS**;
-- final pre-eject SHA-256: **PASS / exact match**;
-- `diskutil eject`: **PASS**;
-- volume mounted after eject: **NO**.
-
-Remaining local/infrastructure boundary:
-
-- physically unplug `ARVECTUM-1` and store it separately from the Mac mini; record that human fact without secrets;
-- attach/retrieve the exact offline bytes on Windows and run `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks` with package-index access disabled;
-- if required by the final evidence contract, repeat canonical verifier against a retrieved primary controlled copy as well;
-- produce final `P0_1_COMPLETION_EVIDENCE.json` containing primary/offline identifiers, hashes, access/retention status, physical-disconnection/separate-storage facts, verifier results and no secrets.
-
-Acceptance:
-
-- the sealed primary controlled copy byte-matches the locally verified archive SHA-256;
-- the independent offline copy byte-matches the primary controlled copy;
-- the offline device is physically disconnected after verification and stored separately from the Mac mini;
-- the archive passes `tools/verify_windows_build_input_archive.ps1` without network/package-index access from exact controlled/retrieved bytes;
-- a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
-- the evidence record identifies primary storage, offline-copy location, access/retention policy and hashes without exposing secrets.
-
-Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate, and the acquisition interpreter does not have to equal the governed build interpreter. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
+P0.1 acceptance is fully satisfied. The governed archive can now be used as the sole CPython/wheelhouse source for P0.2.
 
 ### P0.2 Independent endpoint-denied recovery build
 
@@ -84,7 +49,7 @@ Required local/infrastructure boundary:
 - Windows x64 build host outside the normal GitHub hosted-runner dependency path (self-hosted runner or equivalent controlled machine);
 - clean/disposable recovery host state suitable for the governed CPython installer;
 - public package endpoints denied during the actual install/build phase;
-- inputs supplied only from the controlled CPython/wheelhouse perimeter.
+- inputs supplied only from the controlled P0.1 CPython/wheelhouse archive.
 
 Acceptance:
 
