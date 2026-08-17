@@ -19,7 +19,7 @@ Repository-side preparation is complete:
 - `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md` is the canonical operator runbook and acceptance contract;
 - CPython acquisition uses offline Sigstore bundle verification so live TUF refresh is not an availability dependency;
 - local P0.1 wheelhouse acquisition no longer requires installing a second registered CPython on the acquisition laptop: `prepare_windows_wheelhouse.ps1` may use an existing trusted local interpreter only when it is exactly CPython `3.12.10` 64-bit, after which the exact eight wheel names and SHA-256 values are independently enforced;
-- `install_verified_windows_cpython.ps1` remains the clean-host recovery-install control for CI/P0.2 and explicitly rejects a conflicting registered Python feature version rather than relying on ambiguous maintenance-mode behavior from the traditional python.org installer.
+- `install_verified_windows_cpython.ps1` remains the clean/disposable-host recovery-install control for CI/P0.2, does not pre-create the target directory, and reports the installer log plus decimal/hex exit code on real failures.
 
 Required local/infrastructure boundary:
 
@@ -37,14 +37,14 @@ Acceptance:
 - a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
 - the evidence record identifies the storage source, offline-copy location and hashes without exposing secrets.
 
-Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate. The installer is proven on a clean Windows CI host and must be exercised again from the controlled archive during P0.2 on an independent clean recovery host.
+Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
 
 ### P0.2 Independent endpoint-denied recovery build
 
 Required local/infrastructure boundary:
 
 - Windows x64 build host outside the normal GitHub hosted-runner dependency path (self-hosted runner or equivalent controlled machine);
-- clean recovery host state with no conflicting registered CPython feature version before the governed runtime install;
+- clean/disposable recovery host state suitable for the governed CPython installer;
 - public package endpoints denied during the actual install/build phase;
 - inputs supplied only from the controlled CPython/wheelhouse perimeter.
 
