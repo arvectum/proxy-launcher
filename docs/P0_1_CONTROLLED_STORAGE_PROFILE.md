@@ -1,6 +1,6 @@
 # [Win] P0.1 — Arvectum controlled-storage profile
 
-Status: **DEFINED / REAL TRANSFER AND OFFLINE-COPY EVIDENCE PENDING**
+Status: **PRIMARY TRANSFER VERIFIED / SEAL + OFFLINE-COPY EVIDENCE PENDING**
 
 This document defines the concrete controlled-storage perimeter for P0.1. It does not itself close P0.1. Closure requires real byte transfer, re-verification and evidence from the named devices.
 
@@ -46,6 +46,41 @@ ArvectumControlledArtifacts
 ```
 
 The SMB endpoint is transport only. The canonical identifier in evidence is the Mac mini filesystem path plus archive SHA-256, not a transient IP address. Guest access and public Internet exposure are forbidden.
+
+## Primary transfer evidence — PASS
+
+Date: `2026-08-17`
+
+The governed archive set was transferred from the Windows acquisition host to the Arvectum-controlled Mac mini over authenticated private-LAN SCP. No public cloud or GitHub artifact was used as the transfer source.
+
+Recorded facts:
+
+```text
+windows_repository_commit = 50648e3711f2079b763d6b4a14a7297038628444
+archive = arvectum-windows-build-inputs-cpython-3.12.10-x64.zip
+archive_bytes = 30996168
+archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+source_sidecar_present = YES
+source_evidence_present = YES
+source_canonical_offline_verifier = PASS
+transport = authenticated private-LAN SCP
+primary_zip_copied = YES
+primary_sidecar_copied = YES
+primary_evidence_copied = YES
+primary_archive_bytes = 30996168
+primary_archive_sha256 = 4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886
+primary_byte_match_windows_source = YES
+round_trip_canonical_verifier = NOT_YET_RUN
+primary_file_sealing = PENDING
+```
+
+Canonical primary identifier:
+
+```text
+/Users/Shared/Arvectum/ControlledArtifacts/ProxyLauncher/windows-build-inputs/sha256-4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886/
+```
+
+This closes the transfer/byte-match sub-gate only. It does not close P0.1: post-ingest read-only/immutable protection, the independent removable offline copy, final completion evidence and final canonical verification remain required.
 
 ## Primary access policy
 
