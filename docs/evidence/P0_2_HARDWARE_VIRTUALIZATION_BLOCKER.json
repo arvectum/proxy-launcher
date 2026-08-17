@@ -1,0 +1,45 @@
+{
+  "task": "P0.2",
+  "phase": "recovery-environment-provisioning",
+  "result": "BLOCKED",
+  "blocker": "HARDWARE_VIRTUALIZATION_DISABLED_OR_UNAVAILABLE",
+  "observed_on": "2026-08-17",
+  "host": {
+    "reported_windows_edition": "Windows 10 Home",
+    "reported_build_family": "26200",
+    "architecture": "x64",
+    "ram_gb": 8,
+    "free_vm_storage_gb": 95,
+    "hardware_virtualization": false,
+    "slat": false
+  },
+  "windows_sandbox": {
+    "available": false
+  },
+  "hyper_v": {
+    "classification": "HYPER_V_NOT_AVAILABLE",
+    "management_cmdlets": false
+  },
+  "third_party_hypervisors": {
+    "virtualbox": "NOT_INSTALLED",
+    "vmware": "NOT_INSTALLED",
+    "qemu": "NOT_INSTALLED"
+  },
+  "windows_install_media": {
+    "available": false
+  },
+  "vm": {
+    "name": "ARVECTUM-P0-2-RECOVERY",
+    "created": false,
+    "windows_installed": false,
+    "network_denial_capable": false,
+    "clean_snapshot_checkpoint": false
+  },
+  "required_human_action": [
+    "Enable Intel VT-x or AMD-V/SVM hardware virtualization in BIOS/UEFI and reboot.",
+    "Re-verify that virtualization is enabled before installing or provisioning a third-party hypervisor.",
+    "After virtualization is proven enabled, provision a controlled x64 hypervisor/VM path suitable for network-denied recovery testing."
+  ],
+  "p0_2_closed": false,
+  "secrets_in_evidence": false
+}
