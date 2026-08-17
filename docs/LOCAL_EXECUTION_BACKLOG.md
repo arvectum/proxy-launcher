@@ -10,34 +10,45 @@ This file contains only work that cannot be truthfully completed by hosted repos
 
 ### P0.1 Archive controlled build inputs
 
-Status: **AUTONOMOUS PREPARATION COMPLETE / LOCAL-INFRA ACCEPTANCE PENDING**.
+Status: **LOCAL ACQUISITION/VERIFICATION COMPLETE / CONTROLLED-STORAGE + OFFLINE-COPY ACCEPTANCE PENDING**.
 
 Repository-side preparation is complete:
 
 - `tools/archive_windows_build_inputs.ps1` re-verifies the governed CPython/wheelhouse bytes and produces one self-contained ZIP, SHA-256 sidecar and preparation evidence record without network access;
 - `tools/verify_windows_build_input_archive.ps1` independently verifies the archive offline, including nested manifests, exact wheel count and governance locks;
 - `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md` is the canonical operator runbook and acceptance contract;
+- `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md` defines the concrete Arvectum-controlled Mac mini primary perimeter, access/retention policy and physically separate offline-copy requirement;
 - CPython acquisition uses offline Sigstore bundle verification so live TUF refresh is not an availability dependency;
 - local P0.1 wheelhouse acquisition does not require installing or running the governed CPython `3.12.10` on the acquisition laptop: `prepare_windows_wheelhouse.ps1` explicitly cross-targets CPython `3.12.10` / `win_amd64` / `cp312` from a trusted local CPython transport, while exact eight-wheel filenames and SHA-256 values remain independently enforced;
 - CI deliberately proves this separation by acquiring the 3.12 wheelhouse from CPython `3.14.7`, then performing the offline product build with the separately verified/installed CPython `3.12.10` runtime;
 - `install_verified_windows_cpython.ps1` remains the clean/disposable-host recovery-install control for CI/P0.2, does not pre-create the target directory, and reports the installer log plus decimal/hex exit code on real failures.
 
-Required local/infrastructure boundary:
+Completed local acquisition/verification sub-gate:
 
-- choose an Arvectum/Russian-controlled artifact perimeter reachable during release recovery;
-- acquire and Sigstore-verify the exact CPython 3.12.10 x64 installer used by the canonical build;
-- acquire the exact verified Windows wheelhouse defined by `requirements-build.windows-x64.hashes.txt` plus `wheelhouse-manifest.json`; the acquisition Python version may differ because target compatibility is explicit and the resulting bytes are independently allowlisted/hashed;
-- build and offline-verify the P0.1 self-contained archive;
-- store the archive, SHA-256 sidecar and evidence record in the controlled perimeter;
-- record immutable SHA-256 values, retrieval path, access/retention policy and an offline copy location.
+- archive: `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
+- archive bytes: `30996168`;
+- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- canonical offline verifier: **PASS**;
+- verification repository commit: `60c456aa90ef8c6269ca79fdde9ad5861ebb6398`;
+- CPython installer: `python-3.12.10-amd64.exe`, SHA-256 `67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb`, Sigstore offline-bundle identity verification **PASS**;
+- wheelhouse target: CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, exactly eight governed wheels, hash-lock SHA-256 `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`, verification **PASS**.
+
+Remaining local/infrastructure boundary:
+
+- transfer the exact governed ZIP, `.sha256` sidecar and `.evidence.json` from the Windows acquisition host into the canonical Mac mini primary directory under `sha256-4a55f101...`;
+- verify the Mac mini primary copy is byte-identical to SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- make the three source artifacts read-only/immutable per the storage profile and record non-secret proof;
+- create the independent copy on a physically separate removable device, verify the same SHA-256, eject and physically disconnect it, and store it separately from the Mac mini;
+- produce final `P0_1_COMPLETION_EVIDENCE.json` containing storage identifiers, hashes, access/retention policy status and no secrets;
+- re-run the canonical Windows archive verifier against the controlled/retrieved bytes as required by the storage profile.
 
 Acceptance:
 
-- the controlled copy byte-matches the pinned/verified inputs and the locally prepared archive SHA-256;
-- the wheelhouse manifest targets exactly CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, contains exactly eight governed wheels and passes the committed SHA-256 lock;
-- the archive passes `tools/verify_windows_build_input_archive.ps1` without network access;
+- the controlled copy byte-matches the locally verified archive SHA-256;
+- the archive passes `tools/verify_windows_build_input_archive.ps1` without network access from the controlled/retrieved bytes;
 - a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
-- the evidence record identifies the storage source, offline-copy location and hashes without exposing secrets.
+- the independent offline copy byte-matches the primary controlled copy and is physically disconnected after verification;
+- the evidence record identifies primary storage, offline-copy location, access/retention policy and hashes without exposing secrets.
 
 Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate, and the acquisition interpreter does not have to equal the governed build interpreter. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
 
