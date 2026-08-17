@@ -1,0 +1,31 @@
+{
+  "task": "P0.2",
+  "phase": "preflight",
+  "product": "Arvectum Proxy Launcher",
+  "version": "0.2.3",
+  "recorded_date": "2026-08-17",
+  "status": "PASS_WITH_INSTALLER_TOOLCHAIN_BLOCKER",
+  "source_recovery": {
+    "remote": "GitVerse",
+    "checkout_path_at_execution": "C:\\P0_2_STAGE\\gitverse-source",
+    "commit": "678efda6df68c93db8474c810abd73bca72735b2",
+    "exact_commit_match": true,
+    "fresh_recovery_checkout": true
+  },
+  "controlled_input": {
+    "staged_path_at_execution": "C:\\P0_2_STAGE\\controlled-inputs",
+    "archive": "arvectum-windows-build-inputs-cpython-3.12.10-x64.zip",
+    "bytes": 30996168,
+    "sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "canonical_verifier": "PASS"
+  },
+  "installer_toolchain": {
+    "required": "Inno Setup 6.7.1",
+    "iscc_found": false,
+    "status": "BLOCKED_MISSING_PRESTAGED_INNO_6_7_1"
+  },
+  "next_required_boundary": "Run the GitVerse recovery checkout in a clean/disposable Windows x64 environment with public endpoints denied, using only the governed P0.1 archive. Portable recovery can be proven now; P0.2 cannot close until exact Inno Setup 6.7.1 is controlled/pre-staged and the installer build also passes.",
+  "governance": {
+    "secrets_in_evidence": false
+  }
+}
