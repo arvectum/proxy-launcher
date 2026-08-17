@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task": "P0.2",
+  "phase": "disposable-endpoint-denied-portable-recovery",
+  "date": "2026-08-17",
+  "result": "BLOCKED",
+  "blocker": "NO_DISPOSABLE_WINDOWS_RECOVERY_ENVIRONMENT",
+  "preflight": {
+    "source_recovery_remote": "GitVerse",
+    "source_commit": "678efda6df68c93db8474c810abd73bca72735b2",
+    "source_recovery": "PASS",
+    "controlled_archive_verification": "PASS",
+    "controlled_archive_bytes": 30996168,
+    "controlled_archive_sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "inno_setup_6_7_1_pre_staged": false
+  },
+  "environment_probe": {
+    "windows_sandbox_available": false,
+    "pre_existing_clean_disposable_windows_x64_vm_available": false,
+    "portable_recovery_build_started": false
+  },
+  "closure": {
+    "p0_2_closed": false,
+    "next_required_boundary": "Provision a clean/disposable Windows x64 recovery environment, then rerun the endpoint-denied portable recovery proof without weakening the acceptance gate."
+  },
+  "governance": {
+    "secrets_in_evidence": false
+  }
+}
