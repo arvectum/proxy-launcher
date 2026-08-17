@@ -18,14 +18,15 @@ Repository-side preparation is complete:
 - `tools/verify_windows_build_input_archive.ps1` independently verifies the archive offline, including nested manifests, exact wheel count and governance locks;
 - `docs/P0_1_WINDOWS_CONTROLLED_CPYTHON_WHEELHOUSE_ARCHIVE.md` is the canonical operator runbook and acceptance contract;
 - CPython acquisition uses offline Sigstore bundle verification so live TUF refresh is not an availability dependency;
-- local P0.1 wheelhouse acquisition no longer requires installing a second registered CPython on the acquisition laptop: `prepare_windows_wheelhouse.ps1` may use an existing trusted local interpreter only when it is exactly CPython `3.12.10` 64-bit, after which the exact eight wheel names and SHA-256 values are independently enforced;
+- local P0.1 wheelhouse acquisition does not require installing or running the governed CPython `3.12.10` on the acquisition laptop: `prepare_windows_wheelhouse.ps1` explicitly cross-targets CPython `3.12.10` / `win_amd64` / `cp312` from a trusted local CPython transport, while exact eight-wheel filenames and SHA-256 values remain independently enforced;
+- CI deliberately proves this separation by acquiring the 3.12 wheelhouse from CPython `3.14.7`, then performing the offline product build with the separately verified/installed CPython `3.12.10` runtime;
 - `install_verified_windows_cpython.ps1` remains the clean/disposable-host recovery-install control for CI/P0.2, does not pre-create the target directory, and reports the installer log plus decimal/hex exit code on real failures.
 
 Required local/infrastructure boundary:
 
 - choose an Arvectum/Russian-controlled artifact perimeter reachable during release recovery;
 - acquire and Sigstore-verify the exact CPython 3.12.10 x64 installer used by the canonical build;
-- acquire the exact verified Windows wheelhouse defined by `requirements-build.windows-x64.hashes.txt` plus `wheelhouse-manifest.json` using an exact CPython 3.12.10 x64 acquisition interpreter;
+- acquire the exact verified Windows wheelhouse defined by `requirements-build.windows-x64.hashes.txt` plus `wheelhouse-manifest.json`; the acquisition Python version may differ because target compatibility is explicit and the resulting bytes are independently allowlisted/hashed;
 - build and offline-verify the P0.1 self-contained archive;
 - store the archive, SHA-256 sidecar and evidence record in the controlled perimeter;
 - record immutable SHA-256 values, retrieval path, access/retention policy and an offline copy location.
@@ -33,11 +34,12 @@ Required local/infrastructure boundary:
 Acceptance:
 
 - the controlled copy byte-matches the pinned/verified inputs and the locally prepared archive SHA-256;
+- the wheelhouse manifest targets exactly CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, contains exactly eight governed wheels and passes the committed SHA-256 lock;
 - the archive passes `tools/verify_windows_build_input_archive.ps1` without network access;
 - a fresh build host can acquire all bootstrap/build inputs from the controlled perimeter without PyPI or python.org;
 - the evidence record identifies the storage source, offline-copy location and hashes without exposing secrets.
 
-Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
+Local installation of the verified CPython installer on the acquisition laptop is not a P0.1 gate, and the acquisition interpreter does not have to equal the governed build interpreter. The installer is exercised in disposable Windows CI and must be exercised again from the controlled archive during P0.2 on an independent clean/disposable recovery host.
 
 ### P0.2 Independent endpoint-denied recovery build
 
