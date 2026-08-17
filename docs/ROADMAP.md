@@ -79,7 +79,8 @@ Apple production identity signing/notarization is not a functional correctness g
 - **DONE (engineering control)** — P0.1 adds a network-free self-contained CPython/wheelhouse archive packager, full-payload SHA-256 manifest and independent offline verifier (`tools/archive_windows_build_inputs.ps1`, `tools/verify_windows_build_input_archive.ps1`).
 - **DONE** — build-only `pip` baseline moved from `25.3` to `26.1.2`; frozen PyInstaller/application runtime inputs otherwise unchanged.
 - **DONE (P0.1 local acquisition/verification sub-gate)** — governed archive `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`, `30,996,168` bytes, SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, passed the canonical offline verifier with current repository locks at commit `60c456aa90ef8c6269ca79fdde9ad5861ebb6398`.
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING — [Win] P0.1** — remaining work is to transfer that exact verified archive + sidecar + evidence JSON into the defined Arvectum-controlled Mac mini perimeter, re-verify the controlled copy, protect it read-only/immutable, create and verify a physically separate removable offline copy, and record final non-secret completion evidence. Canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
+- **DONE (P0.1 primary transfer/byte-match sub-gate)** — the exact ZIP, sidecar and evidence JSON were transferred over authenticated private-LAN SCP to the canonical Arvectum-controlled Mac mini directory; remote size is `30,996,168` bytes, remote SHA-256 is the same `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`, byte-match with the Windows source is **YES**.
+- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING — [Win] P0.1** — remaining work is now limited to sealing the three Mac mini primary artifacts read-only/immutable, creating and verifying the physically separate removable offline copy, producing final non-secret completion evidence, and running the final canonical verifier round-trip against controlled/retrieved bytes. Canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
 - **LOCAL/INFRA DEBT — HIGH — [Win] P0.2** — perform the independent/self-hosted/GitVerse recovery build with public package endpoints denied and compare exact release evidence using only the P0.1 controlled archive.
 - **MEDIUM** — controlled mirrors for Linux/macOS build inputs and AppImage tooling where those artifacts are produced.
 
@@ -126,7 +127,7 @@ The remaining execution backlog is maintained in `docs/LOCAL_EXECUTION_BACKLOG.m
 
 ## 6. Immediate remaining execution order
 
-1. **[Win] P0.1 controlled-storage acceptance:** transfer the already verified governed archive (`4a55f101…`) plus sidecar/evidence into the Mac mini controlled perimeter, verify the controlled copy, protect it read-only/immutable, then create/verify and physically disconnect the independent removable offline copy.
+1. **[Win] P0.1 controlled-storage acceptance:** seal the already transferred/byte-matched Mac mini primary artifacts read-only/immutable, then create/verify and physically disconnect the independent removable offline copy, and finish with the canonical verifier round-trip/final evidence.
 2. **[Win] P0.2 sovereign recovery build:** run an independent endpoint-denied/self-hosted/GitVerse recovery build using only the P0.1 controlled archive and compare release evidence.
 3. **APL-LNX-010:** run real Astra acceptance; close Gate R8 only if evidence passes.
 4. **APL-IP-001 human/legal sign-off:** significant-source review, artifact SBOM/notices reconciliation, chain-of-title evidence, then clean IP tag.
