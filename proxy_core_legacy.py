@@ -76,6 +76,8 @@ def data_dir():
     if is_windows():
         base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
         return os.path.join(base, "Arvectum", "ProxyLauncher")
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Arvectum", "ProxyLauncher")
     return install_dir()
 
 

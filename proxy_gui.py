@@ -28,6 +28,14 @@ import doctor as doctor_module
 import connection_test as connection_test_module
 import windows_single_instance as single_instance_module
 
+if os.name == "nt":
+    import winreg
+else:
+    try:
+        import macos_autostart as macos_autostart_module
+    except ImportError:
+        macos_autostart_module = None
+
 # ---------------------------------------------------------------------------
 # Бренд Arvectum
 # ---------------------------------------------------------------------------
@@ -807,7 +815,7 @@ class Launcher:
         self.auto_var = tk.BooleanVar(
             value=False if portable_fallback else self._autostart_enabled())
         self.autostart_check = ttk.Checkbutton(
-            body, text="Запускать прокси при входе в Windows",
+            body, text="Запускать Arvectum Proxy Launcher при входе в macOS" if os.name != "nt" else "Запускать прокси при входе в Windows",
             variable=self.auto_var, command=self._toggle_autostart,
             style="Brand.TCheckbutton")
         self.autostart_check.grid(row=6, column=0, sticky="w", pady=(16, 0))
@@ -893,7 +901,7 @@ class Launcher:
         if messagebox.askyesno(
                 APP_NAME,
                 "Предыдущий сеанс proxy завершился некорректно.\n\n"
-                "Чтобы Windows не осталась с устаревшими настройками proxy, "
+                "Чтобы сеть не осталась с устаревшими настройками proxy, "
                 "сначала нужно восстановить исходные настройки сети.\n\n"
                 "Восстановить сеть сейчас?",
                 icon="warning"):
@@ -957,9 +965,10 @@ class Launcher:
             messagebox.showinfo(APP_NAME, "Прокси выключен, исходные настройки сети восстановлены.")
 
     def restore_network(self, confirm=True):
+        msg = "Восстановить исходные настройки сети и остановить proxy?" if os.name != "nt" else "Восстановить исходные настройки сети Windows и остановить proxy?"
         if confirm and not messagebox.askyesno(
                 APP_NAME,
-                "Восстановить исходные настройки сети Windows и остановить proxy?",
+                msg,
                 icon="warning"):
             return
         self._set_busy("Восстановление сети…", MINT_LIGHT)
