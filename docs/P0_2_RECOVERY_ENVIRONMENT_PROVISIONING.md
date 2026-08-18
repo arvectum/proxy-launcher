@@ -1,12 +1,14 @@
 # P0.2 — disposable Windows x64 recovery environment provisioning
 
-Status: **REQUIRED / LOCAL-INFRASTRUCTURE DIAGNOSTIC GATE**.
+Status: **REQUIRED / VIRTUALBOX PROVISIONING READY**.
 
 The endpoint-denied portable recovery proof still cannot start because no disposable Windows x64 recovery environment exists. Windows Sandbox is unavailable and no pre-existing clean VM is present.
 
 The earlier provisioning audit reported hardware virtualization/SLAT as unavailable and therefore classified BIOS virtualization as a blocker. After the operator enabled virtualization in BIOS/UEFI and rebooted, a follow-up audit produced a contradictory state: `VirtualizationFirmwareEnabled = False`, SLAT = False and VM monitor extensions = False, while `HypervisorPresent = True`.
 
-That combination is not sufficient to conclude that BIOS virtualization is still disabled. When a Windows hypervisor/VBS/VSM layer is already running, normal host requirement reporting can be suppressed or altered. The next boundary is therefore a read-only Windows hypervisor/VBS diagnostic, not another BIOS change.
+A dedicated read-only diagnostic on 2026-08-18 resolved that conflict. Windows reports `HypervisorPresent = True` and `Win32_DeviceGuard.VirtualizationBasedSecurityStatus = 2`, which establishes that the Windows VBS/VSM hypervisor layer is active. Memory Integrity/HVCI is disabled and Credential Guard was not detected. Therefore the earlier processor-WMI negatives are not accepted as proof that BIOS virtualization is disabled. The BIOS virtualization gate is now **PRESUMED PASS / HYPERVISOR ACTIVE**.
+
+The next boundary is controlled VirtualBox provisioning. Do not return to BIOS and do not disable VBS/Memory Integrity/Credential Guard merely to improve virtualization performance. Oracle VirtualBox may use the Windows hypervisor path when Hyper-V/VBS is active; any performance degradation is acceptable for this one-shot recovery proof provided correctness, isolation and endpoint denial are preserved.
 
 ## Recorded host observations
 
@@ -40,23 +42,46 @@ After the human operator enabled virtualization in BIOS/UEFI and rebooted:
 - Hyper-V: `NOT_AVAILABLE`;
 - selected provisional third-party path: VirtualBox.
 
-This is recorded as a **diagnostic conflict**, not a proven hardware-virtualization failure.
+This was recorded as a diagnostic conflict rather than a proven hardware-virtualization failure.
 
 Evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_CONFLICT.json`.
 
-The reported product-name/build combination should also be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
+### Diagnostic resolution — 2026-08-18
 
-## Immediate diagnostic boundary
+Read-only follow-up evidence:
 
-Before any additional BIOS change or VirtualBox installation:
+- `HypervisorPresent`: **YES**;
+- `systeminfo` explicit hypervisor detection line: **UNKNOWN**;
+- VBS/VSM status code: `2`;
+- VBS/VSM classification: **RUNNING**;
+- Device Guard `SecurityServicesConfigured`: `0`;
+- Device Guard `SecurityServicesRunning`: `0`;
+- `hypervisorlaunchtype`: `NOT_EXPLICITLY_SET`;
+- Memory Integrity/HVCI: **DISABLED**;
+- Credential Guard: **NOT_DETECTED**;
+- processor WMI virtualization/SLAT/VM-monitor flags remain false;
+- diagnosis: `WINDOWS_VBS_HYPERVISOR_ACTIVE`;
+- BIOS virtualization gate: **PRESUMED_PASS**;
+- VirtualBox next step: **SAFE_TO_PROVISION**.
 
-1. inspect whether Windows Virtualization-Based Security / Virtual Secure Mode is running;
-2. inspect boot configuration (`hypervisorlaunchtype`) and relevant optional Windows virtualization features;
-3. capture `msinfo32` hypervisor/VBS state;
-4. classify whether the current `HypervisorPresent = True` is explained by Windows VBS/VSM or another active hypervisor layer;
-5. only then decide whether VirtualBox can be provisioned as-is or whether a Windows security/hypervisor compatibility decision is required.
+Evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_RESOLUTION.json`.
 
-Do not disable Memory Integrity, Credential Guard, VBS/VSM, Secure Boot or other security controls merely to make P0.2 pass. Any such change requires a deliberate security trade-off and is not part of this diagnostic gate.
+The reported product-name/build combination should be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
+
+## Immediate provisioning boundary
+
+1. acquire the current supported Oracle VirtualBox Windows-host installer from Oracle-controlled distribution;
+2. verify the installer against Oracle-published SHA-256 metadata and record exact version/hash before installation;
+3. install VirtualBox without Extension Pack unless a later requirement proves it necessary;
+4. verify `VBoxManage` is available and record the installed VirtualBox version;
+5. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; a Microsoft 90-day Windows 11 Enterprise evaluation ISO is acceptable because no product key is required for the recovery drill;
+6. verify and record the Windows ISO SHA-256 against Microsoft-published hash evidence where available;
+7. create dedicated VM `ARVECTUM-P0-2-RECOVERY` using approximately 4 GB RAM, 2 vCPU and a 64 GB dynamically allocated disk on this 8 GB host;
+8. install Windows x64, then create a clean baseline snapshot named `P0-2-CLEAN-BASELINE` before product inputs are introduced;
+9. prove the VM network adapter can be fully disconnected at the VirtualBox layer;
+10. only after the clean VM is ready, stage the exact GitVerse recovery source and P0.1 controlled archive and rerun the endpoint-denied portable recovery proof.
+
+Do not install the Oracle Extension Pack unless required. The base VirtualBox platform package is sufficient for the P0.2 VM and avoids introducing an unnecessary additional license/dependency boundary.
 
 ## Required environment properties
 

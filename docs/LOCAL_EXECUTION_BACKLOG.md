@@ -1,6 +1,6 @@
 # Arvectum Proxy Launcher — remaining local / human / infrastructure backlog
 
-Updated: 2026-08-17
+Updated: 2026-08-18
 
 This file contains only work that cannot be truthfully completed by hosted repository automation alone. The protected Windows `0.2.3` system-proxy baseline must remain unchanged while these items are executed.
 
@@ -44,7 +44,7 @@ P0.1 acceptance is fully satisfied. The governed archive can now be used as the 
 
 ### P0.2 Independent endpoint-denied recovery build
 
-Status: **IN PROGRESS — PREFLIGHT PASS / RECOVERY HOST BLOCKED / INSTALLER TOOLCHAIN BLOCKED**.
+Status: **IN PROGRESS — PREFLIGHT PASS / VIRTUALBOX PROVISIONING READY / INSTALLER TOOLCHAIN BLOCKED**.
 
 Completed preflight sub-gate:
 
@@ -60,35 +60,36 @@ Completed preflight sub-gate:
 - installer recovery status: **BLOCKED_MISSING_PRESTAGED_INNO_6_7_1**;
 - non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`.
 
-Recovery-environment provisioning evidence:
+Recovery-environment evidence:
 
 - Windows Sandbox unavailable on the current host;
 - no pre-existing clean/disposable Windows x64 VM;
-- reported host edition: `Windows 10 Home`;
-- reported build family: `26200`;
-- host architecture: x64;
-- RAM: 8 GB; free VM storage: 95 GB;
-- hardware virtualization reported: **NO**;
-- SLAT reported: **NO**;
-- Hyper-V classification: `HYPER_V_NOT_AVAILABLE`; management cmdlets unavailable;
-- VirtualBox / VMware / QEMU: not installed;
-- Windows installation ISO: not found;
-- dedicated recovery VM: not created;
-- current blocker: **HARDWARE_VIRTUALIZATION_DISABLED_OR_UNAVAILABLE**;
-- evidence: `docs/evidence/P0_2_HARDWARE_VIRTUALIZATION_BLOCKER.json`;
+- reported host edition/build identity: `Windows 10 Home` / `25H2` / build `26200`; this inventory name is treated as execution-report identity rather than a trusted marketing-name assertion;
+- host architecture: x64; RAM: 8 GB; free VM storage: 95 GB;
+- initial processor WMI virtualization/SLAT/VM-monitor flags reported **NO**;
+- after the operator enabled virtualization in BIOS/UEFI and rebooted, Windows reported `HypervisorPresent = YES` while the processor WMI flags remained false;
+- read-only resolution diagnostic: `Win32_DeviceGuard.VirtualizationBasedSecurityStatus = 2`, classification **VBS/VSM RUNNING**;
+- Memory Integrity/HVCI: **DISABLED**; Credential Guard: **NOT_DETECTED**;
+- diagnosis: `WINDOWS_VBS_HYPERVISOR_ACTIVE`;
+- BIOS virtualization gate: **PRESUMED_PASS / HYPERVISOR ACTIVE**;
+- Windows Sandbox / Client Hyper-V are not available as the chosen recovery path;
+- VirtualBox / VMware / QEMU are not currently installed;
+- VirtualBox next step: **SAFE_TO_PROVISION** without disabling Windows security controls;
+- dedicated recovery VM `ARVECTUM-P0-2-RECOVERY`: not yet created;
+- evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_RESOLUTION.json`;
 - provisioning contract: `docs/P0_2_RECOVERY_ENVIRONMENT_PROVISIONING.md`.
 
 Required local/infrastructure boundary now:
 
-1. enable Intel VT-x or AMD-V/SVM hardware virtualization in BIOS/UEFI and reboot;
-2. re-verify from Windows that firmware virtualization is enabled before installing/provisioning a hypervisor;
-3. if virtualization cannot be exposed by this CPU/firmware, move P0.2 to another controlled x64 Windows-capable host rather than weakening acceptance;
-4. once virtualization is proven, provision a clean/resettable Windows x64 VM with hypervisor-level network disconnect capability and a clean baseline checkpoint/snapshot;
-5. run the exact GitVerse recovery checkout in that clean/disposable environment;
-6. deny public package/source endpoints for the actual controlled verification/install/build phase;
-7. install governed CPython `3.12.10` x64 only from the P0.1 archive;
-8. build the portable artifact using only the archived eight-wheel hash-locked wheelhouse;
-9. generate endpoint-denial evidence, build-result evidence and an offline recovery SBOM without live package acquisition;
+1. acquire the current supported Oracle VirtualBox Windows-host installer from Oracle-controlled distribution and verify its Oracle-published SHA-256 before installation;
+2. install base VirtualBox only; do not add the Extension Pack unless a later requirement proves it necessary;
+3. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; Microsoft Windows 11 Enterprise evaluation ISO is acceptable;
+4. create `ARVECTUM-P0-2-RECOVERY` with approximately 4 GB RAM, 2 vCPU and a 64 GB dynamically allocated disk on this 8 GB host;
+5. install the guest OS and create clean snapshot `P0-2-CLEAN-BASELINE` before product inputs are introduced;
+6. prove the VirtualBox network adapter can be fully disconnected at hypervisor level;
+7. stage the exact GitVerse recovery checkout and P0.1 controlled archive into the clean VM before endpoint denial;
+8. run the endpoint-denied portable recovery proof using governed CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse;
+9. generate endpoint-denial evidence, build-result evidence and offline recovery SBOM without live package acquisition;
 10. compare resulting artifact/product contract and classify any binary differences;
 11. separately bring exact Inno Setup `6.7.1` under controlled/pre-staged storage and prove installer recovery before P0.2 can close.
 
