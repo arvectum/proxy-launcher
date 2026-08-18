@@ -1,8 +1,8 @@
 # P0.2 — disposable Windows x64 recovery environment provisioning
 
-Status: **REQUIRED / VIRTUALBOX ENGINE SMOKE PASS / WINDOWS GUEST PENDING**.
+Status: **CLEAN BASELINE PASS / CONTROLLED INPUT STAGING PENDING**.
 
-The endpoint-denied portable recovery proof still cannot start because the dedicated VirtualBox VM does not yet contain a clean Windows x64 guest and therefore has no `P0-2-CLEAN-BASELINE` snapshot. The hypervisor/VM-engine boundary itself is now proven.
+The dedicated VirtualBox recovery environment now contains a clean Windows 11 Enterprise Evaluation 25H2 x64 guest and a verified `P0-2-CLEAN-BASELINE` snapshot created before any Proxy Launcher source, P0.1 archive or project build dependencies were introduced. The endpoint-denied portable recovery proof has not yet started.
 
 The earlier provisioning audit reported hardware virtualization/SLAT as unavailable and therefore classified BIOS virtualization as a blocker. After the operator enabled virtualization in BIOS/UEFI and rebooted, a follow-up audit produced a contradictory state: `VirtualizationFirmwareEnabled = False`, SLAT = False and VM monitor extensions = False, while `HypervisorPresent = True`.
 
@@ -90,36 +90,61 @@ Evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_RESOLUTION.json`.
 - running state observed: **YES**;
 - final poweroff: **PASS**;
 - hypervisor-level network disconnect capability: **PASS**;
-- VBS/security controls deliberately disabled: **NO**;
-- Windows guest installed: **NO**;
-- clean snapshot `P0-2-CLEAN-BASELINE`: **NOT YET CREATED**.
+- VBS/security controls deliberately disabled: **NO**.
 
 Evidence: `docs/evidence/P0_2_VIRTUALBOX_PROVISIONING_EVIDENCE.json`.
+
+### Windows 11 x64 clean baseline — 2026-08-18
+
+The guest clean-baseline gate passed from the operator completion report.
+
+- ISO: `Windows11_Ent_Eval_25H2_en-us_x64_v2.iso`;
+- ISO bytes: `7092807680`;
+- local SHA-256: `A61ADEAB895EF5A4DB436E0A7011C92A2FF17BB0357F58B13BBC4062E535E7B9`;
+- Microsoft-published SHA-256: same value;
+- official hash match: **YES**;
+- installed edition: Windows 11 Enterprise Evaluation;
+- version: `25H2`;
+- build: `26200 (svc_refresh)`;
+- guest architecture: x64;
+- installation: clean unattended install;
+- public networking ever enabled: **NO**;
+- VM NIC before/after install: **NONE**;
+- product source introduced before snapshot: **NO**;
+- P0.1 archive introduced before snapshot: **NO**;
+- project build dependencies introduced before snapshot: **NO**;
+- guest shutdown before snapshot: **PASS**;
+- clean snapshot: `P0-2-CLEAN-BASELINE`;
+- snapshot UUID: `e5abd145-780c-457c-8b8c-a4aa01581716`;
+- snapshot verified: **YES**;
+- portable recovery started: **NO**;
+- installer recovery started: **NO**.
+
+Evidence: `docs/evidence/P0_2_CLEAN_BASELINE_EVIDENCE.json`.
 
 The reported host product-name/build combination should be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
 
 ## Immediate provisioning boundary
 
-1. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; a Microsoft Windows 11 Enterprise evaluation ISO is acceptable because no product key is required for the recovery drill;
-2. record ISO filename, byte size and SHA-256 and compare it against Microsoft-published hash evidence where available;
-3. attach the verified ISO to existing VM `ARVECTUM-P0-2-RECOVERY` while keeping the VM NIC disabled (`none`);
-4. install Windows x64 into the already-created 64 GB dynamic virtual disk; do not introduce Proxy Launcher source/build inputs during OS installation;
-5. complete only the minimum guest setup needed for the recovery drill; do not install Git/Python/build dependencies from public package endpoints as part of the clean baseline;
-6. confirm the installed guest is x64 and that the VM still has no network adapter;
-7. shut down the clean guest and create snapshot `P0-2-CLEAN-BASELINE` before any P0.2 product inputs are introduced;
-8. verify the snapshot exists and that restoring/resetting to it is possible;
-9. only after the clean baseline is proven, stage the exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` plus the exact P0.1 controlled archive into the VM using a local/offline transport;
-10. run the endpoint-denied portable recovery proof using governed CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse.
+The clean guest/snapshot boundary is closed. The next local sub-gate is **stage controlled recovery inputs into clean VM**:
+
+1. start from the verified `P0-2-CLEAN-BASELINE` recovery state and keep VirtualBox networking disabled;
+2. stage the exact frozen GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` from host path `C:\P0_2_STAGE\gitverse-source` using a host-local/offline transport;
+3. stage the exact governed P0.1 archive from `C:\P0_2_STAGE\controlled-inputs`, archive bytes `30,996,168`, SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+4. inside the guest verify the frozen source identity and archive identity before installing or building anything;
+5. confirm VM NIC remains `NONE` and public dependency/source endpoints remain unavailable;
+6. only after staging evidence passes, begin the governed endpoint-denied portable recovery proof using CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse from P0.1;
+7. do not claim P0.2 closed even if portable recovery passes while exact Inno Setup `6.7.1` remains uncontrolled/unavailable.
 
 Do not install the Oracle Extension Pack unless required. The base VirtualBox platform package is sufficient for the P0.2 VM and avoids an unnecessary additional license/dependency boundary.
 
 ## Required environment properties
 
-- Windows x64, disposable or resettable to a known-clean snapshot;
+- Windows x64, disposable/resettable to verified snapshot `P0-2-CLEAN-BASELINE`;
 - independent from the normal developer OS for the actual recovery build;
-- able to receive the exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` before endpoint denial;
-- able to receive the exact P0.1 controlled archive (30,996,168 bytes; SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`) before endpoint denial;
-- network/public endpoints can be positively disabled for the entire governed verification/install/build phase;
+- receives the exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` before build execution;
+- receives the exact P0.1 controlled archive (30,996,168 bytes; SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`) through local/offline transport;
+- network/public endpoints remain positively disabled for the governed verification/install/build phase;
 - CPython `3.12.10` x64 is installed only from the P0.1 archive;
 - the exact eight-wheel hash-locked wheelhouse is the sole Python build-package source;
 - recovery outputs/evidence can be exported after the build without enabling public dependency acquisition.
@@ -135,4 +160,4 @@ A normal developer workstation session is not accepted as a substitute for the d
 
 ## Separate installer blocker
 
-Exact Inno Setup `6.7.1` is also not yet pre-staged. Even after portable recovery passes, P0.2 remains open until that exact installer toolchain is acquired, verified, archived under Arvectum control, and used in an endpoint-denied installer recovery build.
+Exact Inno Setup `6.7.1` is still not pre-staged. Even after portable recovery passes, P0.2 remains open until that exact installer toolchain is acquired, verified, archived under Arvectum control, and used in an endpoint-denied installer recovery build.
