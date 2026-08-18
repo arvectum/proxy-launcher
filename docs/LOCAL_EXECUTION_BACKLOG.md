@@ -44,60 +44,71 @@ P0.1 acceptance is fully satisfied. The governed archive can now be used as the 
 
 ### P0.2 Independent endpoint-denied recovery build
 
-Status: **IN PROGRESS — PREFLIGHT PASS / VIRTUALBOX PROVISIONING READY / INSTALLER TOOLCHAIN BLOCKED**.
+Status: **IN PROGRESS — CLEAN BASELINE PASS / CONTROLLED INPUT STAGING NEXT / INSTALLER TOOLCHAIN BLOCKED**.
 
-Completed preflight sub-gate:
+Completed preflight and recovery-environment sub-gates:
 
 - canonical recovery target commit: `678efda6df68c93db8474c810abd73bca72735b2`;
 - fresh source recovery from GitVerse: **PASS**;
 - fresh recovery checkout path at execution: `C:\P0_2_STAGE\gitverse-source`;
 - exact GitVerse commit match: **YES**;
-- governed P0.1 archive staged at `C:\P0_2_STAGE\controlled-inputs`;
+- governed P0.1 archive staged on host at `C:\P0_2_STAGE\controlled-inputs`;
 - archive bytes: `30996168`;
 - archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
 - `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks`: **PASS**;
-- exact Inno Setup `6.7.1` / `ISCC.exe` found in standard locations or PATH: **NO**;
+- exact Inno Setup `6.7.1` / `ISCC.exe` pre-staged: **NO**;
 - installer recovery status: **BLOCKED_MISSING_PRESTAGED_INNO_6_7_1**;
-- non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`.
+- non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`;
+- read-only virtualization resolution diagnosed `WINDOWS_VBS_HYPERVISOR_ACTIVE`; BIOS virtualization gate **PRESUMED_PASS / HYPERVISOR ACTIVE**; no Windows security controls were deliberately disabled;
+- Oracle VirtualBox `7.2.14` revision `174565` controlled and installed without Extension Pack;
+- VirtualBox installer SHA-256 `5fb111f32a15763d519bf9ef23e0111153521f641cde7460e5b8e895ca27a1d2` matched Oracle SHA256SUMS; Authenticode **PASS**;
+- dedicated VM `ARVECTUM-P0-2-RECOVERY`: **CREATED**;
+- VM configuration: 4096 MB RAM, 2 vCPU, EFI, 64 GB dynamic disk, NIC `NONE`;
+- x64 VM-engine smoke: **PASS**;
+- hypervisor-level network disconnect capability: **PASS**;
+- evidence: `docs/evidence/P0_2_VIRTUALBOX_PROVISIONING_EVIDENCE.json`.
 
-Recovery-environment evidence:
+Clean Windows guest baseline — **PASS 2026-08-18**:
 
-- Windows Sandbox unavailable on the current host;
-- no pre-existing clean/disposable Windows x64 VM;
-- reported host edition/build identity: `Windows 10 Home` / `25H2` / build `26200`; this inventory name is treated as execution-report identity rather than a trusted marketing-name assertion;
-- host architecture: x64; RAM: 8 GB; free VM storage: 95 GB;
-- initial processor WMI virtualization/SLAT/VM-monitor flags reported **NO**;
-- after the operator enabled virtualization in BIOS/UEFI and rebooted, Windows reported `HypervisorPresent = YES` while the processor WMI flags remained false;
-- read-only resolution diagnostic: `Win32_DeviceGuard.VirtualizationBasedSecurityStatus = 2`, classification **VBS/VSM RUNNING**;
-- Memory Integrity/HVCI: **DISABLED**; Credential Guard: **NOT_DETECTED**;
-- diagnosis: `WINDOWS_VBS_HYPERVISOR_ACTIVE`;
-- BIOS virtualization gate: **PRESUMED_PASS / HYPERVISOR ACTIVE**;
-- Windows Sandbox / Client Hyper-V are not available as the chosen recovery path;
-- VirtualBox / VMware / QEMU are not currently installed;
-- VirtualBox next step: **SAFE_TO_PROVISION** without disabling Windows security controls;
-- dedicated recovery VM `ARVECTUM-P0-2-RECOVERY`: not yet created;
-- evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_RESOLUTION.json`;
-- provisioning contract: `docs/P0_2_RECOVERY_ENVIRONMENT_PROVISIONING.md`.
+- official Microsoft Windows 11 Enterprise Evaluation 25H2 x64 en-US ISO: `Windows11_Ent_Eval_25H2_en-us_x64_v2.iso`;
+- ISO bytes: `7092807680`;
+- local SHA-256: `A61ADEAB895EF5A4DB436E0A7011C92A2FF17BB0357F58B13BBC4062E535E7B9`;
+- Microsoft-published SHA-256: same value;
+- official hash match: **YES**;
+- guest install: clean unattended Windows 11 Enterprise Evaluation 25H2 x64;
+- guest build: `26200 (svc_refresh)`;
+- public networking ever enabled during install/OOBE: **NO**;
+- VM NIC before/after install: **NONE**;
+- product source introduced before snapshot: **NO**;
+- P0.1 archive introduced before snapshot: **NO**;
+- project build dependencies introduced before snapshot: **NO**;
+- guest shutdown before snapshot: **PASS**;
+- snapshot: `P0-2-CLEAN-BASELINE`;
+- snapshot UUID: `e5abd145-780c-457c-8b8c-a4aa01581716`;
+- snapshot verified: **YES**;
+- portable recovery started: **NO**;
+- installer recovery started: **NO**;
+- evidence: `docs/evidence/P0_2_CLEAN_BASELINE_EVIDENCE.json`.
 
 Required local/infrastructure boundary now:
 
-1. acquire the current supported Oracle VirtualBox Windows-host installer from Oracle-controlled distribution and verify its Oracle-published SHA-256 before installation;
-2. install base VirtualBox only; do not add the Extension Pack unless a later requirement proves it necessary;
-3. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; Microsoft Windows 11 Enterprise evaluation ISO is acceptable;
-4. create `ARVECTUM-P0-2-RECOVERY` with approximately 4 GB RAM, 2 vCPU and a 64 GB dynamically allocated disk on this 8 GB host;
-5. install the guest OS and create clean snapshot `P0-2-CLEAN-BASELINE` before product inputs are introduced;
-6. prove the VirtualBox network adapter can be fully disconnected at hypervisor level;
-7. stage the exact GitVerse recovery checkout and P0.1 controlled archive into the clean VM before endpoint denial;
-8. run the endpoint-denied portable recovery proof using governed CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse;
-9. generate endpoint-denial evidence, build-result evidence and offline recovery SBOM without live package acquisition;
-10. compare resulting artifact/product contract and classify any binary differences;
-11. separately bring exact Inno Setup `6.7.1` under controlled/pre-staged storage and prove installer recovery before P0.2 can close.
+1. start from the verified `P0-2-CLEAN-BASELINE` state and keep VM networking disabled at hypervisor level;
+2. transfer the exact frozen GitVerse recovery checkout from host path `C:\P0_2_STAGE\gitverse-source` into the guest using local/offline transport; do not fetch from GitHub/GitVerse inside the guest;
+3. transfer the exact governed P0.1 archive from `C:\P0_2_STAGE\controlled-inputs` into the guest using local/offline transport;
+4. verify inside the guest that source authority is exact commit `678efda6df68c93db8474c810abd73bca72735b2` and that the P0.1 archive is exactly `30996168` bytes / SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+5. confirm VM NIC remains `NONE` and public endpoints are unavailable before any dependency installation/build activity;
+6. run the canonical P0.1 archive verifier inside the guest and install CPython `3.12.10` x64 only from the governed archive;
+7. use only the exact eight-wheel hash-locked wheelhouse with `PIP_NO_INDEX=1` / offline-hash-locked mode;
+8. run the endpoint-denied portable recovery proof, tests, package-contract/branding checks, deterministic offline recovery SBOM and locked dependency coverage;
+9. verify endpoint denial before and after build and export non-secret evidence to host without enabling public acquisition;
+10. compare resulting artifact/product contract and classify any expected binary nondeterminism;
+11. separately bring exact Inno Setup `6.7.1` under Arvectum-controlled/pre-staged storage and prove endpoint-denied installer recovery before P0.2 can close.
 
 Acceptance:
 
-- clean/disposable Windows x64 recovery host is proven;
+- clean/disposable Windows x64 recovery host is proven through `P0-2-CLEAN-BASELINE`;
 - source recovery comes from GitVerse at the exact governed commit rather than GitHub;
-- public package/source endpoints remain denied during the actual install/build phase;
+- public package/source endpoints remain denied during actual controlled install/build;
 - controlled P0.1 archive remains the sole CPython/wheelhouse input;
 - canonical portable build succeeds in `offline-hash-locked` mode;
 - exact Inno Setup `6.7.1` is controlled/pre-staged and the canonical installer build succeeds without live acquisition;
