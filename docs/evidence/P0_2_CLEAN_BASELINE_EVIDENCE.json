@@ -1,0 +1,50 @@
+{
+  "task": "P0.2",
+  "phase": "windows-11-x64-clean-baseline",
+  "result": "PASS",
+  "recorded_date": "2026-08-18",
+  "source": "operator completion report",
+  "repository_main_at_report": "c4ca9609d3c743711dc92504d0099cc211b302ab",
+  "iso": {
+    "source": "Microsoft Evaluation Center",
+    "edition": "Windows 11 Enterprise Evaluation",
+    "version": "25H2",
+    "architecture": "x64",
+    "language": "en-US",
+    "filename": "Windows11_Ent_Eval_25H2_en-us_x64_v2.iso",
+    "bytes": 7092807680,
+    "sha256": "A61ADEAB895EF5A4DB436E0A7011C92A2FF17BB0357F58B13BBC4062E535E7B9",
+    "microsoft_published_sha256": "A61ADEAB895EF5A4DB436E0A7011C92A2FF17BB0357F58B13BBC4062E535E7B9",
+    "official_hash_match": true
+  },
+  "vm": {
+    "name": "ARVECTUM-P0-2-RECOVERY",
+    "memory_mb": 4096,
+    "cpus": 2,
+    "firmware": "EFI",
+    "disk": "64 GB dynamic",
+    "network_adapter": "NONE",
+    "windows_guest_installed": true,
+    "installation": "clean install (unattended)",
+    "guest_edition": "Windows 11 Enterprise Evaluation",
+    "guest_version": "25H2",
+    "guest_build": "26200 (svc_refresh)",
+    "guest_architecture": "x64",
+    "public_network_ever_enabled": false
+  },
+  "clean_baseline": {
+    "product_source_introduced_before_snapshot": false,
+    "p0_1_archive_introduced_before_snapshot": false,
+    "project_build_dependencies_introduced_before_snapshot": false,
+    "guest_shutdown_before_snapshot": "PASS",
+    "snapshot_name": "P0-2-CLEAN-BASELINE",
+    "snapshot_uuid": "e5abd145-780c-457c-8b8c-a4aa01581716",
+    "snapshot_verified": true
+  },
+  "ready_for_controlled_input_staging": true,
+  "portable_recovery_started": false,
+  "installer_recovery_started": false,
+  "p0_2_closed": false,
+  "remaining_installer_blocker": "BLOCKED_MISSING_PRESTAGED_INNO_6_7_1",
+  "secrets_in_evidence": false
+}
