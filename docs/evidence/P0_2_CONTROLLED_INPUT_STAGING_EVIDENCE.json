@@ -1,0 +1,58 @@
+{
+  "task": "P0.2",
+  "phase": "controlled-input-staging",
+  "result": "PASS",
+  "recorded_date": "2026-08-18",
+  "source": "operator completion report",
+  "repository_main_at_report": "cdb004ae9d691029e8cf250644166cd12cb7679a",
+  "baseline": {
+    "snapshot_name": "P0-2-CLEAN-BASELINE",
+    "snapshot_uuid": "e5abd145-780c-457c-8b8c-a4aa01581716",
+    "verified": true,
+    "restore_confirmed_before_staging": true
+  },
+  "network": {
+    "nic_before_staging": "NONE",
+    "nic_after_staging": "NONE",
+    "public_network_enabled": false,
+    "endpoint_unavailability_basis": "VirtualBox NIC=NONE",
+    "pypi_org_unavailable": true,
+    "files_pythonhosted_org_unavailable": true,
+    "python_org_unavailable": true,
+    "github_com_unavailable": true
+  },
+  "transport": {
+    "method": "host-local VDI attached at VirtualBox Port 1",
+    "guest_mount": "D:\\P0_2_INPUTS",
+    "public_network_used": false
+  },
+  "source_input": {
+    "authority": "GitVerse frozen recovery snapshot",
+    "host_path": "C:\\P0_2_STAGE\\gitverse-source",
+    "guest_path": "D:\\P0_2_INPUTS\\source",
+    "required_commit": "678efda6df68c93db8474c810abd73bca72735b2",
+    "verified": true,
+    "verification_method": "host-side git rev-parse plus source_manifest.json generated before VDI staging"
+  },
+  "p0_1_archive": {
+    "host_path": "C:\\P0_2_STAGE\\controlled-inputs",
+    "guest_path": "D:\\P0_2_INPUTS\\controlled-inputs",
+    "filename": "arvectum-windows-build-inputs-cpython-3.12.10-x64.zip",
+    "bytes": 30996168,
+    "sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "identity_match": true,
+    "canonical_verifier": "PASS",
+    "verifier_scope": "operator reports host-side prepared VDI verification; not claimed as an in-guest verifier execution"
+  },
+  "build_state": {
+    "cpython_installed": false,
+    "pip_used": false,
+    "product_build_started": false,
+    "portable_recovery_started": false,
+    "installer_recovery_started": false
+  },
+  "ready_for_endpoint_denied_portable_recovery": true,
+  "p0_2_closed": false,
+  "remaining_installer_blocker": "BLOCKED_MISSING_PRESTAGED_INNO_6_7_1",
+  "secrets_in_evidence": false
+}
