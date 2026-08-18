@@ -1,0 +1,26 @@
+{
+  "task": "P0.2",
+  "phase": "post-bios-virtualization-reverification",
+  "result": "DIAGNOSTIC_CONFLICT",
+  "observed_on": "2026-08-18",
+  "repository_commit": "2ab1a3f278d262d420a8c01dfbb7bc6d4c50d674",
+  "windows": {
+    "reported_product_name": "Windows 10 Home",
+    "edition_id": "Core",
+    "display_version": "25H2",
+    "build": "26200",
+    "architecture": "64-bit"
+  },
+  "virtualization_observations": {
+    "virtualization_firmware_enabled_wmi": false,
+    "slat_wmi": false,
+    "vm_monitor_mode_extensions_wmi": false,
+    "hypervisor_present": true,
+    "windows_sandbox": "NOT_AVAILABLE",
+    "hyper_v": "NOT_AVAILABLE"
+  },
+  "interpretation": "Do not treat the negative processor WMI flags as sufficient proof that BIOS virtualization is still disabled while HypervisorPresent is true. Resolve whether Windows VBS/VSM or another Windows hypervisor is running before repeating BIOS changes or provisioning VirtualBox.",
+  "next_gate": "Read-only VBS/VSM, boot hypervisor, optional-feature and msinfo32 diagnostics.",
+  "p0_2_closed": false,
+  "secrets_in_evidence": false
+}
