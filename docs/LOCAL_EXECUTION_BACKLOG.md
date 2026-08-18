@@ -44,7 +44,7 @@ P0.1 acceptance is fully satisfied. The governed archive can now be used as the 
 
 ### P0.2 Independent endpoint-denied recovery build
 
-Status: **IN PROGRESS — CLEAN BASELINE PASS / CONTROLLED INPUT STAGING NEXT / INSTALLER TOOLCHAIN BLOCKED**.
+Status: **IN PROGRESS — CLEAN BASELINE PASS / CONTROLLED INPUT STAGING PASS / PORTABLE RECOVERY NEXT / INSTALLER TOOLCHAIN BLOCKED**.
 
 Completed preflight and recovery-environment sub-gates:
 
@@ -90,19 +90,35 @@ Clean Windows guest baseline — **PASS 2026-08-18**:
 - installer recovery started: **NO**;
 - evidence: `docs/evidence/P0_2_CLEAN_BASELINE_EVIDENCE.json`.
 
+Controlled input staging — **PASS 2026-08-18**:
+
+- `P0-2-CLEAN-BASELINE` UUID `e5abd145-780c-457c-8b8c-a4aa01581716`: **VERIFIED** and restore confirmed before staging;
+- transport: host-local VDI attached at VirtualBox Port 1, guest mount `D:\P0_2_INPUTS`;
+- VM NIC before/after staging: **NONE**;
+- public networking enabled: **NO**;
+- endpoint unavailability for `pypi.org`, `files.pythonhosted.org`, `python.org` and `github.com`: confirmed by hypervisor-level `NIC=NONE` condition;
+- source host path: `C:\P0_2_STAGE\gitverse-source`;
+- source guest path: `D:\P0_2_INPUTS\source`;
+- required commit `678efda6df68c93db8474c810abd73bca72735b2`: **VERIFIED** by host-side `git rev-parse` plus `source_manifest.json` generated before staging;
+- P0.1 archive guest path: `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
+- archive bytes/hash identity: **MATCH** (`30996168`, SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`);
+- canonical verifier: **PASS** as reported for the host-side prepared VDI; no separate in-guest verifier execution is claimed by this gate;
+- CPython installed: **NO**; pip used: **NO**;
+- product build / portable recovery / installer recovery started: **NO**;
+- evidence: `docs/evidence/P0_2_CONTROLLED_INPUT_STAGING_EVIDENCE.json`.
+
 Required local/infrastructure boundary now:
 
-1. start from the verified `P0-2-CLEAN-BASELINE` state and keep VM networking disabled at hypervisor level;
-2. transfer the exact frozen GitVerse recovery checkout from host path `C:\P0_2_STAGE\gitverse-source` into the guest using local/offline transport; do not fetch from GitHub/GitVerse inside the guest;
-3. transfer the exact governed P0.1 archive from `C:\P0_2_STAGE\controlled-inputs` into the guest using local/offline transport;
-4. verify inside the guest that source authority is exact commit `678efda6df68c93db8474c810abd73bca72735b2` and that the P0.1 archive is exactly `30996168` bytes / SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-5. confirm VM NIC remains `NONE` and public endpoints are unavailable before any dependency installation/build activity;
-6. run the canonical P0.1 archive verifier inside the guest and install CPython `3.12.10` x64 only from the governed archive;
-7. use only the exact eight-wheel hash-locked wheelhouse with `PIP_NO_INDEX=1` / offline-hash-locked mode;
-8. run the endpoint-denied portable recovery proof, tests, package-contract/branding checks, deterministic offline recovery SBOM and locked dependency coverage;
-9. verify endpoint denial before and after build and export non-secret evidence to host without enabling public acquisition;
-10. compare resulting artifact/product contract and classify any expected binary nondeterminism;
-11. separately bring exact Inno Setup `6.7.1` under Arvectum-controlled/pre-staged storage and prove endpoint-denied installer recovery before P0.2 can close.
+1. keep VM networking disabled at hypervisor level (`NIC=NONE`) throughout the governed recovery build;
+2. use only staged source `D:\P0_2_INPUTS\source` representing frozen GitVerse commit `678efda6df68c93db8474c810abd73bca72735b2`;
+3. use only staged governed P0.1 archive `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
+4. run the canonical P0.1 archive verifier **inside the guest** and record that result separately from the staging verifier;
+5. install CPython `3.12.10` x64 only from governed P0.1 archive contents;
+6. use only the exact eight-wheel hash-locked wheelhouse with `PIP_NO_INDEX=1` and canonical `offline-hash-locked` mode;
+7. run the endpoint-denied portable recovery proof, tests, package-contract/branding checks, deterministic offline recovery SBOM and locked dependency coverage;
+8. verify endpoint denial before and after build and export non-secret evidence/output to host without enabling public acquisition;
+9. compare resulting artifact/product contract and classify expected binary nondeterminism;
+10. separately bring exact Inno Setup `6.7.1` under Arvectum-controlled/pre-staged storage and prove endpoint-denied installer recovery before P0.2 can close.
 
 Acceptance:
 
