@@ -1,0 +1,40 @@
+{
+  "task": "P0.2",
+  "phase": "virtualbox-provisioning-engine-smoke",
+  "result": "PASS",
+  "recorded_date": "2026-08-18",
+  "source": "operator completion report",
+  "repository_main_at_report": "0dc97e9fbd94f1893aa3027daeaa0be5edf9acff",
+  "virtualbox": {
+    "version": "7.2.14",
+    "revision": "174565",
+    "installer_filename": "VirtualBox-7.2.14-174565-Win.exe",
+    "installer_sha256": "5fb111f32a15763d519bf9ef23e0111153521f641cde7460e5b8e895ca27a1d2",
+    "oracle_sha256_match": true,
+    "authenticode": "PASS",
+    "base_platform_installed": true,
+    "extension_pack_installed": false,
+    "vboxmanage_operational": true
+  },
+  "host_security": {
+    "vbs_security_controls_deliberately_disabled": false
+  },
+  "vm": {
+    "name": "ARVECTUM-P0-2-RECOVERY",
+    "guest_type": "Windows11_64",
+    "memory_mb": 4096,
+    "cpus": 2,
+    "firmware": "EFI",
+    "network_adapter": "NONE",
+    "engine_smoke": "PASS",
+    "engine_started": true,
+    "powered_off_after_smoke": true,
+    "network_disconnect_capable": true,
+    "windows_guest_installed": false,
+    "clean_snapshot_created": false
+  },
+  "p0_2_recovery_environment_ready": false,
+  "p0_2_closed": false,
+  "next_boundary": "stage verified Windows 11 x64 installation ISO, install clean guest, and create P0-2-CLEAN-BASELINE",
+  "secrets_in_evidence": false
+}

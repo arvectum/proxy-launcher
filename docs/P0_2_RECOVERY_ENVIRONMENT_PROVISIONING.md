@@ -1,14 +1,16 @@
 # P0.2 — disposable Windows x64 recovery environment provisioning
 
-Status: **REQUIRED / VIRTUALBOX PROVISIONING READY**.
+Status: **REQUIRED / VIRTUALBOX ENGINE SMOKE PASS / WINDOWS GUEST PENDING**.
 
-The endpoint-denied portable recovery proof still cannot start because no disposable Windows x64 recovery environment exists. Windows Sandbox is unavailable and no pre-existing clean VM is present.
+The endpoint-denied portable recovery proof still cannot start because the dedicated VirtualBox VM does not yet contain a clean Windows x64 guest and therefore has no `P0-2-CLEAN-BASELINE` snapshot. The hypervisor/VM-engine boundary itself is now proven.
 
 The earlier provisioning audit reported hardware virtualization/SLAT as unavailable and therefore classified BIOS virtualization as a blocker. After the operator enabled virtualization in BIOS/UEFI and rebooted, a follow-up audit produced a contradictory state: `VirtualizationFirmwareEnabled = False`, SLAT = False and VM monitor extensions = False, while `HypervisorPresent = True`.
 
-A dedicated read-only diagnostic on 2026-08-18 resolved that conflict. Windows reports `HypervisorPresent = True` and `Win32_DeviceGuard.VirtualizationBasedSecurityStatus = 2`, which establishes that the Windows VBS/VSM hypervisor layer is active. Memory Integrity/HVCI is disabled and Credential Guard was not detected. Therefore the earlier processor-WMI negatives are not accepted as proof that BIOS virtualization is disabled. The BIOS virtualization gate is now **PRESUMED PASS / HYPERVISOR ACTIVE**.
+A dedicated read-only diagnostic on 2026-08-18 resolved that conflict. Windows reports `HypervisorPresent = True` and `Win32_DeviceGuard.VirtualizationBasedSecurityStatus = 2`, which establishes that the Windows VBS/VSM hypervisor layer is active. Memory Integrity/HVCI is disabled and Credential Guard was not detected. Therefore the earlier processor-WMI negatives are not accepted as proof that BIOS virtualization is disabled. The BIOS virtualization gate is **PRESUMED PASS / HYPERVISOR ACTIVE**.
 
-The next boundary is controlled VirtualBox provisioning. Do not return to BIOS and do not disable VBS/Memory Integrity/Credential Guard merely to improve virtualization performance. Oracle VirtualBox may use the Windows hypervisor path when Hyper-V/VBS is active; any performance degradation is acceptable for this one-shot recovery proof provided correctness, isolation and endpoint denial are preserved.
+Controlled Oracle VirtualBox provisioning then passed on 2026-08-18. Exact Oracle VirtualBox `7.2.14` revision `174565` was acquired; installer SHA-256 `5fb111f32a15763d519bf9ef23e0111153521f641cde7460e5b8e895ca27a1d2` matched Oracle SHA256SUMS and Authenticode verification passed. The base platform was installed without Extension Pack. `VBoxManage` is operational. Dedicated VM `ARVECTUM-P0-2-RECOVERY` was created as `Windows11_64` with 4096 MB RAM, 2 vCPU, EFI and no network adapter. The VM engine started successfully, a running state was observed, the VM was powered off afterward, and hypervisor-level network disconnect capability (`nic1=none`) was proven. VBS/security controls were not deliberately disabled.
+
+Evidence: `docs/evidence/P0_2_VIRTUALBOX_PROVISIONING_EVIDENCE.json`.
 
 ## Recorded host observations
 
@@ -24,9 +26,11 @@ The next boundary is controlled VirtualBox provisioning. Do not return to BIOS a
 - Windows Sandbox: **NO**;
 - Hyper-V: `HYPER_V_NOT_AVAILABLE`;
 - Hyper-V management cmdlets: **NO**;
-- VirtualBox / VMware / QEMU: not installed;
+- VirtualBox: not installed at that time;
+- VMware: not installed;
+- QEMU: not installed;
 - Windows install media: not found;
-- dedicated VM `ARVECTUM-P0-2-RECOVERY`: not created.
+- dedicated VM `ARVECTUM-P0-2-RECOVERY`: not created at that time.
 
 Initial evidence: `docs/evidence/P0_2_HARDWARE_VIRTUALIZATION_BLOCKER.json`.
 
@@ -66,22 +70,48 @@ Read-only follow-up evidence:
 
 Evidence: `docs/evidence/P0_2_VIRTUALIZATION_DIAGNOSTIC_RESOLUTION.json`.
 
-The reported product-name/build combination should be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
+### VirtualBox provisioning + x64 VM-engine smoke — 2026-08-18
+
+- VirtualBox version: `7.2.14` revision `174565`;
+- installer: `VirtualBox-7.2.14-174565-Win.exe`;
+- installer SHA-256: `5fb111f32a15763d519bf9ef23e0111153521f641cde7460e5b8e895ca27a1d2`;
+- Oracle SHA256SUMS match: **YES**;
+- Authenticode: **PASS**;
+- base VirtualBox installed: **YES**;
+- Extension Pack installed: **NO**;
+- `VBoxManage` operational: **YES**;
+- dedicated VM: `ARVECTUM-P0-2-RECOVERY`;
+- guest type: `Windows11_64`;
+- RAM: `4096 MB`;
+- vCPU: `2`;
+- firmware: `EFI`;
+- VM network adapter: **NONE**;
+- VM engine start: **PASS**;
+- running state observed: **YES**;
+- final poweroff: **PASS**;
+- hypervisor-level network disconnect capability: **PASS**;
+- VBS/security controls deliberately disabled: **NO**;
+- Windows guest installed: **NO**;
+- clean snapshot `P0-2-CLEAN-BASELINE`: **NOT YET CREATED**.
+
+Evidence: `docs/evidence/P0_2_VIRTUALBOX_PROVISIONING_EVIDENCE.json`.
+
+The reported host product-name/build combination should be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
 
 ## Immediate provisioning boundary
 
-1. acquire the current supported Oracle VirtualBox Windows-host installer from Oracle-controlled distribution;
-2. verify the installer against Oracle-published SHA-256 metadata and record exact version/hash before installation;
-3. install VirtualBox without Extension Pack unless a later requirement proves it necessary;
-4. verify `VBoxManage` is available and record the installed VirtualBox version;
-5. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; a Microsoft 90-day Windows 11 Enterprise evaluation ISO is acceptable because no product key is required for the recovery drill;
-6. verify and record the Windows ISO SHA-256 against Microsoft-published hash evidence where available;
-7. create dedicated VM `ARVECTUM-P0-2-RECOVERY` using approximately 4 GB RAM, 2 vCPU and a 64 GB dynamically allocated disk on this 8 GB host;
-8. install Windows x64, then create a clean baseline snapshot named `P0-2-CLEAN-BASELINE` before product inputs are introduced;
-9. prove the VM network adapter can be fully disconnected at the VirtualBox layer;
-10. only after the clean VM is ready, stage the exact GitVerse recovery source and P0.1 controlled archive and rerun the endpoint-denied portable recovery proof.
+1. acquire verified Windows 11 x64 installation media suitable for an ephemeral recovery VM; a Microsoft Windows 11 Enterprise evaluation ISO is acceptable because no product key is required for the recovery drill;
+2. record ISO filename, byte size and SHA-256 and compare it against Microsoft-published hash evidence where available;
+3. attach the verified ISO to existing VM `ARVECTUM-P0-2-RECOVERY` while keeping the VM NIC disabled (`none`);
+4. install Windows x64 into the already-created 64 GB dynamic virtual disk; do not introduce Proxy Launcher source/build inputs during OS installation;
+5. complete only the minimum guest setup needed for the recovery drill; do not install Git/Python/build dependencies from public package endpoints as part of the clean baseline;
+6. confirm the installed guest is x64 and that the VM still has no network adapter;
+7. shut down the clean guest and create snapshot `P0-2-CLEAN-BASELINE` before any P0.2 product inputs are introduced;
+8. verify the snapshot exists and that restoring/resetting to it is possible;
+9. only after the clean baseline is proven, stage the exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` plus the exact P0.1 controlled archive into the VM using a local/offline transport;
+10. run the endpoint-denied portable recovery proof using governed CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse.
 
-Do not install the Oracle Extension Pack unless required. The base VirtualBox platform package is sufficient for the P0.2 VM and avoids introducing an unnecessary additional license/dependency boundary.
+Do not install the Oracle Extension Pack unless required. The base VirtualBox platform package is sufficient for the P0.2 VM and avoids an unnecessary additional license/dependency boundary.
 
 ## Required environment properties
 
