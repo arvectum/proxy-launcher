@@ -1,0 +1,43 @@
+{
+  "task": "P0.2",
+  "phase": "virtualization-diagnostic-resolution",
+  "result": "PASS",
+  "observed_on": "2026-08-18",
+  "repository_sha": "d130a06abf21ada686ea6fbebb7bded04387306f",
+  "hypervisor": {
+    "hypervisor_present": true,
+    "systeminfo_hypervisor_detected": "UNKNOWN"
+  },
+  "vbs_vsm": {
+    "status_code": 2,
+    "classification": "RUNNING"
+  },
+  "device_guard": {
+    "security_services_configured": 0,
+    "security_services_running": 0
+  },
+  "boot": {
+    "hypervisorlaunchtype": "NOT_EXPLICITLY_SET"
+  },
+  "windows_features": {
+    "virtual_machine_platform": "UNKNOWN",
+    "windows_hypervisor_platform": "UNKNOWN",
+    "windows_sandbox": "UNKNOWN",
+    "hyper_v": "UNKNOWN"
+  },
+  "security": {
+    "memory_integrity_hvci": "DISABLED",
+    "credential_guard": "NOT_DETECTED"
+  },
+  "processor_wmi": {
+    "virtualization_firmware_enabled": false,
+    "slat": false,
+    "vm_monitor_mode_extensions": false
+  },
+  "diagnosis": "WINDOWS_VBS_HYPERVISOR_ACTIVE",
+  "bios_virtualization_gate": "PRESUMED_PASS",
+  "virtualbox_next_step": "SAFE_TO_PROVISION",
+  "p0_2_recovery_environment": "NOT_READY",
+  "p0_2_closed": false,
+  "secrets_in_evidence": false
+}
