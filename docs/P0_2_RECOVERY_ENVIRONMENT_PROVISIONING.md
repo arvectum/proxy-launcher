@@ -1,8 +1,8 @@
 # P0.2 — disposable Windows x64 recovery environment provisioning
 
-Status: **CLEAN BASELINE PASS / CONTROLLED INPUT STAGING PENDING**.
+Status: **CLEAN BASELINE PASS / CONTROLLED INPUT STAGING PASS / ENDPOINT-DENIED PORTABLE RECOVERY NEXT**.
 
-The dedicated VirtualBox recovery environment now contains a clean Windows 11 Enterprise Evaluation 25H2 x64 guest and a verified `P0-2-CLEAN-BASELINE` snapshot created before any Proxy Launcher source, P0.1 archive or project build dependencies were introduced. The endpoint-denied portable recovery proof has not yet started.
+The dedicated VirtualBox recovery environment contains a clean Windows 11 Enterprise Evaluation 25H2 x64 guest and a verified `P0-2-CLEAN-BASELINE` snapshot created before any Proxy Launcher source, P0.1 archive or project build dependencies were introduced. The exact frozen GitVerse recovery source and governed P0.1 archive have now been staged through host-local VDI transport while the VM NIC remained `NONE`. The endpoint-denied portable recovery proof has not yet started.
 
 The earlier provisioning audit reported hardware virtualization/SLAT as unavailable and therefore classified BIOS virtualization as a blocker. After the operator enabled virtualization in BIOS/UEFI and rebooted, a follow-up audit produced a contradictory state: `VirtualizationFirmwareEnabled = False`, SLAT = False and VM monitor extensions = False, while `HypervisorPresent = True`.
 
@@ -122,19 +122,52 @@ The guest clean-baseline gate passed from the operator completion report.
 
 Evidence: `docs/evidence/P0_2_CLEAN_BASELINE_EVIDENCE.json`.
 
+### Controlled recovery input staging — 2026-08-18
+
+The controlled-input staging gate passed from the operator completion report.
+
+- clean snapshot `P0-2-CLEAN-BASELINE` UUID `e5abd145-780c-457c-8b8c-a4aa01581716`: **VERIFIED**;
+- snapshot restore confirmed before staging: **YES**;
+- transport: host-local VDI attached at VirtualBox Port 1;
+- guest mount: `D:\P0_2_INPUTS`;
+- VM NIC before staging: **NONE**;
+- VM NIC after staging: **NONE**;
+- public networking enabled: **NO**;
+- frozen source host path: `C:\P0_2_STAGE\gitverse-source`;
+- frozen source guest path: `D:\P0_2_INPUTS\source`;
+- required source commit: `678efda6df68c93db8474c810abd73bca72735b2`;
+- source identity verified: **YES**, by host-side `git rev-parse` plus `source_manifest.json` generated before staging;
+- governed P0.1 archive guest path: `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
+- archive bytes: `30,996,168`;
+- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- archive identity match: **YES**;
+- canonical verifier: **PASS** as reported for the host-side prepared VDI; this record does **not** claim a separate in-guest verifier execution;
+- CPython installed: **NO**;
+- pip used: **NO**;
+- product build started: **NO**;
+- portable recovery started: **NO**;
+- installer recovery started: **NO**.
+
+The endpoint unavailability statements for `pypi.org`, `files.pythonhosted.org`, `python.org` and `github.com` are grounded in the hypervisor-level `NIC=NONE` condition rather than successful live requests.
+
+Evidence: `docs/evidence/P0_2_CONTROLLED_INPUT_STAGING_EVIDENCE.json`.
+
 The reported host product-name/build combination should be treated as execution-report identity rather than a trusted marketing-name assertion; edition/build reconciliation is secondary to the actual virtualization capability evidence.
 
 ## Immediate provisioning boundary
 
-The clean guest/snapshot boundary is closed. The next local sub-gate is **stage controlled recovery inputs into clean VM**:
+The clean guest/snapshot and controlled-input staging boundaries are closed. The next local sub-gate is **endpoint-denied portable recovery proof**:
 
-1. start from the verified `P0-2-CLEAN-BASELINE` recovery state and keep VirtualBox networking disabled;
-2. stage the exact frozen GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` from host path `C:\P0_2_STAGE\gitverse-source` using a host-local/offline transport;
-3. stage the exact governed P0.1 archive from `C:\P0_2_STAGE\controlled-inputs`, archive bytes `30,996,168`, SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-4. inside the guest verify the frozen source identity and archive identity before installing or building anything;
-5. confirm VM NIC remains `NONE` and public dependency/source endpoints remain unavailable;
-6. only after staging evidence passes, begin the governed endpoint-denied portable recovery proof using CPython `3.12.10` and the exact eight-wheel hash-locked wheelhouse from P0.1;
-7. do not claim P0.2 closed even if portable recovery passes while exact Inno Setup `6.7.1` remains uncontrolled/unavailable.
+1. keep VirtualBox networking disabled (`NIC=NONE`) for the entire governed install/build/verification phase;
+2. use only staged source `D:\P0_2_INPUTS\source` representing frozen GitVerse commit `678efda6df68c93db8474c810abd73bca72735b2`;
+3. use only staged governed P0.1 archive `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip` as the CPython/wheelhouse source;
+4. run the canonical archive verifier in the guest before extracting/installing governed build inputs and record the result separately from the earlier host-side staging verification;
+5. install exact CPython `3.12.10` x64 only from the governed archive;
+6. enforce `PIP_NO_INDEX=1` and canonical `offline-hash-locked` dependency mode using exactly the governed eight-wheel wheelhouse;
+7. run the canonical clean portable build, required tests, package-contract and branding checks, deterministic offline recovery SBOM generation and locked-dependency coverage checks;
+8. record network-denial state before and after the build, hashes of EXE/portable ZIP and non-secret recovery evidence;
+9. export evidence/output to the host only through local/offline transport without enabling public acquisition;
+10. do not claim P0.2 closed even if portable recovery passes while exact Inno Setup `6.7.1` remains uncontrolled/unavailable.
 
 Do not install the Oracle Extension Pack unless required. The base VirtualBox platform package is sufficient for the P0.2 VM and avoids an unnecessary additional license/dependency boundary.
 
@@ -142,8 +175,8 @@ Do not install the Oracle Extension Pack unless required. The base VirtualBox pl
 
 - Windows x64, disposable/resettable to verified snapshot `P0-2-CLEAN-BASELINE`;
 - independent from the normal developer OS for the actual recovery build;
-- receives the exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` before build execution;
-- receives the exact P0.1 controlled archive (30,996,168 bytes; SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`) through local/offline transport;
+- staged exact GitVerse recovery source at commit `678efda6df68c93db8474c810abd73bca72735b2` through local/offline transport;
+- staged exact P0.1 controlled archive (30,996,168 bytes; SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`) through local/offline transport;
 - network/public endpoints remain positively disabled for the governed verification/install/build phase;
 - CPython `3.12.10` x64 is installed only from the P0.1 archive;
 - the exact eight-wheel hash-locked wheelhouse is the sole Python build-package source;
