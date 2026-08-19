@@ -1,162 +1,126 @@
 # Arvectum Proxy Launcher — remaining local / human / infrastructure backlog
 
-Updated: 2026-08-18
+Updated: 2026-08-19
 
-This file contains only work that cannot be truthfully completed by hosted repository automation alone. The protected Windows `0.2.3` system-proxy baseline must remain unchanged while these items are executed.
+This file contains work that cannot be truthfully completed by hosted repository automation alone. The protected customer-proven Windows `0.2.3` system-proxy baseline must remain unchanged while these items are executed.
 
-## P0 — Windows sovereign-build infrastructure closure
+## P0 — Windows production release contour
 
-**Why first:** release recoverability and dependency sovereignty are higher risk than adding new features.
-
-### P0.1 Archive controlled build inputs — DONE
+### P0.1 Controlled Windows build inputs — DONE
 
 Status: **DONE / CLOSED 2026-08-17**.
 
-Final governed archive:
+Canonical governed archive:
 
 - archive: `arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
-- archive bytes: `30996168`;
-- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- CPython installer: `python-3.12.10-amd64.exe`, SHA-256 `67b5635e80ea51072b87941312d00ec8927c4db9ba18938f7ad2d27b328b95fb`, Sigstore offline-bundle identity verification **PASS**;
-- wheelhouse target: CPython `3.12.10`, `win_amd64`, implementation `cp`, ABI `cp312`, exactly eight governed wheels, hash-lock SHA-256 `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`.
+- bytes: `30996168`;
+- SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
+- CPython: `3.12.10` x64, governed installer identity verified;
+- wheelhouse: exactly eight approved Windows x64 wheels;
+- wheelhouse hash-lock SHA-256: `6587ee8cc6e7528f3d86dcfcca16fb731b48102a7a24fc6f0f12363f79020943`;
+- canonical evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`;
+- canonical storage profile: `docs/P0_1_CONTROLLED_STORAGE_PROFILE.md`.
 
-Closed acceptance evidence:
+The controlled archive has been retained under Arvectum control and an independent offline copy was previously byte-matched and physically separated. P0.1 is sufficient to preserve the key governed Windows build dependencies for a later independent rebuild drill.
 
-- local archive verifier: **PASS**;
-- primary controlled storage: Arvectum-controlled Mac mini, exact ZIP/sidecar/evidence byte-match with Windows source **YES**;
-- primary three source artifacts read-only + `uchg`: **YES**;
-- primary directory world-writable: **NO**;
-- access policy recorded: **YES**;
-- retention policy recorded: **YES**;
-- independent removable offline copy: `ARVECTUM-1`, `exFAT`, `16.0 GB`;
-- ZIP/sidecar/evidence byte-match primary: **YES**;
-- macOS `sync` + software eject: **PASS**;
-- physical disconnect from primary host: **YES**;
-- final Windows offline-copy canonical verifier with current repository locks and package-index access disabled: **PASS** at commit `1429e55959e9a3940b1f2e03e84f18fa7b05de0c`;
-- fresh Windows retrieval of Mac mini primary copy canonical verifier: **PASS**;
-- primary/offline ZIP, sidecar and evidence byte-match after round trip: **YES**;
-- final Windows safe eject and physical disconnect: **YES, human confirmed**;
-- offline device returned to separate storage: **YES**;
-- final non-secret evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`;
-- secrets in evidence: **NO**.
+### P0.2 Independent clean-machine endpoint-denied rebuild drill — DEFERRED
 
-P0.1 acceptance is fully satisfied. The governed archive can now be used as the sole CPython/wheelhouse source for P0.2.
+Status: **DEFERRED / NOT RELEASE BLOCKER**.
 
-### P0.2 Independent endpoint-denied recovery build
+Purpose:
 
-Status: **IN PROGRESS — CLEAN BASELINE PASS / CONTROLLED INPUT STAGING PASS / PORTABLE RECOVERY NEXT / INSTALLER TOOLCHAIN BLOCKED**.
+- prove future disaster-recovery/reproducibility from a clean Windows environment;
+- use only the frozen source authority plus governed P0.1 CPython/wheelhouse inputs;
+- deny public package/source endpoints during the entire rebuild;
+- run full tests, package-contract/branding checks, SBOM/dependency coverage and artifact comparison.
 
-Completed preflight and recovery-environment sub-gates:
+Why deferred:
 
-- canonical recovery target commit: `678efda6df68c93db8474c810abd73bca72735b2`;
-- fresh source recovery from GitVerse: **PASS**;
-- fresh recovery checkout path at execution: `C:\P0_2_STAGE\gitverse-source`;
-- exact GitVerse commit match: **YES**;
-- governed P0.1 archive staged on host at `C:\P0_2_STAGE\controlled-inputs`;
-- archive bytes: `30996168`;
-- archive SHA-256: `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`;
-- `tools/verify_windows_build_input_archive.ps1 -RequireCurrentRepositoryLocks`: **PASS**;
-- exact Inno Setup `6.7.1` / `ISCC.exe` pre-staged: **NO**;
-- installer recovery status: **BLOCKED_MISSING_PRESTAGED_INNO_6_7_1**;
-- non-secret preflight evidence: `docs/evidence/P0_2_PREFLIGHT_EVIDENCE.json`;
-- read-only virtualization resolution diagnosed `WINDOWS_VBS_HYPERVISOR_ACTIVE`; BIOS virtualization gate **PRESUMED_PASS / HYPERVISOR ACTIVE**; no Windows security controls were deliberately disabled;
-- Oracle VirtualBox `7.2.14` revision `174565` controlled and installed without Extension Pack;
-- VirtualBox installer SHA-256 `5fb111f32a15763d519bf9ef23e0111153521f641cde7460e5b8e895ca27a1d2` matched Oracle SHA256SUMS; Authenticode **PASS**;
-- dedicated VM `ARVECTUM-P0-2-RECOVERY`: **CREATED**;
-- VM configuration: 4096 MB RAM, 2 vCPU, EFI, 64 GB dynamic disk, NIC `NONE`;
-- x64 VM-engine smoke: **PASS**;
-- hypervisor-level network disconnect capability: **PASS**;
-- evidence: `docs/evidence/P0_2_VIRTUALBOX_PROVISIONING_EVIDENCE.json`.
+- a customer-proven sealed Windows `0.2.3` artifact already exists;
+- P0.1 has already preserved the critical controlled Windows build inputs;
+- the clean-machine drill is resilience/supply-chain assurance rather than a prerequisite for the current production release;
+- the attempted VirtualBox path encountered host-specific VBS/NEM/EFI/SMP incompatibilities, and the project will not weaken Windows security controls or bypass Windows 11 requirements just to satisfy a recovery-environment implementation detail.
 
-Clean Windows guest baseline — **PASS 2026-08-18**:
+Historical/forensic evidence from the attempted VirtualBox path remains valid only for what it actually proves. In particular, the original `P0-2-CLEAN-BASELINE` must not be treated as a successful restore/cold-boot baseline after later diagnostic failure.
 
-- official Microsoft Windows 11 Enterprise Evaluation 25H2 x64 en-US ISO: `Windows11_Ent_Eval_25H2_en-us_x64_v2.iso`;
-- ISO bytes: `7092807680`;
-- local SHA-256: `A61ADEAB895EF5A4DB436E0A7011C92A2FF17BB0357F58B13BBC4062E535E7B9`;
-- Microsoft-published SHA-256: same value;
-- official hash match: **YES**;
-- guest install: clean unattended Windows 11 Enterprise Evaluation 25H2 x64;
-- guest build: `26200 (svc_refresh)`;
-- public networking ever enabled during install/OOBE: **NO**;
-- VM NIC before/after install: **NONE**;
-- product source introduced before snapshot: **NO**;
-- P0.1 archive introduced before snapshot: **NO**;
-- project build dependencies introduced before snapshot: **NO**;
-- guest shutdown before snapshot: **PASS**;
-- snapshot: `P0-2-CLEAN-BASELINE`;
-- snapshot UUID: `e5abd145-780c-457c-8b8c-a4aa01581716`;
-- snapshot verified: **YES**;
-- portable recovery started: **NO**;
-- installer recovery started: **NO**;
-- evidence: `docs/evidence/P0_2_CLEAN_BASELINE_EVIDENCE.json`.
+Future execution policy:
 
-Controlled input staging — **PASS 2026-08-18**:
+1. wait until a suitable clean Windows machine/environment is naturally available;
+2. do not require any specific hypervisor — the drill is hypervisor-independent;
+3. verify the clean environment itself before staging product inputs;
+4. use the governed P0.1 archive as the sole CPython/wheelhouse source;
+5. verify source identity at the chosen frozen recovery authority;
+6. prove endpoint denial before and after build;
+7. run the canonical portable and, if desired, installer rebuild without live acquisition;
+8. export non-secret evidence, SBOM and hashes;
+9. compare product contract/artifacts against the governed candidate and document expected nondeterminism.
 
-- `P0-2-CLEAN-BASELINE` UUID `e5abd145-780c-457c-8b8c-a4aa01581716`: **VERIFIED** and restore confirmed before staging;
-- transport: host-local VDI attached at VirtualBox Port 1, guest mount `D:\P0_2_INPUTS`;
-- VM NIC before/after staging: **NONE**;
-- public networking enabled: **NO**;
-- endpoint unavailability for `pypi.org`, `files.pythonhosted.org`, `python.org` and `github.com`: confirmed by hypervisor-level `NIC=NONE` condition;
-- source host path: `C:\P0_2_STAGE\gitverse-source`;
-- source guest path: `D:\P0_2_INPUTS\source`;
-- required commit `678efda6df68c93db8474c810abd73bca72735b2`: **VERIFIED** by host-side `git rev-parse` plus `source_manifest.json` generated before staging;
-- P0.1 archive guest path: `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
-- archive bytes/hash identity: **MATCH** (`30996168`, SHA-256 `4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886`);
-- canonical verifier: **PASS** as reported for the host-side prepared VDI; no separate in-guest verifier execution is claimed by this gate;
-- CPython installed: **NO**; pip used: **NO**;
-- product build / portable recovery / installer recovery started: **NO**;
-- evidence: `docs/evidence/P0_2_CONTROLLED_INPUT_STAGING_EVIDENCE.json`.
+This task remains in backlog until convenient infrastructure exists. It must not block Windows installer/signing/release work.
 
-Required local/infrastructure boundary now:
+### P0.3 Inno Setup 6.7.1 controlled acquisition + production installer — ACTIVE
 
-1. keep VM networking disabled at hypervisor level (`NIC=NONE`) throughout the governed recovery build;
-2. use only staged source `D:\P0_2_INPUTS\source` representing frozen GitVerse commit `678efda6df68c93db8474c810abd73bca72735b2`;
-3. use only staged governed P0.1 archive `D:\P0_2_INPUTS\controlled-inputs\arvectum-windows-build-inputs-cpython-3.12.10-x64.zip`;
-4. run the canonical P0.1 archive verifier **inside the guest** and record that result separately from the staging verifier;
-5. install CPython `3.12.10` x64 only from governed P0.1 archive contents;
-6. use only the exact eight-wheel hash-locked wheelhouse with `PIP_NO_INDEX=1` and canonical `offline-hash-locked` mode;
-7. run the endpoint-denied portable recovery proof, tests, package-contract/branding checks, deterministic offline recovery SBOM and locked dependency coverage;
-8. verify endpoint denial before and after build and export non-secret evidence/output to host without enabling public acquisition;
-9. compare resulting artifact/product contract and classify expected binary nondeterminism;
-10. separately bring exact Inno Setup `6.7.1` under Arvectum-controlled/pre-staged storage and prove endpoint-denied installer recovery before P0.2 can close.
+Repository/autonomous preparation is complete via merged PR #92, historically named `[Win] P0.2-B — Inno Setup 6.7.1 sovereignty preparation`.
 
-Acceptance:
+Exact compiler authority is frozen in:
 
-- clean/disposable Windows x64 recovery host is proven through `P0-2-CLEAN-BASELINE`;
-- source recovery comes from GitVerse at the exact governed commit rather than GitHub;
-- public package/source endpoints remain denied during actual controlled install/build;
-- controlled P0.1 archive remains the sole CPython/wheelhouse input;
-- canonical portable build succeeds in `offline-hash-locked` mode;
-- exact Inno Setup `6.7.1` is controlled/pre-staged and the canonical installer build succeeds without live acquisition;
-- release evidence and offline recovery SBOM are produced;
-- hashes/diffs are compared against the canonical candidate and any expected nondeterminism is documented;
-- no unexplained artifact/product-contract difference remains;
-- GitVerse/self-hosted recovery procedure is proven rather than merely documented.
+`tools/inno-setup-windows.lock`
 
-P0.2 must remain open if the portable proof succeeds but Inno Setup `6.7.1` remains unavailable; do not weaken the installer acceptance gate.
+Current locked identity includes:
+
+- Inno Setup version: `6.7.1`;
+- release tag: `is-6_7_1`;
+- installer: `innosetup-6.7.1.exe`;
+- expected bytes: `10619024`;
+- expected SHA-256: `4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0`;
+- required Authenticode publisher: `Pyrsys B.V.`;
+- detached vendor signature/public-key/license inputs are part of the controlled bundle contract.
+
+Repository tooling already present:
+
+- connected acquisition/verifier: `tools/prepare_windows_inno_setup_base.ps1`;
+- offline verified installation helper: `tools/install_verified_windows_inno_setup.ps1`;
+- installer builder: `tools/build_windows_installer.ps1`;
+- contract tests: `tests/test_windows_inno_setup_sovereignty.py`;
+- canonical installer definition rejects compiler versions other than exact `6.7.1`.
+
+Required local boundary now:
+
+1. on a connected Windows host, run the canonical acquisition/verifier and obtain the exact controlled bundle;
+2. require exact size/SHA-256 plus valid Authenticode publisher according to the repository lock;
+3. retain the verified bundle under Arvectum control;
+4. run the canonical Windows production installer build with exact `ISCC.exe 6.7.1`;
+5. verify generated installer metadata/hash and real install/update/uninstall/rollback behavior;
+6. preserve non-secret build/release evidence.
+
+The former `BLOCKED_MISSING_PRESTAGED_INNO_6_7_1` remains relevant only if/when the deferred endpoint-denied recovery drill is resumed. For the current production release, connected controlled acquisition is allowed and is the active path.
+
+### P0.4 Russian-first Windows signing + final release package
+
+Start after the production installer is built and accepted.
+
+Required local/hardware/external boundary:
+
+- Russian-first production signing using the approved КриптоПро / Рутокен / Russian trust contour;
+- canonical portable + installer release package;
+- SHA-256/release evidence/SBOM/notices as applicable;
+- real Windows install/update/uninstall/rollback acceptance;
+- final retained artifact/source/build identity.
+
+International Microsoft/GlobalSign-oriented signing remains lower priority and is not a release blocker for the Russian-first product line.
 
 ## P1 — APL-LNX-010 real Astra Linux acceptance + Gate R8
 
 Required local boundary: a real supported Astra Linux graphical host/session.
 
-Start with the repository collector:
+Start with:
 
 ```bash
 bash qa/collect_astra_acceptance_preflight.sh
 ```
 
-Then execute the APL-LNX-010 acceptance matrix on the actual `.deb` candidate, including:
+Then execute the real `.deb` acceptance matrix, including install/start/GUI, runtime/backend detection, NetworkManager preflight, enable/sync/disable and rollback, autostart/session behavior, crash/restart/reboot recovery, uninstall/update and diagnostics privacy review.
 
-- install/start/GUI;
-- runtime/backend detection;
-- NetworkManager capability/preflight;
-- enable/sync/disable and exact rollback;
-- autostart/session behavior;
-- crash/restart/reboot recovery;
-- uninstall/update and user-state preservation;
-- diagnostics/support bundle privacy review.
-
-Gate R8 closes only if real-host evidence passes. Hosted Ubuntu CI is not a substitute.
+Gate R8 closes only from real-host evidence.
 
 ## P2 — APL-IP-001 authorized human/legal sign-off
 
@@ -173,51 +137,54 @@ Use:
 Acceptance:
 
 - significant-source review complete;
-- all final shipped artifacts reconciled with SBOM/licenses/notices;
+- shipped artifacts reconciled with SBOM/licenses/notices;
 - chain-of-title evidence verified;
-- decision in the sign-off record is **APPROVED**;
-- only then create a clean IP tag pointing to the exact reviewed commit (recommended convention: `ip-clean/<product-version>/<YYYY-MM-DD>`).
+- decision is **APPROVED**;
+- only then create the clean IP baseline/tag.
 
 Automation must not mark this complete on behalf of a human reviewer.
 
 ## P3 — APL-ROUTE-003 Windows per-application routing product decision
 
-Required product/external-platform boundary before further native implementation.
+Production WFP connect-redirection requires a native/kernel enforcement decision and Windows kernel-signing/distribution path. Choose deliberately:
 
-Production WFP connect-redirection requires a kernel/native enforcement path whose normal Windows production loading/signing chain creates an external Microsoft/accepted-EV dependency. Choose one path deliberately:
-
-1. accept that dependency for an optional per-app Windows SKU;
-2. adopt a separately reviewed already-signed third-party enforcement component;
+1. accept Microsoft Hardware Dev Center + accepted EV identity dependency for an optional per-app Windows SKU;
+2. adopt a separately reviewed already-signed third-party component;
 3. prove a supported user-mode architecture with equivalent semantics;
-4. defer Windows per-app routing and keep the proven system-proxy/domain/IP product as the production line.
+4. defer Windows per-app routing and keep system-proxy/domain/IP functionality as the production line.
 
-Do **not** use test-signing/developer mode as a production workaround.
+Do not use test-signing/developer mode as a production workaround.
 
-If path 1 or 2 is chosen, the next local work becomes native install/update/remove ownership, signing, privileged WFP enforcement, loop prevention, crash/reboot rollback and real Windows acceptance.
+## P4 — macOS real acceptance / Gate R9 — DONE
 
-## P4 — APL-MAC-008 real macOS acceptance + Gate R9 — DONE
-
-Closed from real MacBook acceptance evidence on 2026-08-17.
+Closed from real Mac acceptance evidence on 2026-08-17.
 
 ## P5 — controlled Linux/macOS build-input mirrors
 
-Required infrastructure boundary: Russian/Arvectum-controlled artifact/mirror storage and the corresponding build-host routing/credentials.
+Status: **DEFERRED / MEDIUM PRIORITY**.
 
-Scope after P0:
+When useful:
 
-- archive/mirror pinned Python/build inputs required by Linux and macOS packaging;
-- archive the exact AppImage build/runtime inputs used by the release process;
-- add immutable hashes and recovery instructions;
-- run at least one build with public package endpoints unavailable.
+- archive/mirror pinned Python/build inputs required by Linux/macOS packaging;
+- archive exact AppImage build/runtime inputs;
+- add immutable hashes/recovery instructions;
+- run at least one public-endpoint-denied build.
 
-This is medium priority because Windows is the customer-proven primary platform and should receive sovereignty closure first.
+## Deferred feature work
 
-## Deferred feature work after the gates above
+- Astra per-application routing prototype: after Windows routing policy is settled and a real privileged Astra test host is available.
+- macOS per-application routing: after entitlement/distribution-model proof for NetworkExtension/managed per-app routing.
+- international Apple/Microsoft signing/notarization paths: lower priority than the Russian-first release contour.
 
-- Astra per-application routing prototype: only after the Windows routing policy is settled and a real Astra privileged test host is available; expected direction is controlled cgroup/socket identity plus nftables/policy-routing.
-- macOS per-application routing: only after entitlement/distribution-model proof for NetworkExtension/managed per-app routing.
-- international Apple/Microsoft signing/notarization paths: remain lower priority than the Russian-first production/release path unless product strategy changes.
+## Current execution order
+
+1. **P0.3 — Inno Setup 6.7.1 controlled acquisition + production installer.**
+2. **P0.4 — Russian-first Windows signing + final release package.**
+3. **P1 — real Astra Linux acceptance / Gate R8.**
+4. **P2 — APL-IP-001 human/legal sign-off.**
+5. **P3 — Windows per-app routing product decision.**
+6. Deferred resilience/hardening tasks when infrastructure or product need makes them worthwhile.
 
 ## Completion discipline
 
-Do not relabel any item above as complete from mocks, hosted CI, documentation, or synthetic evidence. Close each item only from the named real-host, infrastructure, external-platform, or human/legal evidence boundary.
+Do not relabel real-host, signing, external-platform or human/legal gates as complete from mocks, CI or documentation. Conversely, do not allow deferred resilience work to block an already customer-proven production line unless a new explicit risk decision promotes it back onto the critical path.
