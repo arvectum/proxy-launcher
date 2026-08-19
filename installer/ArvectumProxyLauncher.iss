@@ -1,4 +1,8 @@
 ; APL-REL-006 / APL-WIN-009..012. Canonical Windows installer definition.
+; PREPROCVER/Ver is the compiler's own encoded version identity. 0x06070100 = 6.7.1.0.
+#if Ver != 0x06070100
+  #error Exact Inno Setup 6.7.1 is required for the canonical Windows installer
+#endif
 #ifndef AppVersion
   #error AppVersion must be supplied by tools/build_windows_installer.ps1
 #endif
