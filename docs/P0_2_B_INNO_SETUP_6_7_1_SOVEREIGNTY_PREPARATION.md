@@ -90,7 +90,7 @@ The offline installer script:
 - re-hashes the installer and checks its recorded byte size;
 - re-hashes the detached signature, public key and license against the manifest;
 - performs no `Invoke-WebRequest` or `Invoke-RestMethod` call;
-- installs for the current user into the explicit target directory;
+- invokes Inno Setup's documented `/PORTABLE=1` mode with `/CURRENTUSER` and an explicit `/DIR`, avoiding a normal uninstall/ARP installation footprint in the disposable recovery guest;
 - requires installed `ISCC.exe` to report exact three-part version `6.7.1`;
 - records `ISCC.exe` SHA-256 in `inno-setup-install-evidence.json`.
 
@@ -124,7 +124,7 @@ Repository/autonomous preparation is complete when all of these are true:
 - expected installer size and SHA-256 are locked;
 - connected acquisition requires valid Authenticode from `Pyrsys B.V.`;
 - detached upstream signature/public key/license are preserved in the controlled set;
-- an offline install path exists and contains no network acquisition calls;
+- an offline portable install path exists and contains no network acquisition calls;
 - canonical installer build rejects any compiler version other than `6.7.1`;
 - compiler version and SHA-256 flow into build evidence;
 - automated contract tests guard all of the above.
