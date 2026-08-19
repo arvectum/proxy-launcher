@@ -7,6 +7,7 @@ LOCK = (ROOT / 'tools' / 'inno-setup-windows.lock').read_text(encoding='utf-8')
 PREPARE = (ROOT / 'tools' / 'prepare_windows_inno_setup_base.ps1').read_text(encoding='utf-8')
 INSTALL = (ROOT / 'tools' / 'install_verified_windows_inno_setup.ps1').read_text(encoding='utf-8')
 BUILD = (ROOT / 'tools' / 'build_windows_installer.ps1').read_text(encoding='utf-8')
+ISS = (ROOT / 'installer' / 'ArvectumProxyLauncher.iss').read_text(encoding='utf-8')
 
 
 class WindowsInnoSetupSovereigntyTests(unittest.TestCase):
@@ -54,7 +55,7 @@ class WindowsInnoSetupSovereigntyTests(unittest.TestCase):
         ):
             self.assertIn(token, PREPARE)
 
-    def test_offline_install_revalidates_immutable_bytes(self):
+    def test_offline_install_revalidates_immutable_bytes_and_native_compiler_version(self):
         for token in (
             'offline-from-controlled-copy',
             'installer_sha256',
@@ -66,23 +67,31 @@ class WindowsInnoSetupSovereigntyTests(unittest.TestCase):
             '/PORTABLE=1',
             '/CURRENTUSER',
             'ISCC.exe',
-            "'6.7.1'",
-            'upstream_access_used = $false',
+            '#if Ver != 0x06070100',
+            'ARVECTUM_INNO_VERSION_MISMATCH_EXPECTED_6_7_1',
+            'Output=no',
+            "ObservedVersion = '6.7.1'",
+            "version_verification              = 'compiler-preprocessor-ver-0x06070100'",
+            'upstream_access_used              = $false',
             'inno-setup-install-evidence.json',
         ):
             self.assertIn(token, INSTALL)
         self.assertNotIn('Invoke-WebRequest', INSTALL)
         self.assertNotIn('Invoke-RestMethod', INSTALL)
+        self.assertNotIn('.VersionInfo.FileVersion', INSTALL)
 
-    def test_canonical_installer_builder_fails_closed_on_compiler_version(self):
+    def test_canonical_installer_fails_closed_on_native_compiler_version(self):
+        self.assertIn('#if Ver != 0x06070100', ISS)
+        self.assertIn('#error Exact Inno Setup 6.7.1 is required', ISS)
         for token in (
             "requiredInnoSetupVersion = '6.7.1'",
-            'Exact Inno Setup $requiredInnoSetupVersion is required',
-            "manifest['inno_setup_version']",
-            "manifest['iscc_sha256']",
-            'Using exact Inno Setup',
+            "inno_setup_version=$requiredInnoSetupVersion",
+            "inno_setup_version_verification='compiler-preprocessor-ver-0x06070100'",
+            'iscc_sha256=$isccHash',
+            'Inno Setup $requiredInnoSetupVersion compiler contract PASS.',
         ):
             self.assertIn(token, BUILD)
+        self.assertNotIn('.VersionInfo.FileVersion', BUILD)
         self.assertNotIn("requiredInnoSetupVersion = '6.7.2'", BUILD)
 
     def test_locked_hash_is_single_sha256(self):
