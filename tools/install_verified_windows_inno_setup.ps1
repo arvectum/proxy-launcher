@@ -45,15 +45,16 @@ $InstallerHash = (Get-FileHash -LiteralPath $Installer -Algorithm SHA256).Hash.T
 if ($InstallerHash -ne [string]$Manifest.installer_sha256) { throw 'Verified Inno Setup installer SHA-256 changed after acquisition.' }
 if ($InstallerInfo.Length -ne [int64]$Manifest.installer_bytes) { throw 'Verified Inno Setup installer size changed after acquisition.' }
 
-foreach ($item in @(
-    @([string]$Manifest.issig, [string]$Manifest.issig_sha256),
-    @([string]$Manifest.public_key, [string]$Manifest.public_key_sha256),
-    @([string]$Manifest.license, [string]$Manifest.license_sha256)
-)) {
-    $Path = Join-Path $Base $item[0]
+$EvidenceFiles = @(
+    [pscustomobject]@{ Name = [string]$Manifest.issig; Sha256 = [string]$Manifest.issig_sha256 },
+    [pscustomobject]@{ Name = [string]$Manifest.public_key; Sha256 = [string]$Manifest.public_key_sha256 },
+    [pscustomobject]@{ Name = [string]$Manifest.license; Sha256 = [string]$Manifest.license_sha256 }
+)
+foreach ($item in $EvidenceFiles) {
+    $Path = Join-Path $Base $item.Name
     if (-not (Test-Path -LiteralPath $Path)) { throw "Missing controlled Inno Setup evidence file: $Path" }
     $Observed = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($Observed -ne $item[1]) { throw "Controlled Inno Setup evidence hash mismatch: $($item[0])" }
+    if ($Observed -ne $item.Sha256) { throw "Controlled Inno Setup evidence hash mismatch: $($item.Name)" }
 }
 
 $Target = [System.IO.Path]::GetFullPath($TargetDirectory)
