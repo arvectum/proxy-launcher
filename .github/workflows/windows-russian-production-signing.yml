@@ -1,0 +1,73 @@
+name: Windows Russian-first Production Signing
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/windows_russian_production_signing.ps1'
+      - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
+      - 'docs/ROADMAP.md'
+      - 'tests/test_windows_russian_production_signing.py'
+      - '.github/workflows/windows-russian-production-signing.yml'
+  pull_request:
+    paths:
+      - 'tools/windows_russian_production_signing.ps1'
+      - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
+      - 'docs/ROADMAP.md'
+      - 'tests/test_windows_russian_production_signing.py'
+      - '.github/workflows/windows-russian-production-signing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Windows signing repository contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d
+        with:
+          python-version: '3.11'
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Run Windows signing contract tests
+        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
+
+  powershell-syntax:
+    name: Windows signing PowerShell syntax
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Parse signing scripts as UTF-8
+        shell: powershell
+        run: |
+          $files = @(
+            'tools/windows_russian_production_signing.ps1',
+            'tools/russian_signed_release.ps1',
+            'tools/prepare_russian_release_verification_ux.ps1',
+            'tools/russian_production_release_gate.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            $text = [System.IO.File]::ReadAllText(
+              (Resolve-Path $file),
+              [System.Text.Encoding]::UTF8
+            )
+            [System.Management.Automation.Language.Parser]::ParseInput(
+              $text,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}: line {1}, col {2}: {3}" -f $file, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              throw "PowerShell parse failed: $file"
+            }
+          }

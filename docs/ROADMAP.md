@@ -43,17 +43,27 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 - **DONE** — exact portable ISCC `6.7.1` installed and verified via compiler-preprocessor-ver `0x06070100`; ISCC SHA-256 `eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb`.
 - **DONE** — canonical Windows portable build PASS; `dependency_mode=offline-hash-locked`; 521 tests PASS; portable EXE SHA-256 `f8d98f987ce92dee7979b12b69a56d120ddb12244bebe2559bc51359a53f9c7a`; portable ZIP SHA-256 `62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801`.
 - **DONE** — canonical `0.2.3` installer build PASS; installer SHA-256 `5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414`.
-- Installer intentionally remains **unsigned** at this stage (production signing is the next gate).
+- The sealed installer input is intentionally Authenticode-unsigned. The Russian-first contour signs the exact final release manifest with the governed CryptoPro/Rutoken identity and does not mutate or misrepresent the installer as Microsoft-native signed code.
 - Canonical evidence: `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`.
 
 ### Windows production signing / release package
 
-The canonical `0.2.3` portable and installer builds are complete (see above). The next active Windows priority is the Russian-first production signing / release package:
+- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — `[Win] Russian-first production signing` repository implementation.
+- **DONE** — one canonical fail-closed owner-operated entry point: `tools/windows_russian_production_signing.ps1`.
+- **DONE** — exact `0.2.3` portable ZIP and installer are bound to the production-build evidence by filename, SHA-256 and installer size before any signing step.
+- **DONE** — dual-commit provenance preserves the real artifact build commit separately from the later release-policy commit; runtime/build-input drift after the sealed build forces a rebuild instead of silently reusing stale binaries.
+- **DONE** — canonical staging includes portable + installer + build provenance + notices/license + end-user verification UX before manifest generation/signing.
+- **DONE** — APL-REL-011 detached CryptoPro/Rutoken manifest signing/verification and APL-REL-013 fail-closed publication gate are composed into the same ceremony.
+- **DONE** — repository contract tests and Windows PowerShell syntax CI cover the orchestration; no token PIN, password, PFX or private-key material is accepted by the automation.
+- **TRUST BOUNDARY** — the currently governed certificate remains `RELEASE-EVIDENCE-ONLY`; embedded Authenticode/SmartScreen trust is not claimed. A domestic code-signing certificate + separate embedded-signing POC remains a later optional gate.
+- **LOCAL GATE** — merge the repository implementation to canonical `main`, tag the exact release-policy commit, then execute the ceremony on the owner-operated Windows signing station with the physical Rutoken. The task becomes fully complete only when the signed release directory and `.production-release-gate.json` with `decision=PUBLISH` are retained.
+- Runbook: `docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md`.
 
-1. complete the Russian-first production signing contour (КриптоПро / Рутокен / approved Russian trust path);
-2. assemble the canonical Windows release package (portable + installer + hashes + release evidence + notices/SBOM as applicable);
-3. verify install/update/uninstall/rollback behavior on the real Windows target;
-4. retain the final release artifact and source/build identity.
+After the local signing ceremony:
+
+1. retain the canonical signed Windows release set and publication decision;
+2. perform real install/update/uninstall/rollback acceptance against that exact release set;
+3. retain the final release artifact and source/build/signing identity.
 
 International Microsoft/GlobalSign-oriented distribution remains lower priority and is not a blocker for the Russian-first release.
 
@@ -115,7 +125,7 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **[Win] Russian-first production signing + canonical Windows release package + install/update/uninstall/rollback acceptance.**
+1. **[Win] Local gate:** merge/tag canonical `main`, execute `windows_russian_production_signing.ps1` with the physical Rutoken, retain `PUBLISH` evidence; then perform install/update/uninstall/rollback acceptance against that exact signed release set.
 2. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
 3. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
 4. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
