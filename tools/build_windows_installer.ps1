@@ -1,4 +1,4 @@
-<# Canonical APL-REL-006 / APL-WIN-010..012 installer build. Requires Inno Setup 6.7.1. #>
+<# Canonical APL-REL-006 / APL-WIN-010..012 installer build. Requires exact Inno Setup 6.7.1. #>
 [CmdletBinding()]
 param(
     [string]$PythonExecutable = 'python',
@@ -54,6 +54,11 @@ function NormalizedVersionInfoValue($Value) {
     # the semantic value while still requiring exact text/case after trimming.
     return ([string]$Value).Trim()
 }
+function ThreePartVersion([string]$Value) {
+    $match = [regex]::Match(([string]$Value).Trim(), '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)')
+    if (-not $match.Success) { return $null }
+    return "$($match.Groups['major'].Value).$($match.Groups['minor'].Value).$($match.Groups['patch'].Value)"
+}
 
 $manifest = [ordered]@{
     product='Arvectum Proxy Launcher'
@@ -76,6 +81,22 @@ if (-not $IsccPath) {
         Select-Object -First 1
 }
 if (-not $IsccPath) { throw 'Inno Setup 6.7.1 ISCC.exe was not found.' }
+if (-not (Test-Path -LiteralPath $IsccPath)) { throw "ISCC.exe path does not exist: $IsccPath" }
+
+$requiredInnoSetupVersion = '6.7.1'
+$isccInfo = (Get-Item -LiteralPath $IsccPath).VersionInfo
+$observedInnoSetupVersion = ThreePartVersion ([string]$isccInfo.FileVersion)
+if (-not $observedInnoSetupVersion) {
+    $observedInnoSetupVersion = ThreePartVersion ([string]$isccInfo.ProductVersion)
+}
+if ($observedInnoSetupVersion -ne $requiredInnoSetupVersion) {
+    throw "Exact Inno Setup $requiredInnoSetupVersion is required; observed ISCC.exe version '$observedInnoSetupVersion' at '$IsccPath'."
+}
+$isccHash = Hash $IsccPath
+$manifest['inno_setup_version'] = $observedInnoSetupVersion
+$manifest['iscc_sha256'] = $isccHash
+$manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $payload 'build_manifest.json') -Encoding utf8
+Write-Host "Using exact Inno Setup $observedInnoSetupVersion ISCC.exe SHA256=$isccHash"
 
 $isccArgs = @(
     "/DAppVersion=$version",
