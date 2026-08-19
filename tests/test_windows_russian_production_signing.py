@@ -38,6 +38,29 @@ def test_ceremony_never_accepts_pin_password_pfx_or_exportable_key_material():
     assert "pin is never passed to this script" in lowered
 
 
+def test_governed_signer_is_pinned_and_operator_rotation_is_rejected():
+    text = _script()
+    thumbprint = "EE1CFA955BA22F03C39C76B183D94CD37494582E"
+    assert text.count(thumbprint) >= 2
+    assert "$governedCertificateThumbprint" in text
+    assert "$requestedCertificateThumbprint" in text
+    assert "Certificate rotation is a governed repository change" in text
+    assert "refuses an operator-supplied signer override" in text
+    assert "-CertificateThumbprint $governedCertificateThumbprint" in text
+    assert "-ExpectedSignerThumbprint $governedCertificateThumbprint" in text
+
+
+def test_governed_signer_must_be_present_currently_valid_and_private_key_backed():
+    text = _script()
+    assert "Governed release certificate is not present" in text
+    assert "$governedCertificate.HasPrivateKey" in text
+    assert "does not expose the Rutoken-backed private key" in text
+    assert "$governedCertificate.NotBefore.ToUniversalTime()" in text
+    assert "$governedCertificate.NotAfter.ToUniversalTime()" in text
+    assert "Governed release certificate is not currently valid" in text
+    assert "Subject -notmatch 'АРВЕКТУМ'" in text
+
+
 def test_exact_023_portable_and_installer_are_bound_to_build_evidence():
     text = _script()
     assert "WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json" in text
