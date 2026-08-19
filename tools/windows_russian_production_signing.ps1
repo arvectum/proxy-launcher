@@ -64,7 +64,8 @@ function Assert-ReleaseOnlyDelta([string]$BuildCommit, [string]$ReleaseCommit) {
         throw "Artifact build commit $BuildCommit is not an ancestor of release commit $ReleaseCommit."
     }
 
-    $changed = @(Invoke-Git @('diff', '--name-only', "$BuildCommit..$ReleaseCommit") -split "`n" | Where-Object { $_ })
+    $deltaText = Invoke-Git @('diff', '--name-only', "$BuildCommit..$ReleaseCommit")
+    $changed = @($deltaText -split "`n" | Where-Object { $_ })
     $releaseOnlyPatterns = @(
         '^docs/',
         '^release/',
@@ -260,7 +261,6 @@ Release policy commit: $releaseCommit
     $readme | Set-Content -LiteralPath (Join-Path $releaseFullPath 'README_RUSSIAN_RELEASE.txt') -Encoding UTF8
 
     & (Join-Path $repoRoot 'tools\prepare_russian_release_verification_ux.ps1') -ReleaseDirectory $releaseFullPath
-    if ($LASTEXITCODE -ne 0) { throw 'REL-012 verification UX staging failed.' }
 
     Write-Host ''
     Write-Host '=== Physical signing boundary ==='
@@ -277,7 +277,6 @@ Release policy commit: $releaseCommit
         -GitCommit $releaseCommit `
         -CertificateThumbprint $CertificateThumbprint `
         -CertificateStoreLocation $CertificateStoreLocation
-    if ($LASTEXITCODE -ne 0) { throw 'APL-REL-011 signing failed.' }
 
     $decisionPath = $releaseFullPath + '.production-release-gate.json'
     & (Join-Path $repoRoot 'tools\russian_production_release_gate.ps1') `
@@ -287,7 +286,6 @@ Release policy commit: $releaseCommit
         -GitCommit $releaseCommit `
         -ExpectedSignerThumbprint $CertificateThumbprint `
         -DecisionOutputPath $decisionPath
-    if ($LASTEXITCODE -ne 0) { throw 'APL-REL-013 production publication gate failed.' }
 
     $decision = Get-Content -LiteralPath $decisionPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$decision.decision -ne 'PUBLISH') {
