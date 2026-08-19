@@ -1,0 +1,17 @@
+# [Win] P0.2-B — exact Inno Setup compiler acquisition contract.
+# This is a build-time/recovery input, not an application runtime dependency.
+INNO_VERSION=6.7.1
+INNO_RELEASE_TAG=is-6_7_1
+INNO_RELEASE_COMMIT_SHORT=cfdf489
+INNO_INSTALLER=innosetup-6.7.1.exe
+INNO_INSTALLER_URL=https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe
+INNO_INSTALLER_SIZE=10619024
+INNO_INSTALLER_SHA256=4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0
+INNO_AUTHENTICODE_PUBLISHER=Pyrsys B.V.
+INNO_ISSIG=innosetup-6.7.1.exe.issig
+INNO_ISSIG_URL=https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe.issig
+INNO_PUBLIC_KEY=def02.ispublickey
+INNO_PUBLIC_KEY_URL=https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_1/def02.ispublickey
+INNO_PUBLIC_KEY_ID=def020edee3c4835fd54d85eff8b66d4d899b22a777353ca4a114b652e5e7a28
+INNO_LICENSE=LICENSE.txt
+INNO_LICENSE_URL=https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_1/license.txt
