@@ -1,8 +1,21 @@
 # [Win] P0.2-B — Inno Setup 6.7.1 sovereignty preparation
 
-Status: **AUTONOMOUS PREPARATION PASS / CONTROLLED ACQUISITION PENDING / OFFLINE STAGING PENDING / ENDPOINT-DENIED INSTALLER RECOVERY PENDING**.
+> ## Current status (2026-08-19) — production path vs. deferred P0.2 recovery
+>
+> **Production path: PASS.** The repository preparation, the production controlled acquisition, the production portable Inno toolchain verification, and the canonical production installer build are all complete:
+>
+> - repository preparation PASS;
+> - production controlled acquisition PASS (`6.7.1`, `10619024` bytes, SHA-256 `4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0`, Authenticode Valid / Pyrsys B.V.);
+> - production portable Inno toolchain verification PASS (compiler-preprocessor-ver `0x06070100`, ISCC SHA-256 `eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb`);
+> - canonical production installer build PASS (`0.2.3`, SHA-256 `5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414`, intentionally unsigned at this stage).
+>
+> These production-path results are recorded separately in `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`.
+>
+> **BUT the original endpoint-denied P0.2 VM recovery execution described below was intentionally deferred.** It remains **DEFERRED / NOT RELEASE BLOCKER**. No production result above is evidence that the P0.2 independent clean-machine recovery completed. The historical P0.2 requirements below are retained as a future recovery/hardening specification.
 
-This sub-gate removes the repository-side ambiguity around the Windows installer compiler while preserving the real-host evidence boundary. It does **not** claim that Inno Setup has already been acquired, archived, staged into `ARVECTUM-P0-2-RECOVERY`, or used for an endpoint-denied build.
+Status: **AUTONOMOUS PREPARATION PASS / PRODUCTION ACQUISITION PASS / PRODUCTION INSTALLER BUILD PASS / P0.2 ENDPOINT-DENIED RECOVERY DEFERRED (NOT RELEASE BLOCKER)**.
+
+This sub-gate removes the repository-side ambiguity around the Windows installer compiler while preserving the real-host evidence boundary. It does **not** claim that the original endpoint-denied P0.2 recovery path (acquisition inside the disposable `ARVECTUM-P0-2-RECOVERY` guest, offline staging with NIC `NONE`, and endpoint-denied installer build) has been completed. The **production-path** acquisition and installer build were later completed on the operator's controlled host and are recorded in `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`; that is a distinct result from the deferred P0.2 clean-machine recovery drill below.
 
 ## Exact upstream identity
 
@@ -72,7 +85,7 @@ After connected verification, preserve the complete directory as one controlled 
 
 At minimum, retain the verified set in Arvectum-controlled storage and a separate offline copy using the same byte-match/separation discipline already proven for P0.1. Do not treat a public URL, GitHub release availability, winget cache or an installed developer-workstation copy as controlled storage.
 
-The controlled acquisition/retention sub-gate is **not complete** until real artifact hashes and storage evidence exist.
+The production-path controlled acquisition/retention sub-gate is **complete** on the operator's controlled host (see the current-status note above and `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`). For the deferred P0.2 recovery drill, the acquisition/retention sub-gate remains **not complete** until real artifact hashes and storage evidence exist inside the endpoint-denied flow.
 
 ## Endpoint-denied VM installation
 
@@ -129,9 +142,9 @@ Repository/autonomous preparation is complete when all of these are true:
 - compiler version and SHA-256 flow into build evidence;
 - automated contract tests guard all of the above.
 
-Real/local completion remains pending until all of these are true:
+Real/local **P0.2 endpoint-denied recovery** completion remains pending until all of these are true (and, per the later P0.2 deferral decision, this is a future recovery/hardening specification rather than a release blocker):
 
-- exact upstream bytes are actually acquired and the verifier reports PASS;
+- exact upstream bytes are actually acquired inside the endpoint-denied flow and the verifier reports PASS;
 - the complete verified set is archived under Arvectum control;
 - an independent offline copy is produced and byte-matched;
 - the exact verified set is staged into `ARVECTUM-P0-2-RECOVERY` without enabling networking;
