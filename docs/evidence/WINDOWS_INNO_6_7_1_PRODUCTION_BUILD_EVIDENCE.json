@@ -1,0 +1,101 @@
+{
+  "task": "WINDOWS_INNO_6_7_1_PRODUCTION_BUILD",
+  "product": "Arvectum Proxy Launcher",
+  "product_version": "0.2.3",
+  "verification_status": "PASS",
+  "closure_status": "CLOSED",
+  "recorded_date": "2026-08-19",
+
+  "repository": {
+    "source_commit": "54ce2585222948b51c67510ea620516ea6c3f876",
+    "branch": "win/inno-6.7.1-production-closure"
+  },
+
+  "inno_acquisition": {
+    "version": "6.7.1",
+    "upstream_tag": "is-6_7_1",
+    "upstream_commit_short": "cfdf489",
+    "installer_filename": "innosetup-6.7.1.exe",
+    "installer_bytes": 10619024,
+    "installer_sha256": "4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0",
+    "authenticode_status": "Valid",
+    "authenticode_publisher": "Pyrsys B.V.",
+    "authenticode_signer_thumbprint": "E0AB19C8D38CBF9C44709925122A7A02F8C70CB7",
+    "issig": "innosetup-6.7.1.exe.issig",
+    "public_key": "def02.ispublickey",
+    "public_key_id": "def020edee3c4835fd54d85eff8b66d4d899b22a777353ca4a114b652e5e7a28",
+    "license": "LICENSE.txt",
+    "verification": "locked-sha256+authenticode-pass",
+    "acquisition_mode": "connected-upstream",
+    "host_local_controlled_directory": "C:\\Arvectum\\ControlledInputs\\ProxyLauncher\\inno-setup-6.7.1-base",
+    "manifest": "inno-setup-base-manifest.json"
+  },
+
+  "inno_toolchain": {
+    "iscc_path": "C:\\Arvectum\\Toolchains\\Inno-Setup-6.7.1\\ISCC.exe",
+    "iscc_sha256": "eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb",
+    "version_verification": "compiler-preprocessor-ver-0x06070100",
+    "install_evidence": "inno-setup-install-evidence.json",
+    "install_mode": "offline-portable-from-controlled-copy",
+    "upstream_access_used_during_install": false
+  },
+
+  "governed_build_inputs": {
+    "python_version": "3.12.10",
+    "python_architecture": "x64",
+    "p0_1_archive_sha256": "4a55f101bdd15a956c9bc4249fdbb694abadd682a3340c0f5ef08c174880a886",
+    "wheelhouse_manifest_sha256": "bcd30edc50a57d21507509e285243edee679ec234b07378db019de3005068e38",
+    "dependency_count": 8
+  },
+
+  "portable_build": {
+    "dependency_mode": "offline-hash-locked",
+    "tests_passed": 521,
+    "exe_sha256": "f8d98f987ce92dee7979b12b69a56d120ddb12244bebe2559bc51359a53f9c7a",
+    "zip_sha256": "62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801",
+    "python_version": "3.12.10",
+    "pip_version": "26.1.2",
+    "pyinstaller_version": "6.22.0",
+    "company": "ООО «Арвектум»",
+    "file_version": "0.2.3.0"
+  },
+
+  "installer_build": {
+    "filename": "Arvectum-Proxy-Launcher-0.2.3-windows-x64-setup.exe",
+    "bytes": 17559854,
+    "sha256": "5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414",
+    "inno_setup_version": "6.7.1",
+    "inno_setup_version_verification": "compiler-preprocessor-ver-0x06070100",
+    "iscc_sha256": "eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb",
+    "company": "ООО «Арвектум»",
+    "product_name": "Arvectum Proxy Launcher",
+    "file_description": "Arvectum Proxy Launcher Windows Installer",
+    "file_version": "0.2.3.0",
+    "authenticode_status": "NotSigned",
+    "synthetic_lifecycle_fixture": false
+  },
+
+  "execution": {
+    "network_dependency_access_during_build": false,
+    "production_signing_performed": false,
+    "installer_lifecycle_performed": false,
+    "vm_operations_performed": false,
+    "version_changed": false,
+    "elevated_powershell_required_for_full_test_suite": true,
+    "elevation_reason": "Windows SeCreateSymbolicLinkPrivilege required by Linux symlink test"
+  },
+
+  "scope_boundaries": {
+    "p0_2_independent_rebuild_completed": false,
+    "p0_2_independent_rebuild_status": "DEFERRED_NOT_RELEASE_BLOCKER",
+    "production_signing_completed": false
+  },
+
+  "governance": {
+    "vendor_binaries_committed": false,
+    "generated_release_binaries_committed": false,
+    "secrets_in_evidence": false
+  },
+
+  "next_gate": "Russian-first Windows production signing and canonical release acceptance"
+}

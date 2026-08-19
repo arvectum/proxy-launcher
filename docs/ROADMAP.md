@@ -37,18 +37,18 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 
 ### Inno Setup 6.7.1 / production installer
 
-- **ACTIVE** — exact Inno Setup `6.7.1` controlled acquisition and production installer closure.
-- **DONE (repository/autonomous preparation)** — PR #92 (`[Win] P0.2-B — Inno Setup 6.7.1 sovereignty preparation`) merged to `main`.
-- Exact compiler identity is locked in `tools/inno-setup-windows.lock`.
-- Connected acquisition/verification script: `tools/prepare_windows_inno_setup_base.ps1`.
-- Offline verified installation helper: `tools/install_verified_windows_inno_setup.ps1`.
-- Canonical installer builder fails closed on any compiler version other than exact `6.7.1` and records compiler identity in build evidence.
-- **NEXT LOCAL GATE** — acquire the exact upstream Inno Setup `6.7.1` controlled bundle, verify size/SHA-256/AuthentiCode/publisher against the repository lock, retain it under Arvectum control, then run the canonical production installer build.
-- The former `BLOCKED_MISSING_PRESTAGED_INNO_6_7_1` applies only to the deferred offline-recovery drill; normal controlled acquisition for the production installer is now the active path.
+- **DONE** — exact Inno Setup `6.7.1` controlled acquisition and production installer closure.
+- **DONE** — exact upstream Inno Setup `6.7.1` controlled acquisition; exact installer size/SHA-256 verified against the repository lock (`10619024` bytes, `4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0`).
+- **DONE** — Authenticode `Valid` / publisher `Pyrsys B.V.`; controlled copy retained under Arvectum control.
+- **DONE** — exact portable ISCC `6.7.1` installed and verified via compiler-preprocessor-ver `0x06070100`; ISCC SHA-256 `eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb`.
+- **DONE** — canonical Windows portable build PASS; `dependency_mode=offline-hash-locked`; 521 tests PASS; portable EXE SHA-256 `f8d98f987ce92dee7979b12b69a56d120ddb12244bebe2559bc51359a53f9c7a`; portable ZIP SHA-256 `62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801`.
+- **DONE** — canonical `0.2.3` installer build PASS; installer SHA-256 `5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414`.
+- Installer intentionally remains **unsigned** at this stage (production signing is the next gate).
+- Canonical evidence: `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`.
 
 ### Windows production signing / release package
 
-After the installer is built and accepted:
+The canonical `0.2.3` portable and installer builds are complete (see above). The next active Windows priority is the Russian-first production signing / release package:
 
 1. complete the Russian-first production signing contour (КриптоПро / Рутокен / approved Russian trust path);
 2. assemble the canonical Windows release package (portable + installer + hashes + release evidence + notices/SBOM as applicable);
@@ -115,12 +115,11 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **[Win] Inno Setup 6.7.1 controlled acquisition + production installer build/acceptance.**
-2. **[Win] Russian-first production signing + canonical Windows release package + install/update/uninstall/rollback acceptance.**
-3. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
-4. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
-5. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
-6. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
+1. **[Win] Russian-first production signing + canonical Windows release package + install/update/uninstall/rollback acceptance.**
+2. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
+3. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
+4. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+5. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
