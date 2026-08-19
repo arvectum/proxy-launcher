@@ -63,6 +63,7 @@ class WindowsInnoSetupSovereigntyTests(unittest.TestCase):
             'issig_sha256',
             'public_key_sha256',
             'license_sha256',
+            '/PORTABLE=1',
             '/CURRENTUSER',
             'ISCC.exe',
             "'6.7.1'",
