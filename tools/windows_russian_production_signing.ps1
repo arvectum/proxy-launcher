@@ -41,6 +41,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$governedCertificateThumbprint = 'EE1CFA955BA22F03C39C76B183D94CD37494582E'
+$requestedCertificateThumbprint = (($CertificateThumbprint -replace '\s', '').ToUpperInvariant())
+if ($requestedCertificateThumbprint -ne $governedCertificateThumbprint) {
+    throw 'Certificate rotation is a governed repository change. The production ceremony refuses an operator-supplied signer override.'
+}
+$CertificateThumbprint = $governedCertificateThumbprint
+
 if ($env:OS -ne 'Windows_NT') {
     throw 'Windows Russian-first production signing must run on the owner-operated Windows signing station.'
 }
@@ -121,6 +128,22 @@ try {
     $version = (Get-Content -LiteralPath (Join-Path $repoRoot 'VERSION') -Raw).Trim()
     if ($GitTag -notmatch ('^v' + [regex]::Escape($version) + '(?:$|[-+])')) {
         throw "Version/tag mismatch: VERSION=$version GitTag=$GitTag"
+    }
+
+    $certificateStorePath = "Cert:\$CertificateStoreLocation\My\$governedCertificateThumbprint"
+    if (-not (Test-Path -LiteralPath $certificateStorePath)) {
+        throw "Governed release certificate is not present in the selected certificate store: $certificateStorePath"
+    }
+    $governedCertificate = Get-Item -LiteralPath $certificateStorePath
+    if (-not $governedCertificate.HasPrivateKey) {
+        throw 'Governed release certificate does not expose the Rutoken-backed private key on this signing station.'
+    }
+    $nowUtc = [DateTime]::UtcNow
+    if ($governedCertificate.NotBefore.ToUniversalTime() -gt $nowUtc -or $governedCertificate.NotAfter.ToUniversalTime() -le $nowUtc) {
+        throw "Governed release certificate is not currently valid. NotBefore=$($governedCertificate.NotBefore.ToUniversalTime().ToString('o')) NotAfter=$($governedCertificate.NotAfter.ToUniversalTime().ToString('o'))"
+    }
+    if ([string]$governedCertificate.Subject -notmatch 'АРВЕКТУМ') {
+        throw "Governed release certificate subject does not identify АРВЕКТУМ: $($governedCertificate.Subject)"
     }
 
     $buildEvidencePath = Join-Path $repoRoot 'docs\evidence\WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json'
@@ -237,7 +260,7 @@ try {
             russian_qualified_release_evidence = $true
             embedded_pe_authenticode = $false
             microsoft_smartscreen_trust_claimed = $false
-            governed_certificate_thumbprint = ($CertificateThumbprint -replace '\s', '').ToUpperInvariant()
+            governed_certificate_thumbprint = $governedCertificateThumbprint
             governed_certificate_classification = 'RELEASE-EVIDENCE-ONLY'
         }
     }
@@ -275,7 +298,7 @@ Release policy commit: $releaseCommit
         -Version $version `
         -GitTag $GitTag `
         -GitCommit $releaseCommit `
-        -CertificateThumbprint $CertificateThumbprint `
+        -CertificateThumbprint $governedCertificateThumbprint `
         -CertificateStoreLocation $CertificateStoreLocation
 
     $decisionPath = $releaseFullPath + '.production-release-gate.json'
@@ -284,7 +307,7 @@ Release policy commit: $releaseCommit
         -Version $version `
         -GitTag $GitTag `
         -GitCommit $releaseCommit `
-        -ExpectedSignerThumbprint $CertificateThumbprint `
+        -ExpectedSignerThumbprint $governedCertificateThumbprint `
         -DecisionOutputPath $decisionPath
 
     $decision = Get-Content -LiteralPath $decisionPath -Raw -Encoding UTF8 | ConvertFrom-Json
