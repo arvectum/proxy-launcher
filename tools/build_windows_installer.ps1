@@ -54,11 +54,21 @@ function NormalizedVersionInfoValue($Value) {
     # the semantic value while still requiring exact text/case after trimming.
     return ([string]$Value).Trim()
 }
-function ThreePartVersion([string]$Value) {
-    $match = [regex]::Match(([string]$Value).Trim(), '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)')
-    if (-not $match.Success) { return $null }
-    return "$($match.Groups['major'].Value).$($match.Groups['minor'].Value).$($match.Groups['patch'].Value)"
+
+if (-not $IsccPath) {
+    $IsccPath = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+        Where-Object { Test-Path -LiteralPath $_ } |
+        Select-Object -First 1
 }
+if (-not $IsccPath) { throw 'Inno Setup 6.7.1 ISCC.exe was not found.' }
+if (-not (Test-Path -LiteralPath $IsccPath)) { throw "ISCC.exe path does not exist: $IsccPath" }
+
+# ISCC.exe itself carries a 0.0.0 PE file version in official 6.7.1 builds, so
+# Windows VersionInfo is not a trustworthy compiler-version probe. The canonical
+# .iss file instead checks Inno Setup's own predefined ISPP Ver/PREPROCVER value:
+# 0x06070100 == 6.7.1.0. Compilation therefore fails closed on any other version.
+$requiredInnoSetupVersion = '6.7.1'
+$isccHash = Hash $IsccPath
 
 $manifest = [ordered]@{
     product='Arvectum Proxy Launcher'
@@ -72,31 +82,12 @@ $manifest = [ordered]@{
     application_sha256=(Hash (Join-Path $payload 'Arvectum Proxy Launcher.exe'))
     upgrade_helper_sha256=(Hash (Join-Path $payload 'upgrade_helper.ps1'))
     uninstall_helper_sha256=(Hash (Join-Path $payload 'uninstall_helper.ps1'))
+    inno_setup_version=$requiredInnoSetupVersion
+    inno_setup_version_verification='compiler-preprocessor-ver-0x06070100'
+    iscc_sha256=$isccHash
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $payload 'build_manifest.json') -Encoding utf8
-
-if (-not $IsccPath) {
-    $IsccPath = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
-        Where-Object { Test-Path -LiteralPath $_ } |
-        Select-Object -First 1
-}
-if (-not $IsccPath) { throw 'Inno Setup 6.7.1 ISCC.exe was not found.' }
-if (-not (Test-Path -LiteralPath $IsccPath)) { throw "ISCC.exe path does not exist: $IsccPath" }
-
-$requiredInnoSetupVersion = '6.7.1'
-$isccInfo = (Get-Item -LiteralPath $IsccPath).VersionInfo
-$observedInnoSetupVersion = ThreePartVersion ([string]$isccInfo.FileVersion)
-if (-not $observedInnoSetupVersion) {
-    $observedInnoSetupVersion = ThreePartVersion ([string]$isccInfo.ProductVersion)
-}
-if ($observedInnoSetupVersion -ne $requiredInnoSetupVersion) {
-    throw "Exact Inno Setup $requiredInnoSetupVersion is required; observed ISCC.exe version '$observedInnoSetupVersion' at '$IsccPath'."
-}
-$isccHash = Hash $IsccPath
-$manifest['inno_setup_version'] = $observedInnoSetupVersion
-$manifest['iscc_sha256'] = $isccHash
-$manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $payload 'build_manifest.json') -Encoding utf8
-Write-Host "Using exact Inno Setup $observedInnoSetupVersion ISCC.exe SHA256=$isccHash"
+Write-Host "Selected ISCC.exe SHA256=$isccHash; exact Inno Setup $requiredInnoSetupVersion is enforced by the compiler preprocessor contract."
 
 $isccArgs = @(
     "/DAppVersion=$version",
@@ -106,7 +97,8 @@ $isccArgs = @(
 if ($SyntheticPredecessor) { $isccArgs += '/DSyntheticLifecycleFixture=1' }
 $isccArgs += 'installer\ArvectumProxyLauncher.iss'
 & $IsccPath @isccArgs
-if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed' }
+if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed (exact 6.7.1 compiler contract not satisfied or script compilation failed).' }
+Write-Host "Inno Setup $requiredInnoSetupVersion compiler contract PASS."
 
 $suffix = if ($SyntheticPredecessor) { '-synthetic-predecessor' } else { '' }
 $setup = Join-Path $root "out\installer\Arvectum-Proxy-Launcher-$version-windows-x64-setup$suffix.exe"
