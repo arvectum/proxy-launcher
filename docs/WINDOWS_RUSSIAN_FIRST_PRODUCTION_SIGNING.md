@@ -75,7 +75,9 @@ The script:
 - refuses a dirty worktree;
 - refuses a branch other than canonical `main`;
 - requires the release tag to resolve to the exact current `HEAD`;
-- requires the output release directory to be outside the Git worktree and empty.
+- requires the output release directory to be outside the Git worktree and empty;
+- verifies that the governed certificate is present, currently valid, identifies АРВЕКТУМ and exposes the Rutoken-backed private key;
+- rejects any operator attempt to substitute another signing certificate.
 
 ## 6. Canonical ceremony
 
@@ -91,11 +93,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\windows_russian_
   -GitTag 'v0.2.3'
 ```
 
-The governed certificate thumbprint defaults to:
+The governed production release identity is pinned in the repository to certificate thumbprint:
 
 `EE1CFA955BA22F03C39C76B183D94CD37494582E`
 
-If the release identity is intentionally rotated later, the certificate parameter and release governance must be reviewed together rather than silently changing the trust root.
+If the release identity is intentionally rotated later, the pinned thumbprint, tests, release governance and evidence expectations must be changed together through repository review. An operator-supplied different thumbprint is rejected by the production ceremony.
 
 ## 7. Final customer release set
 
@@ -133,7 +135,7 @@ Embedded Authenticode/SmartScreen trust claimed: NO
 
 The decision JSON must contain `decision = PUBLISH`.
 
-Any missing artifact, hash mismatch, product drift, tag mismatch, dirty checkout, wrong signer, failed detached verification, changed release asset, missing verifier, failed positive verification, or unexpectedly successful tamper test means **DO NOT PUBLISH**.
+Any missing artifact, hash mismatch, product drift, tag mismatch, dirty checkout, wrong/expired/substituted signer, failed detached verification, changed release asset, missing verifier, failed positive verification, or unexpectedly successful tamper test means **DO NOT PUBLISH**.
 
 ## 9. Completion boundary
 
