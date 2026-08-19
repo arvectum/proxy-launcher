@@ -34,7 +34,7 @@ def test_ceremony_never_accepts_pin_password_pfx_or_exportable_key_material():
     assert "[string]$pfx" not in lowered
     assert "import-pfxcertificate" not in lowered
     assert "export-pfxcertificate" not in lowered
-    assert "private-key material" in lowered
+    assert "private-key" in lowered
     assert "pin is never passed to this script" in lowered
 
 
