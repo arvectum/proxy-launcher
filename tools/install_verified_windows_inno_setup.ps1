@@ -62,6 +62,7 @@ if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse 
 $Log = Join-Path $Base 'inno-setup-install.log'
 
 $Arguments = @(
+    '/PORTABLE=1',
     '/VERYSILENT',
     '/SUPPRESSMSGBOXES',
     '/NORESTART',
@@ -99,11 +100,11 @@ $Evidence = [ordered]@{
     iscc_sha256          = (Get-FileHash -LiteralPath $Iscc -Algorithm SHA256).Hash.ToLowerInvariant()
     source_installer     = $InstallerInfo.Name
     source_sha256        = $InstallerHash
-    install_mode         = 'offline-from-controlled-copy'
+    install_mode         = 'offline-portable-from-controlled-copy'
     upstream_access_used = $false
 }
 $EvidencePath = Join-Path $Base 'inno-setup-install-evidence.json'
 $Evidence | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
 
-Write-Host "Verified Inno Setup $ObservedVersion installed: $Iscc"
+Write-Host "Verified Inno Setup $ObservedVersion installed in portable recovery mode: $Iscc"
 Write-Output $Iscc
