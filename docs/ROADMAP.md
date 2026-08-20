@@ -8,6 +8,7 @@ Status legend:
 
 - **DONE** — implementation and required acceptance are complete.
 - **ACTIVE** — current execution priority.
+- **PAUSED / EXTERNAL ENVIRONMENT** — work is deliberately paused until a suitable external/physical environment exists; do not keep retrying unavailable infrastructure.
 - **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — repository/CI work is complete; remaining evidence requires the target machine or privileged local execution.
 - **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI work is complete enough to stop local execution; the remaining gate requires a separate eligible physical host and must not be forced on the normal owner workstation.
 - **HUMAN/LEGAL PENDING** — engineering controls are complete, but judgment/sign-off cannot be replaced by automation.
@@ -106,8 +107,8 @@ International Microsoft/GlobalSign-oriented distribution remains lower priority;
 - **DONE** — APL-LNX-008 — AppImage packaging with hash-pinned build-only toolchain.
 - **DONE** — APL-LNX-009 — Ubuntu 22.04/24.04 CI acceptance.
 - **DONE** — APL-IP-002-LNX — Linux stack/dependency sovereignty audit (conditional pass).
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance.
-- **LOCAL GATE** — Gate R8 closes only from real Astra host evidence.
+- **PAUSED / EXTERNAL ENVIRONMENT** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance; paused by owner until a suitable real Astra host is available.
+- **LOCAL GATE** — Gate R8 closes only from real Astra host evidence; do not substitute CI or another Linux distribution.
 
 For controlled Astra deployments, `.deb` remains the preferred package; AppImage is optional.
 
@@ -126,14 +127,16 @@ Apple production identity signing/notarization remains a later distribution-poli
 - **DONE** — APL-IP-002-LNX.
 - **DONE** — APL-IP-002-MAC.
 - **DONE** — APL-IP-002-FINAL consolidated conditional verdict.
-- **AUTONOMOUS COMPLETE / HUMAN/LEGAL PENDING** — APL-IP-001 — source provenance/human-authorship hardening.
+- **ACTIVE / REVIEW READY — HUMAN/LEGAL PENDING** — APL-IP-001 — source provenance/human-authorship hardening.
   - source/build/config inventory + SHA-256 manifest: done;
   - third-party boundary/notices: done;
   - CI evidence: done;
-  - sign-off record/template: done (`docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`);
+  - provenance marker scanner false-positive hardening: done on review-ready branch;
+  - bounded human/legal review packet: done (`docs/APL_IP_001_REVIEW_PACKET.md`);
+  - strengthened exact-candidate sign-off record: done (`docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`);
   - authorized human review of significant modules: pending;
   - chain-of-title/legal review for ООО «Арвектум»: pending;
-  - clean IP baseline/tag: only after those reviews are approved.
+  - clean IP baseline/tag: only after both reviews are APPROVED against one exact candidate commit.
 
 Controlled Linux/macOS build-input mirrors remain medium-priority sovereignty hardening after the primary Windows release contour.
 
@@ -157,13 +160,13 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **APL-LNX-010:** real Astra Linux acceptance when a suitable real Astra host is available; close Gate R8 only from real-host evidence.
-2. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
-3. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+1. **ACTIVE — APL-IP-001:** finish exact-candidate evidence binding, then authorized human source review + chain-of-title/legal sign-off; create the clean IP tag only after APPROVED.
+2. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+3. **PAUSED — APL-LNX-010:** resume real Astra Linux acceptance only when a suitable real Astra host is available.
 4. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only after a separate physical Windows 11 Pro/Enterprise/Education acceptance host becomes available. Do not use the normal Windows 11 Home owner workstation and do not return to the abandoned VM path.
 5. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only after a separate physical Windows acceptance host becomes available; never again on the normal owner workstation.
 6. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
-Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. The normal owner Windows workstation is diagnostics-only for APL-WIN-014/APL-REL-014 and must not be used for destructive policy/lifecycle acceptance. The abandoned VM path remains out of scope. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
+Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Paused external-environment gates remain paused until the required real environment exists rather than being repeatedly retried. The normal owner Windows workstation is diagnostics-only for APL-WIN-014/APL-REL-014 and must not be used for destructive policy/lifecycle acceptance. The abandoned VM path remains out of scope. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
