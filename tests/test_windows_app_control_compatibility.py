@@ -79,6 +79,10 @@ def test_owner_source_mode_is_explicitly_nonproduction_and_never_changes_app_con
     assert "Smart App Control is not disabled" in body
     assert "App Control policy is not changed" in body
     assert "source mode is owner/developer profile only" in body
+    assert "Remove-ItemProperty -LiteralPath $runKey -Name 'ArvectumProxyLauncher'" in body
+    assert "main_autostart_enabled = $false" in body
+    assert "start/rollback Run ordering races" in body
+    assert "EnableAutostart" not in body
     for forbidden in (
         "VerifiedAndReputablePolicyState",
         "CiTool",
