@@ -1,11 +1,13 @@
 # APL-WIN-014 — real App Control for Business local gate
 
-Status: **HARNESS READY / REAL WINDOWS 11 EVIDENCE REQUIRED**
+Status: **HARNESS READY / REAL WINDOWS 11 HOST EVIDENCE REQUIRED**
 
-This gate closes only on a disposable/isolated Windows 11 VM or dedicated acceptance host with **App Control for Business actually enforced**. CI, mocks, Smart App Control screenshots, or a successful run after disabling protection are not acceptance evidence.
+For the current Arvectum Proxy Launcher workflow this gate is executed on a **dedicated/isolated physical Windows 11 acceptance host** with **App Control for Business actually enforced**. The previously attempted Windows VM path is explicitly out of scope because that environment was not reliable enough for acceptance. CI, mocks, Smart App Control screenshots, or a successful run after disabling protection are not acceptance evidence.
 
 ## Safety boundary
 
+- Use the dedicated Windows 11 acceptance host, not the abandoned VM path.
+- Never run destructive acceptance against a normal owner workstation with valuable state.
 - Never disable Smart App Control, App Control for Business, Defender, or another Windows protection to make Arvectum run.
 - Never change `VerifiedAndReputablePolicyState`.
 - The Arvectum release/installer does not deploy App Control policies.
@@ -29,7 +31,7 @@ This gate closes only on a disposable/isolated Windows 11 VM or dedicated accept
 
 ## Phase A — prepare current 0.2.3 trust pack
 
-Run from elevated PowerShell on the isolated acceptance VM while the organization/lab base policy is present in an appropriate staging/audit state:
+Run from elevated PowerShell on the dedicated isolated Windows 11 acceptance host while the organization/lab base policy is present in an appropriate staging/audit state:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\windows_app_control_local_gate.ps1 `
@@ -41,11 +43,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\windows_app_cont
   -IsolatedAcceptanceEnvironment
 ```
 
+`-IsolatedAcceptanceEnvironment` is a safety acknowledgement retained for compatibility; in the current project workflow it means the dedicated acceptance **host**, not a VM.
+
 Expected result: `PREPARED`, not `PASS`. The generated trust pack must be `ReferenceFullHash` and target the supplied base-policy ID.
 
 ## Phase B — policy deployment outside Arvectum tooling
 
-Using the isolated lab/customer App Control management path:
+Using the isolated host/customer App Control management path:
 
 1. confirm the base policy permits supplemental policies;
 2. if the base policy is signed, authorize the supplemental signer as required by that policy model;
