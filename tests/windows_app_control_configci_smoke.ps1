@@ -20,7 +20,7 @@ try {
     $xml = Join-Path $root 'supplemental.xml'
     $basePolicyId = [guid]'11111111-2222-3333-4444-555555555555'
 
-    New-CIPolicy -MultiplePolicyFormat -ScanPath $scanRoot -UserPEs -FilePath $xml -Level Hash | Out-Null
+    New-CIPolicy -MultiplePolicyFormat -ScanPath $scanRoot -UserPEs -NoScript -NoShadowCopy -FilePath $xml -Level Hash | Out-Null
     if (-not (Test-Path -LiteralPath $xml -PathType Leaf)) { throw 'New-CIPolicy did not create XML.' }
 
     Set-CIPolicyIdInfo -FilePath $xml -ResetPolicyID -PolicyName 'Arvectum APL-WIN-014 CI Smoke' -SupplementsBasePolicyID $basePolicyId | Out-Null
