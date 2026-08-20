@@ -58,11 +58,12 @@ def test_final_gate_cannot_pass_without_upgrade_and_current_release_subgates():
     assert "Cross-version upgrade: PASS" in text
 
 
-def test_final_gate_is_isolated_only_and_does_not_manage_app_control_policy():
+def test_final_gate_is_host_only_and_does_not_manage_app_control_policy():
     text = FINAL.read_text(encoding="utf-8")
     lowered = text.lower()
     assert "IsolatedAcceptanceEnvironment" in text
-    assert "disposable/isolated Windows 11" in text
+    assert "dedicated/isolated Windows 11 acceptance host" in text
+    assert "abandoned Windows VM path is out of scope" in text
     assert "--update-policy" not in lowered
     assert "--remove-policy" not in lowered
     assert "VerifiedAndReputablePolicyState" not in text

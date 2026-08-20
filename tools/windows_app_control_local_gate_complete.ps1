@@ -3,11 +3,12 @@
     Canonical completion wrapper for the APL-WIN-014 real local gate.
 .DESCRIPTION
     A final APL-WIN-014 PASS is emitted only when BOTH are proven on the same
-    isolated Windows 11 acceptance environment while App Control remains enforced:
+    dedicated/isolated Windows 11 acceptance host while App Control remains enforced:
       1. real cross-version upgrade from a distinct sealed baseline build to 0.2.3;
       2. exact 0.2.3 Setup / first launch / GUI / core / PAC / rollback /
          repair / corruption recovery / uninstall acceptance.
 
+    For the current project workflow the abandoned Windows VM path is out of scope.
     Policy deployment is intentionally outside this wrapper.
 #>
 [CmdletBinding()]
@@ -28,7 +29,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 if (-not $IsolatedAcceptanceEnvironment) {
-    throw 'SAFETY BLOCK: final APL-WIN-014 acceptance is allowed only on a disposable/isolated Windows 11 VM or dedicated acceptance host.'
+    throw 'SAFETY BLOCK: final APL-WIN-014 acceptance is allowed only on the dedicated/isolated Windows 11 acceptance host.'
 }
 
 $upgradeScript = Join-Path $PSScriptRoot 'windows_app_control_upgrade_acceptance.ps1'
