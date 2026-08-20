@@ -1,6 +1,6 @@
 # Arvectum Proxy Launcher — canonical roadmap
 
-Updated: 2026-08-19
+Updated: 2026-08-20
 Canonical branch: `main`
 Current product version: `0.2.3`
 
@@ -48,22 +48,25 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 
 ### Windows production signing / release package
 
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — `[Win] Russian-first production signing` repository implementation.
+- **DONE** — `[Win] Russian-first production signing` repository implementation and physical owner-station acceptance.
 - **DONE** — one canonical fail-closed owner-operated entry point: `tools/windows_russian_production_signing.ps1`.
 - **DONE** — exact `0.2.3` portable ZIP and installer are bound to the production-build evidence by filename, SHA-256 and installer size before any signing step.
 - **DONE** — dual-commit provenance preserves the real artifact build commit separately from the later release-policy commit; runtime/build-input drift after the sealed build forces a rebuild instead of silently reusing stale binaries.
 - **DONE** — canonical staging includes portable + installer + build provenance + notices/license + end-user verification UX before manifest generation/signing.
 - **DONE** — APL-REL-011 detached CryptoPro/Rutoken manifest signing/verification and APL-REL-013 fail-closed publication gate are composed into the same ceremony.
-- **DONE** — repository contract tests and Windows PowerShell syntax CI cover the orchestration; no token PIN, password, PFX or private-key material is accepted by the automation.
+- **DONE** — Windows PowerShell 5.1 compatibility is covered across the orchestrator, UTF-8 child-script boundary, CryptoPro native stderr handling, signer and end-user verifier.
+- **DONE** — physical ceremony completed on 2026-08-20 with tag `v0.2.3-ru.2` at release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`.
+- **DONE** — APL-REL-011 detached signature verification PASS; APL-REL-012 exact signed release-set verification PASS; mandatory tampered-copy test PASS_EXPECTED_FAILURE; APL-REL-013 publication decision `PUBLISH`.
+- **DONE** — canonical signed release directory and external `.production-release-gate.json` publication decision were retained on the owner-operated Windows host.
 - **TRUST BOUNDARY** — the currently governed certificate remains `RELEASE-EVIDENCE-ONLY`; embedded Authenticode/SmartScreen trust is not claimed. A domestic code-signing certificate + separate embedded-signing POC remains a later optional gate.
-- **LOCAL GATE** — merge the repository implementation to canonical `main`, tag the exact release-policy commit, then execute the ceremony on the owner-operated Windows signing station with the physical Rutoken. The task becomes fully complete only when the signed release directory and `.production-release-gate.json` with `decision=PUBLISH` are retained.
+- Canonical repository evidence: `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`.
 - Runbook: `docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md`.
 
-After the local signing ceremony:
+Remaining Windows release acceptance:
 
-1. retain the canonical signed Windows release set and publication decision;
-2. perform real install/update/uninstall/rollback acceptance against that exact release set;
-3. retain the final release artifact and source/build/signing identity.
+1. **DONE** — retain the canonical signed Windows release set and `PUBLISH` decision;
+2. **ACTIVE** — perform real install/update-or-repair/uninstall-or-rollback acceptance against that exact signed release set;
+3. **PENDING** — retain the final lifecycle acceptance evidence tied to the exact release tag, artifact hashes and signing identity.
 
 International Microsoft/GlobalSign-oriented distribution remains lower priority and is not a blocker for the Russian-first release.
 
@@ -125,7 +128,7 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **[Win] Local gate:** merge/tag canonical `main`, execute `windows_russian_production_signing.ps1` with the physical Rutoken, retain `PUBLISH` evidence; then perform install/update/uninstall/rollback acceptance against that exact signed release set.
+1. **[Win] Signed-set lifecycle acceptance:** run real install → update/repair → uninstall/rollback acceptance against the exact `v0.2.3-ru.2` signed release set and retain evidence tied to commit `47823585c42da54ab51dc2246583dc24d74d4ba6`.
 2. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
 3. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
 4. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
