@@ -1,0 +1,1 @@
+APL-REL-014 migration compatibility accepts presentation-metadata drift only after exact AppId/version/location validation and signed-release verification.
