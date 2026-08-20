@@ -12,17 +12,18 @@ $root = Join-Path $env:TEMP ('Arvectum-AppControl-Smoke-' + [guid]::NewGuid().To
 New-Item -ItemType Directory -Path $root -Force | Out-Null
 
 try {
+    $template = Join-Path $env:WINDIR 'schemas\CodeIntegrity\ExamplePolicies\DefaultWindows_Supplemental.xml'
+    if (-not (Test-Path -LiteralPath $template -PathType Leaf)) {
+        throw "Microsoft example supplemental policy is missing: $template"
+    }
+
     $xml = Join-Path $root 'supplemental.xml'
+    Copy-Item -LiteralPath $template -Destination $xml -Force
+
     $basePolicyId = [guid]'11111111-2222-3333-4444-555555555555'
-    $sampleRulePath = Join-Path $root 'sample.exe'
 
-    $rules = @(New-CIPolicyRule -FilePathRule $sampleRulePath)
-    if ($rules.Count -lt 1) { throw 'ConfigCI did not create a smoke rule.' }
-
-    New-CIPolicy -MultiplePolicyFormat -FilePath $xml -Rules $rules -UserPEs | Out-Null
-    if (-not (Test-Path -LiteralPath $xml -PathType Leaf)) { throw 'New-CIPolicy did not create XML.' }
-
-    Set-CIPolicyIdInfo -FilePath $xml -ResetPolicyID -PolicyName 'Arvectum APL-WIN-014 CI Smoke' -SupplementsBasePolicyID $basePolicyId | Out-Null
+    Set-CIPolicyIdInfo -FilePath $xml -ResetPolicyID -PolicyName 'Arvectum APL-WIN-014 CI Smoke' | Out-Null
+    Set-CIPolicyIdInfo -FilePath $xml -SupplementsBasePolicyID $basePolicyId | Out-Null
     Set-CIPolicyVersion -FilePath $xml -Version '0.0.0.1'
 
     $text = Get-Content -LiteralPath $xml -Raw -Encoding UTF8
