@@ -65,11 +65,15 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 
 ### APL-WIN-014 — Windows application-control execution compatibility
 
-- **ACTIVE / PRODUCTION DISTRIBUTION BLOCKER** — prove a supported Windows execution-trust path without disabling or bypassing Smart App Control / Windows application-control protections.
-- Russian-first release provenance and Windows execution trust are separate controls and must remain separately represented.
-- Evaluate Russian/domestic embedded-signing or controlled enterprise trust paths first; international Microsoft-trusted public code-signing remains a lower-priority fallback.
-- Source execution under a trusted local Python runtime is emergency owner-host recovery only and is not a production distribution format.
-- Acceptance must cover install, first launch, core start, GUI, repair, upgrade, uninstall and rollback on a representative application-control-enforced Windows host.
+- **AUTONOMOUS COMPLETE / REAL APP-CONTROL ACCEPTANCE PENDING** — implementation merged by PR #108 at `bcadbf3143dcee175b589827ba8617c380e312f1`.
+- **DONE** — Russian release provenance and Windows execution trust are explicitly separated; detached CryptoPro/Rutoken evidence is never represented as Authenticode/Smart App Control trust.
+- **DONE** — read-only assessment: `tools/windows_app_control_assess.ps1`.
+- **DONE** — enterprise supplemental exact-hash trust-pack generator: `tools/windows_app_control_enterprise_trust_pack.ps1` with `BootstrapHash` and lifecycle-capable `ReferenceFullHash` modes.
+- **DONE** — customer Managed Installer deployment profile is documented as the preferred scalable enterprise path when supported; Arvectum tooling does not designate or deploy the customer's managed installer.
+- **DONE** — owner/developer safe source-mode profile: `tools/windows_owner_source_mode.ps1`; no Smart App Control/App Control mutation and no dependency on the blocked legacy EXE.
+- **DONE** — PowerShell 5.1 parser, repository safety contracts and Windows ConfigCI supplemental-policy conversion smoke PASS; portable, installer lifecycle E2E/Gate R6, SAST, SBOM, provenance, secret and dependency gates PASS on the merged head.
+- **LOCAL GATE** — prove execution on a representative organization-managed Windows 11 host/VM with App Control for Business enabled: exact release verification, supplemental/base-policy compatibility, Setup, first launch, core/GUI/PAC, rollback, repair, upgrade and uninstall without disabling host protection.
+- **PUBLIC UNMANAGED BOUNDARY** — deterministic Smart App Control admission for public unmanaged Windows remains unresolved until a supported trusted embedded code-signing path exists; international public code-signing remains a lower-priority fallback.
 - Canonical task definition: `docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md`.
 
 ### APL-REL-014 — exact signed-set lifecycle acceptance
@@ -147,7 +151,7 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **APL-WIN-014:** resolve Windows application-control execution compatibility without disabling host protection; Russian/domestic and controlled-enterprise trust paths first, international public code-signing only as fallback.
+1. **APL-WIN-014 local gate:** real App Control for Business acceptance on a representative organization-managed Windows 11 VM/host; owner workstation is not the destructive test environment.
 2. **APL-REL-014:** run exact signed-set lifecycle acceptance in an isolated/disposable Windows acceptance environment only; never again on the normal owner workstation.
 3. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
 4. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
