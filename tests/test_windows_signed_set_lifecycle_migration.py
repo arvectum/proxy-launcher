@@ -33,6 +33,20 @@ def test_legacy_exe_is_observed_but_not_required_to_match_sealed_bytes():
     assert "preexisting_exe_matches_sealed" in text
 
 
+def test_legacy_presentation_metadata_is_observed_not_used_as_identity_gate():
+    text = body()
+    assert "Registered DisplayName mismatch." not in text
+    assert "Legacy ProductName mismatch" not in text
+    assert "Legacy ProductVersion mismatch" not in text
+    assert "Registered DisplayVersion mismatch." in text
+    assert "$legacyDisplayName" in text
+    assert "$legacyProductName" in text
+    assert "$legacyProductVersion" in text
+    assert "preexisting_registered_display_name" in text
+    assert "preexisting_exe_product_name" in text
+    assert "preexisting_exe_product_version" in text
+
+
 def test_legacy_support_files_are_never_required_or_executed():
     text = body()
     for forbidden in (
