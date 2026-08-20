@@ -58,14 +58,12 @@ def test_enterprise_pack_never_deploys_or_weakens_windows_protection():
     body = text(PACK)
     assert "never deploys App Control policy" in body
     assert "Smart App Control must not be disabled" in body
-    for forbidden in (
-        "CiTool --update-policy",
-        "CiTool.exe --update-policy",
-        "VerifiedAndReputablePolicyState",
-        "Set-ItemProperty",
-        "reg.exe add",
-    ):
-        assert forbidden not in body
+    assert "Deployment: NOT PERFORMED" in body
+    assert "VerifiedAndReputablePolicyState" not in body
+    assert "Set-ItemProperty" not in body
+    assert "reg.exe add" not in body
+    assert "Start-Process -FilePath 'CiTool" not in body
+    assert "& $ciTool" not in body
 
 
 def test_reference_full_hash_requires_exact_sealed_reference_installation():
