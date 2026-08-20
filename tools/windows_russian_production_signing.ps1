@@ -142,8 +142,16 @@ try {
     if ($governedCertificate.NotBefore.ToUniversalTime() -gt $nowUtc -or $governedCertificate.NotAfter.ToUniversalTime() -le $nowUtc) {
         throw "Governed release certificate is not currently valid. NotBefore=$($governedCertificate.NotBefore.ToUniversalTime().ToString('o')) NotAfter=$($governedCertificate.NotAfter.ToUniversalTime().ToString('o'))"
     }
-    if ([string]$governedCertificate.Subject -notmatch 'АРВЕКТУМ') {
-        throw "Governed release certificate subject does not identify АРВЕКТУМ: $($governedCertificate.Subject)"
+
+    # Build the governed organization name from Unicode code points so this
+    # executable script remains ASCII-only and parses correctly in Windows
+    # PowerShell 5.1, which treats BOM-less UTF-8 scripts as the legacy code page.
+    $expectedOrganizationName = -join @(
+        [char]0x0410, [char]0x0420, [char]0x0412, [char]0x0415, [char]0x041A,
+        [char]0x0422, [char]0x0423, [char]0x041C
+    )
+    if ([string]$governedCertificate.Subject -notmatch [regex]::Escape($expectedOrganizationName)) {
+        throw "Governed release certificate subject does not identify the governed organization: $($governedCertificate.Subject)"
     }
 
     $buildEvidencePath = Join-Path $repoRoot 'docs\evidence\WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json'
@@ -267,7 +275,7 @@ try {
     $provenance | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $releaseFullPath 'WINDOWS_BUILD_PROVENANCE.json') -Encoding UTF8
 
     $readme = @"
-Arvectum Proxy Launcher $version — Windows Russian-first release
+Arvectum Proxy Launcher $version - Windows Russian-first release
 
 This package is protected by a Russian qualified detached release signature over SHA256SUMS.txt.
 Run VERIFY_RUSSIAN_RELEASE.cmd before installation or use verify_russian_release.ps1 directly.
