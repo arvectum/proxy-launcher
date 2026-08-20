@@ -12,6 +12,7 @@ on:
       - 'tools/windows_signed_set_lifecycle_acceptance_drift.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1'
+      - 'tools/windows_signed_set_lifecycle_acceptance_migration.ps1'
       - 'tools/russian_signed_release.ps1'
       - 'tools/russian_production_release_gate.ps1'
       - 'tools/verify_russian_release.ps1'
@@ -27,6 +28,7 @@ on:
       - 'tests/test_windows_signed_set_lifecycle_drift.py'
       - 'tests/test_windows_signed_set_lifecycle_legacy_host.py'
       - 'tests/test_windows_signed_set_lifecycle_guarded.py'
+      - 'tests/test_windows_signed_set_lifecycle_migration.py'
       - '.github/workflows/windows-russian-production-signing.yml'
   pull_request:
     paths:
@@ -37,6 +39,7 @@ on:
       - 'tools/windows_signed_set_lifecycle_acceptance_drift.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1'
+      - 'tools/windows_signed_set_lifecycle_acceptance_migration.ps1'
       - 'tools/russian_signed_release.ps1'
       - 'tools/russian_production_release_gate.ps1'
       - 'tools/verify_russian_release.ps1'
@@ -52,6 +55,7 @@ on:
       - 'tests/test_windows_signed_set_lifecycle_drift.py'
       - 'tests/test_windows_signed_set_lifecycle_legacy_host.py'
       - 'tests/test_windows_signed_set_lifecycle_guarded.py'
+      - 'tests/test_windows_signed_set_lifecycle_migration.py'
       - '.github/workflows/windows-russian-production-signing.yml'
   workflow_dispatch:
 
@@ -71,7 +75,7 @@ jobs:
       - name: Install test runner
         run: python -m pip install pytest
       - name: Run Windows signing contract tests
-        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_windows_powershell51_signing_chain.py tests/test_windows_signed_set_lifecycle_acceptance.py tests/test_windows_signed_set_lifecycle_owner_host.py tests/test_windows_signed_set_lifecycle_runtime.py tests/test_windows_signed_set_lifecycle_drift.py tests/test_windows_signed_set_lifecycle_legacy_host.py tests/test_windows_signed_set_lifecycle_guarded.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
+        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_windows_powershell51_signing_chain.py tests/test_windows_signed_set_lifecycle_acceptance.py tests/test_windows_signed_set_lifecycle_owner_host.py tests/test_windows_signed_set_lifecycle_runtime.py tests/test_windows_signed_set_lifecycle_drift.py tests/test_windows_signed_set_lifecycle_legacy_host.py tests/test_windows_signed_set_lifecycle_guarded.py tests/test_windows_signed_set_lifecycle_migration.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
 
   powershell-syntax:
     name: Windows signing PowerShell syntax
@@ -90,6 +94,7 @@ jobs:
             'tools/windows_signed_set_lifecycle_acceptance_drift.ps1',
             'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1',
             'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1',
+            'tools/windows_signed_set_lifecycle_acceptance_migration.ps1',
             'tools/russian_signed_release.ps1',
             'tools/prepare_russian_release_verification_ux.ps1',
             'tools/russian_production_release_gate.ps1',
