@@ -13,107 +13,47 @@ def test_script_is_ascii_safe_for_windows_powershell_51():
     assert all(byte < 128 for byte in SCRIPT.read_bytes())
 
 
-def test_signed_release_is_verified_before_legacy_runtime_or_host_mutation():
+def test_owner_host_execution_is_fail_closed_by_default():
     text = body()
-    verifier = text.index("Invoke-ReleaseVerifier\n\n$runtimeBefore")
-    runtime_read = text.index("$runtimeBefore = @(Get-LegacyProcesses)")
-    rescue_copy = text.index("Copy-Item -LiteralPath $installRoot -Destination $rescueInstall")
-    process_stop = text.index("Stop-LegacyProcesses -Processes $runtimeBefore")
-    install_move = text.index("Move-Item -LiteralPath $installRoot -Destination $workInstall")
-    assert verifier < runtime_read < rescue_copy < process_stop < install_move
+    gate = text.index("if (-not $IsolatedAcceptanceEnvironment)")
+    block = text.index("APL-REL-014 OWNER-HOST SAFETY BLOCK", gate)
+    delegate = text.index("$baseScript = Join-Path", block)
+    assert gate < block < delegate
 
 
-def test_legacy_exe_is_observed_but_not_required_to_match_sealed_bytes():
+def test_isolated_environment_switch_is_explicit():
     text = body()
-    assert "$legacyExeSha256 = Get-Sha256 $exe" in text
-    assert "$legacyMatchesSealed = ($legacyExeSha256 -eq $ExpectedApplicationSha256)" in text
-    assert "Legacy matches sealed" in text
-    assert "LEGACY_NONSEALED_RUNTIME" in text
-    assert "preexisting_exe_sha256" in text
-    assert "preexisting_exe_matches_sealed" in text
+    assert "[switch]$IsolatedAcceptanceEnvironment" in text
+    assert "disposable/isolated Windows VM" in text
+    assert "dedicated clean acceptance host" in text
 
 
-def test_legacy_presentation_metadata_is_observed_not_used_as_identity_gate():
+def test_incident_reference_and_security_boundary_are_present():
     text = body()
-    assert "Registered DisplayName mismatch." not in text
-    assert "Legacy ProductName mismatch" not in text
-    assert "Legacy ProductVersion mismatch" not in text
-    assert "Registered DisplayVersion mismatch." in text
-    assert "$legacyDisplayName" in text
-    assert "$legacyProductName" in text
-    assert "$legacyProductVersion" in text
-    assert "preexisting_registered_display_name" in text
-    assert "preexisting_exe_product_name" in text
-    assert "preexisting_exe_product_version" in text
+    assert "2026-08-20" in text
+    assert "Smart App Control" in text
+    assert "Do not disable Smart App Control" in text
+    assert "APL_REL_014_OWNER_HOST_INCIDENT_2026-08-20.md" in text
 
 
-def test_legacy_support_files_are_never_required_or_executed():
+def test_historical_owner_host_mutation_logic_is_removed():
     text = body()
     for forbidden in (
-        "Arvectum Proxy Launcher Repair.exe",
-        "build_manifest.json",
-        "upgrade_helper.ps1",
-        "uninstall_helper.ps1",
-        ".arvectum-install-owner",
+        "Stop-LegacyProcesses",
+        "Start-LegacyRuntime",
+        "Move-Item -LiteralPath $installRoot",
+        "Remove-Item -LiteralPath $UserUninstallKey",
+        "Get-LegacyProcesses",
+        "rescueRoot",
+        "legacyExeSha256",
     ):
         assert forbidden not in text
-    assert "--stop" not in text
-    assert "--rollback" not in text
 
 
-def test_rescue_is_verified_before_process_termination():
+def test_isolated_gate_delegates_only_to_canonical_acceptance():
     text = body()
-    rescue_verify = text.index("Independent rescue install-tree copy verification failed.")
-    rescue_registry = text.index("export rescue uninstall registration")
-    rescue_armed = text.index('Write-Host "Independent rescue armed: $rescueRoot"')
-    process_stop = text.index("Stop-LegacyProcesses -Processes $runtimeBefore")
-    assert rescue_verify < rescue_registry < rescue_armed < process_stop
-
-
-def test_partial_mutation_restore_is_armed_before_registry_and_run_changes():
-    text = body()
-    run_arm = text.index("$runRestoreArmed = $true")
-    run_mutation = text.index("Set-RunValue $mainRunName $null", run_arm)
-    registry_arm = text.index("$registryRestoreArmed = $true")
-    registry_mutation = text.index("Remove-Item -LiteralPath $UserUninstallKey -Recurse -Force", registry_arm)
-    shortcut_arm = text.index("$shortcutsRestoreArmed = $true")
-    shortcut_mutation = text.index("Remove-Item -LiteralPath $shortcut", shortcut_arm)
-    assert run_arm < run_mutation
-    assert registry_arm < registry_mutation
-    assert shortcut_arm < shortcut_mutation
-
-
-def test_state_cleanup_only_occurs_after_canonical_test_started():
-    text = body()
-    base_started = text.index("$baseStarted = $true")
-    invoke_base = text.index("Invoke-BaseAcceptance", base_started)
-    finally_gate = text.index("if ($baseStarted) {", invoke_base)
-    test_state_remove = text.index("Remove-Item -LiteralPath $stateRoot", finally_gate)
-    state_restore = text.index("if ($stateIsolated) {", test_state_remove)
-    assert base_started < invoke_base < finally_gate < test_state_remove < state_restore
-
-
-def test_complete_install_and_state_trees_are_fingerprinted_and_restored():
-    text = body()
-    assert "function Get-TreeFingerprint" in text
-    assert "$treeBefore = Get-TreeFingerprint $installRoot" in text
-    assert "$stateBefore = if ($hadStateRoot) { Get-TreeFingerprint $stateRoot } else { $null }" in text
-    assert "owner_host_install_tree_restored_exact" in text
-    assert "owner_host_state_tree_restored_exact" in text
-    assert "Legacy install tree restoration: BYTE-EXACT" in text
-
-
-def test_runtime_restore_happens_only_after_tree_restoration():
-    text = body()
-    tree_validation = text.index("$treeRestored = $false")
-    runtime_restore = text.index("$runtimeRestored = $false", tree_validation)
-    restart = text.index("Start-LegacyRuntime", runtime_restore)
-    assert tree_validation < runtime_restore < restart
-
-
-def test_independent_rescue_is_persistent_until_success():
-    text = body()
-    rescue_root = text.index("$rescueRoot = Join-Path 'C:\\Arvectum\\Recovery'")
-    pass_gate = text.index("if (-not $basePassed)")
-    rescue_delete = text.index("Remove-Item -LiteralPath $rescueRoot", pass_gate)
-    assert rescue_root < pass_gate < rescue_delete
+    assert "windows_signed_set_lifecycle_acceptance.ps1" in text
+    assert "Delegating to canonical exact signed-set lifecycle acceptance." in text
+    assert "Start-Process" in text
+    assert "Canonical isolated APL-REL-014 acceptance failed" in text
+    assert "APL-REL-014 isolated-environment acceptance: PASS" in text

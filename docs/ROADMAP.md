@@ -58,24 +58,36 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 - **DONE** — physical ceremony completed on 2026-08-20 with tag `v0.2.3-ru.2` at release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`.
 - **DONE** — APL-REL-011 detached signature verification PASS; APL-REL-012 exact signed release-set verification PASS; mandatory tampered-copy test PASS_EXPECTED_FAILURE; APL-REL-013 publication decision `PUBLISH`.
 - **DONE** — canonical signed release directory and external `.production-release-gate.json` publication decision were retained on the owner-operated Windows host.
-- **TRUST BOUNDARY** — the currently governed certificate remains `RELEASE-EVIDENCE-ONLY`; embedded Authenticode/SmartScreen trust is not claimed. A domestic code-signing certificate + separate embedded-signing POC remains a later optional gate.
+- **TRUST BOUNDARY** — the currently governed certificate remains `RELEASE-EVIDENCE-ONLY`; embedded Authenticode/SmartScreen/Smart App Control execution trust is not claimed.
+- **DISCOVERED DISTRIBUTION BOUNDARY** — a real Windows owner workstation with application-control enforcement blocked the unsigned legacy Arvectum EXE during APL-REL-014 restoration. Detached CryptoPro/Rutoken evidence therefore remains necessary for Russian release provenance but is insufficient by itself for Windows execution trust on application-control-enforced hosts.
 - Canonical repository evidence: `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`.
 - Runbook: `docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md`.
 
+### APL-WIN-014 — Windows application-control execution compatibility
+
+- **ACTIVE / PRODUCTION DISTRIBUTION BLOCKER** — prove a supported Windows execution-trust path without disabling or bypassing Smart App Control / Windows application-control protections.
+- Russian-first release provenance and Windows execution trust are separate controls and must remain separately represented.
+- Evaluate Russian/domestic embedded-signing or controlled enterprise trust paths first; international Microsoft-trusted public code-signing remains a lower-priority fallback.
+- Source execution under a trusted local Python runtime is emergency owner-host recovery only and is not a production distribution format.
+- Acceptance must cover install, first launch, core start, GUI, repair, upgrade, uninstall and rollback on a representative application-control-enforced Windows host.
+- Canonical task definition: `docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md`.
+
 ### APL-REL-014 — exact signed-set lifecycle acceptance
 
-- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — owner-host lifecycle automation for the exact published `v0.2.3-ru.2` release.
+- **AUTONOMOUS COMPLETE / ISOLATED WINDOWS ACCEPTANCE PENDING** — repository/CI lifecycle automation is complete; real destructive acceptance must run only in a disposable/isolated Windows VM or dedicated acceptance host.
 - **DONE** — canonical script: `tools/windows_signed_set_lifecycle_acceptance.ps1`.
 - **DONE** — release identity is pinned to version `0.2.3`, tag `v0.2.3-ru.2`, release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`, governed signer thumbprint, and sealed portable/installer hashes.
 - **DONE** — exact Russian release verification runs before and after lifecycle execution; the signed release directory is never mutated by the acceptance script.
-- **DONE** — physical-host phases are automated: fresh install → `--status` smoke → same-version repair → deliberate binary/stale-state corruption → cached repair recovery → uninstall.
+- **DONE** — lifecycle phases are automated: fresh install → `--status` smoke → same-version repair → deliberate binary/stale-state corruption → cached repair recovery → uninstall.
 - **DONE** — cached repair installer must hash-identically match the signed production installer.
 - **DONE** — user configuration preservation and foreign-autostart ownership boundaries are tested.
-- **DONE** — pre-existing unmanaged/portable install state and application state are isolated and restored; an already registered installer installation causes a fail-closed stop instead of destructive replacement.
-- **LOCAL GATE** — execute the script on the owner Windows host and retain `C:\Arvectum\Releases\0.2.3-russian-production.lifecycle-acceptance.json` with `result=PASS` and `environment_restored=true`.
+- **INCIDENT / OWNER-HOST PROHIBITION** — migration-style execution on the normal owner workstation on 2026-08-20 restored install/state trees but Windows application-control enforcement blocked restart of the legacy EXE. The run remained `BLOCK`; canonical lifecycle phases did not complete.
+- **RECOVERY DONE** — owner workstation was recovered from source without disabling Windows protection; proxy settings, PAC, core and GUI returned to a healthy state. Rescue evidence is retained.
+- **LOCAL GATE** — execute APL-REL-014 only in a disposable/isolated Windows acceptance environment and retain `result=PASS` + `environment_restored=true`. Do not run destructive acceptance on the normal owner workstation again.
+- Incident evidence: `docs/evidence/APL_REL_014_OWNER_HOST_INCIDENT_2026-08-20.md`.
 - Runbook: `docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md`.
 
-International Microsoft/GlobalSign-oriented distribution remains lower priority and is not a blocker for the Russian-first release.
+International Microsoft/GlobalSign-oriented distribution remains lower priority; it may be evaluated only as a fallback under APL-WIN-014 rather than silently replacing the Russian-first strategy.
 
 ## 2. Linux / Astra Linux
 
@@ -135,12 +147,13 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **APL-REL-014 / [Win] Signed-set lifecycle acceptance:** execute `tools/windows_signed_set_lifecycle_acceptance.ps1` on the owner Windows host against the exact `v0.2.3-ru.2` release and retain PASS evidence.
-2. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
-3. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
-4. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
-5. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
+1. **APL-WIN-014:** resolve Windows application-control execution compatibility without disabling host protection; Russian/domestic and controlled-enterprise trust paths first, international public code-signing only as fallback.
+2. **APL-REL-014:** run exact signed-set lifecycle acceptance in an isolated/disposable Windows acceptance environment only; never again on the normal owner workstation.
+3. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
+4. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
+5. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+6. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
-Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
+Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Destructive Windows lifecycle acceptance is now additionally constrained to disposable/isolated acceptance environments. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
