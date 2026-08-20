@@ -65,6 +65,24 @@ function Normalize-PathForComparison([string]$Path) {
     return ([System.IO.Path]::GetFullPath($Path)).TrimEnd('\')
 }
 
+function Invoke-Utf8PowerShellScript([string]$ScriptPath, [hashtable]$Parameters) {
+    $resolvedScriptPath = (Resolve-Path -LiteralPath $ScriptPath).Path
+    $scriptDirectory = Split-Path -Parent $resolvedScriptPath
+    $source = [System.IO.File]::ReadAllText($resolvedScriptPath, [System.Text.Encoding]::UTF8)
+    $escapedScriptDirectory = $scriptDirectory.Replace("'", "''")
+    $source = $source.Replace('$PSScriptRoot', ("'" + $escapedScriptDirectory + "'"))
+    $scriptBlock = [scriptblock]::Create($source)
+    & $scriptBlock @Parameters
+}
+
+function Convert-FileToUtf8Bom([string]$Path) {
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $source = [System.IO.File]::ReadAllText($resolvedPath, [System.Text.Encoding]::UTF8)
+    [byte[]]$bom = 0xEF, 0xBB, 0xBF
+    [byte[]]$payload = $bom + [System.Text.Encoding]::UTF8.GetBytes($source)
+    [System.IO.File]::WriteAllBytes($resolvedPath, $payload)
+}
+
 function Assert-ReleaseOnlyDelta([string]$BuildCommit, [string]$ReleaseCommit) {
     & git merge-base --is-ancestor $BuildCommit $ReleaseCommit 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -293,6 +311,11 @@ Release policy commit: $releaseCommit
 
     & (Join-Path $repoRoot 'tools\prepare_russian_release_verification_ux.ps1') -ReleaseDirectory $releaseFullPath
 
+    # The bundled verifier intentionally contains Russian end-user text. Give
+    # the release copy an explicit UTF-8 BOM so Windows PowerShell 5.1 decodes
+    # it correctly when the gate and customer launcher execute it with -File.
+    Convert-FileToUtf8Bom -Path (Join-Path $releaseFullPath 'verify_russian_release.ps1')
+
     Write-Host ''
     Write-Host '=== Physical signing boundary ==='
     Write-Host "Exact portable SHA256: $portableHash"
@@ -301,22 +324,28 @@ Release policy commit: $releaseCommit
     Write-Host "Release policy commit: $releaseCommit"
     Write-Host 'CryptoPro may now ask for the Rutoken PIN interactively; the PIN is never passed to this script.'
 
-    & (Join-Path $repoRoot 'tools\russian_signed_release.ps1') `
-        -ReleaseDirectory $releaseFullPath `
-        -Version $version `
-        -GitTag $GitTag `
-        -GitCommit $releaseCommit `
-        -CertificateThumbprint $governedCertificateThumbprint `
-        -CertificateStoreLocation $CertificateStoreLocation
+    Invoke-Utf8PowerShellScript `
+        -ScriptPath (Join-Path $repoRoot 'tools\russian_signed_release.ps1') `
+        -Parameters @{
+            ReleaseDirectory = $releaseFullPath
+            Version = $version
+            GitTag = $GitTag
+            GitCommit = $releaseCommit
+            CertificateThumbprint = $governedCertificateThumbprint
+            CertificateStoreLocation = $CertificateStoreLocation
+        }
 
     $decisionPath = $releaseFullPath + '.production-release-gate.json'
-    & (Join-Path $repoRoot 'tools\russian_production_release_gate.ps1') `
-        -ReleaseDirectory $releaseFullPath `
-        -Version $version `
-        -GitTag $GitTag `
-        -GitCommit $releaseCommit `
-        -ExpectedSignerThumbprint $governedCertificateThumbprint `
-        -DecisionOutputPath $decisionPath
+    Invoke-Utf8PowerShellScript `
+        -ScriptPath (Join-Path $repoRoot 'tools\russian_production_release_gate.ps1') `
+        -Parameters @{
+            ReleaseDirectory = $releaseFullPath
+            Version = $version
+            GitTag = $GitTag
+            GitCommit = $releaseCommit
+            ExpectedSignerThumbprint = $governedCertificateThumbprint
+            DecisionOutputPath = $decisionPath
+        }
 
     $decision = Get-Content -LiteralPath $decisionPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$decision.decision -ne 'PUBLISH') {

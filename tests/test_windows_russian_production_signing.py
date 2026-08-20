@@ -46,8 +46,8 @@ def test_governed_signer_is_pinned_and_operator_rotation_is_rejected():
     assert "$requestedCertificateThumbprint" in text
     assert "Certificate rotation is a governed repository change" in text
     assert "refuses an operator-supplied signer override" in text
-    assert "-CertificateThumbprint $governedCertificateThumbprint" in text
-    assert "-ExpectedSignerThumbprint $governedCertificateThumbprint" in text
+    assert "CertificateThumbprint = $governedCertificateThumbprint" in text
+    assert "ExpectedSignerThumbprint = $governedCertificateThumbprint" in text
 
 
 def test_governed_signer_must_be_present_currently_valid_and_private_key_backed():

@@ -6,16 +6,24 @@ on:
       - main
     paths:
       - 'tools/windows_russian_production_signing.ps1'
+      - 'tools/russian_signed_release.ps1'
+      - 'tools/russian_production_release_gate.ps1'
+      - 'tools/verify_russian_release.ps1'
       - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
       - 'docs/ROADMAP.md'
       - 'tests/test_windows_russian_production_signing.py'
+      - 'tests/test_windows_powershell51_signing_chain.py'
       - '.github/workflows/windows-russian-production-signing.yml'
   pull_request:
     paths:
       - 'tools/windows_russian_production_signing.ps1'
+      - 'tools/russian_signed_release.ps1'
+      - 'tools/russian_production_release_gate.ps1'
+      - 'tools/verify_russian_release.ps1'
       - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
       - 'docs/ROADMAP.md'
       - 'tests/test_windows_russian_production_signing.py'
+      - 'tests/test_windows_powershell51_signing_chain.py'
       - '.github/workflows/windows-russian-production-signing.yml'
   workflow_dispatch:
 
@@ -35,7 +43,7 @@ jobs:
       - name: Install test runner
         run: python -m pip install pytest
       - name: Run Windows signing contract tests
-        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
+        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_windows_powershell51_signing_chain.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
 
   powershell-syntax:
     name: Windows signing PowerShell syntax
@@ -50,7 +58,8 @@ jobs:
             'tools/windows_russian_production_signing.ps1',
             'tools/russian_signed_release.ps1',
             'tools/prepare_russian_release_verification_ux.ps1',
-            'tools/russian_production_release_gate.ps1'
+            'tools/russian_production_release_gate.ps1',
+            'tools/verify_russian_release.ps1'
           )
           foreach ($file in $files) {
             $tokens = $null
