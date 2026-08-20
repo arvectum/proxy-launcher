@@ -38,3 +38,23 @@ def test_downstream_scripts_really_contain_unicode_and_need_the_encoding_boundar
     assert any(byte >= 128 for byte in GATE.read_bytes())
     assert any(byte >= 128 for byte in VERIFIER.read_bytes())
     assert any(byte >= 128 for byte in SIGNER.read_bytes())
+
+
+def _assert_cryptopro_native_stderr_is_exit_code_driven(path: Path):
+    text = path.read_text(encoding="utf-8")
+    assert "function Invoke-CspTest" in text
+    assert "$previousErrorActionPreference = $ErrorActionPreference" in text
+    assert "$ErrorActionPreference = 'Continue'" in text
+    assert "$rawOutput = & $script:CspTest @Arguments 2>&1" in text
+    assert "$exitCode = $LASTEXITCODE" in text
+    assert "$ErrorActionPreference = $previousErrorActionPreference" in text
+    assert "if ($exitCode -ne 0)" in text
+    assert "$output = @($rawOutput | ForEach-Object { $_.ToString() })" in text
+
+
+def test_signer_tolerates_cryptopro_informational_stderr_on_windows_powershell_51():
+    _assert_cryptopro_native_stderr_is_exit_code_driven(SIGNER)
+
+
+def test_verifier_tolerates_cryptopro_informational_stderr_on_windows_powershell_51():
+    _assert_cryptopro_native_stderr_is_exit_code_driven(VERIFIER)
