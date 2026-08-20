@@ -263,19 +263,18 @@ New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
 
 $installIsolated = $false
 $stateIsolated = $false
-$registryIsolated = $false
-$runIsolated = $false
-$shortcutsIsolated = $false
+$registryRestoreArmed = $false
+$runRestoreArmed = $false
+$shortcutsRestoreArmed = $false
 $runtimeQuiesced = $false
+$baseStarted = $false
 $basePassed = $false
 $baseError = $null
 $restoreWarnings = @()
 $rescueUsed = $false
 
 try {
-    if ($runtimeBefore.Count -gt 0) {
-        Stop-LegacyProcesses -Processes $runtimeBefore
-    }
+    if ($runtimeBefore.Count -gt 0) { Stop-LegacyProcesses -Processes $runtimeBefore }
     $runtimeQuiesced = $true
 
     Move-Item -LiteralPath $installRoot -Destination $workInstall
@@ -284,26 +283,31 @@ try {
         Move-Item -LiteralPath $stateRoot -Destination $workState
         $stateIsolated = $true
     }
+
+    $runRestoreArmed = $true
     Set-RunValue $mainRunName $null
     Set-RunValue $recoveryRunName $null
-    $runIsolated = $true
-    foreach ($shortcut in $shortcutPaths) { Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue }
-    $shortcutsIsolated = $true
-    Remove-Item -LiteralPath $UserUninstallKey -Recurse -Force
-    $registryIsolated = $true
 
+    $shortcutsRestoreArmed = $true
+    foreach ($shortcut in $shortcutPaths) { Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue }
+
+    $registryRestoreArmed = $true
+    Remove-Item -LiteralPath $UserUninstallKey -Recurse -Force
+
+    $baseStarted = $true
     Invoke-BaseAcceptance
     $basePassed = $true
 }
-catch {
-    $baseError = $_.Exception.Message
-}
+catch { $baseError = $_.Exception.Message }
 finally {
     if ($installIsolated) {
-        try { Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "remove test install: $($_.Exception.Message)" }
+        if ($baseStarted) {
+            try { Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "remove test install: $($_.Exception.Message)" }
+        }
         try { Move-Item -LiteralPath $workInstall -Destination $installRoot } catch { $restoreWarnings += "restore install: $($_.Exception.Message)" }
     }
-    if ($installIsolated -or $stateIsolated) {
+
+    if ($baseStarted) {
         try { Remove-Item -LiteralPath $stateRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "remove test state: $($_.Exception.Message)" }
     }
     if ($stateIsolated) {
@@ -313,18 +317,18 @@ finally {
         }
         catch { $restoreWarnings += "restore state: $($_.Exception.Message)" }
     }
-    elseif ($installIsolated -and -not $hadStateRoot) {
-        try { Remove-Item -LiteralPath $stateRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "restore absent state: $($_.Exception.Message)" }
-    }
-    if ($runIsolated) {
+
+    if ($runRestoreArmed) {
         try { Set-RunValue $mainRunName $oldMainRun } catch { $restoreWarnings += "restore main Run: $($_.Exception.Message)" }
         try { Set-RunValue $recoveryRunName $oldRecoveryRun } catch { $restoreWarnings += "restore recovery Run: $($_.Exception.Message)" }
     }
-    if ($registryIsolated) {
+
+    if ($registryRestoreArmed) {
         try { Remove-Item -LiteralPath $UserUninstallKey -Recurse -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "remove test registration: $($_.Exception.Message)" }
         try { Invoke-NativeChecked -FilePath 'reg.exe' -ArgumentList @('import',('"' + $rescueRegistry + '"')) -Label 'restore legacy uninstall registration' } catch { $restoreWarnings += "restore registration: $($_.Exception.Message)" }
     }
-    if ($shortcutsIsolated) {
+
+    if ($shortcutsRestoreArmed) {
         foreach ($shortcut in $shortcutPaths) {
             try { Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue } catch { $restoreWarnings += "remove test shortcut: $shortcut" }
         }
@@ -354,9 +358,7 @@ catch { $restoreWarnings += "validate restored trees: $($_.Exception.Message)" }
 if (-not $treeRestored -or -not $stateRestored -or $restoreWarnings.Count -gt 0) {
     $rescueUsed = $true
     try {
-        if ($runtimeQuiesced) {
-            foreach ($p in @(Get-LegacyProcesses)) { Stop-Process -Id ([int]$p.ProcessId) -Force -ErrorAction SilentlyContinue }
-        }
+        foreach ($p in @(Get-LegacyProcesses)) { Stop-Process -Id ([int]$p.ProcessId) -Force -ErrorAction SilentlyContinue }
         Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue
         Copy-Item -LiteralPath $rescueInstall -Destination $installRoot -Recurse -Force
         Remove-Item -LiteralPath $stateRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -388,7 +390,14 @@ if (-not $treeRestored -or -not $stateRestored -or $restoreWarnings.Count -gt 0)
 $runtimeRestored = $false
 if ($treeRestored -and $stateRestored -and $restoreWarnings.Count -eq 0) {
     try {
-        Start-LegacyRuntime -CoreCount $coreBefore.Count -GuiCount $guiBefore.Count
+        $runtimeNow = @(Get-LegacyProcesses)
+        $coreNow = @($runtimeNow | Where-Object { Test-CoreProcess $_ })
+        $guiNow = @($runtimeNow | Where-Object { -not (Test-CoreProcess $_) })
+        if ($coreNow.Count -ne $coreBefore.Count -or $guiNow.Count -ne $guiBefore.Count) {
+            foreach ($p in $runtimeNow) { Stop-Process -Id ([int]$p.ProcessId) -Force -ErrorAction Stop }
+            Start-Sleep -Milliseconds 500
+            Start-LegacyRuntime -CoreCount $coreBefore.Count -GuiCount $guiBefore.Count
+        }
         $runtimeAfter = @(Get-LegacyProcesses)
         $coreAfter = @($runtimeAfter | Where-Object { Test-CoreProcess $_ })
         $guiAfter = @($runtimeAfter | Where-Object { -not (Test-CoreProcess $_) })
