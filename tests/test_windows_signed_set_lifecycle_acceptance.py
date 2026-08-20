@@ -52,6 +52,18 @@ def test_script_isolates_and_restores_existing_portable_state():
     assert "$evidence.environment_restored = $true" in value
 
 
+def test_restore_guard_is_armed_before_first_host_mutation():
+    value = text()
+    guard_index = value.index("$testEnvironmentActive = $true")
+    install_move_index = value.index("Move-Item -LiteralPath $installRoot -Destination $installBackup")
+    state_move_index = value.index("Move-Item -LiteralPath $stateRoot -Destination $stateBackup")
+    registry_clear_index = value.index("Set-RunValue $mainRunName $null")
+    assert guard_index < install_move_index
+    assert guard_index < state_move_index
+    assert guard_index < registry_clear_index
+    assert "$testEnvironmentActive = $false" not in value
+
+
 def test_script_covers_fresh_repair_recovery_uninstall_and_smoke():
     value = text()
     assert "=== Phase 1: fresh install and smoke ===" in value
