@@ -165,7 +165,7 @@ $hadInstallRoot = Test-Path -LiteralPath $installRoot
 $hadStateRoot = Test-Path -LiteralPath $stateRoot
 $oldMainRun = Get-RunValue $mainRunName
 $oldRecoveryRun = Get-RunValue $recoveryRunName
-$testEnvironmentActive = $false
+$testEnvironmentActive = $true
 $cleanupWarnings = @()
 
 $evidence = [ordered]@{
@@ -190,7 +190,6 @@ try {
     if ($hadStateRoot) { Move-Item -LiteralPath $stateRoot -Destination $stateBackup }
     Set-RunValue $mainRunName $null
     Set-RunValue $recoveryRunName $null
-    $testEnvironmentActive = $true
 
     Write-Host '=== Phase 1: fresh install and smoke ==='
     Invoke-Setup -Path $setup -Label 'fresh-install' -LogRoot $logRoot | Out-Null
