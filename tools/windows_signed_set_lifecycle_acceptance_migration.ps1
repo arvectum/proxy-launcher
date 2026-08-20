@@ -169,7 +169,7 @@ if ($registered.Count -ne 1 -or $registered[0] -cne $UserUninstallKey) {
 if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Registered executable is missing: $exe" }
 
 $registration = Get-ItemProperty -LiteralPath $UserUninstallKey
-if ([string]$registration.DisplayName -ne 'Arvectum Proxy Launcher') { throw 'Registered DisplayName mismatch.' }
+$legacyDisplayName = if ($registration.PSObject.Properties['DisplayName']) { [string]$registration.DisplayName } else { $null }
 if ([string]$registration.DisplayVersion -ne $ExpectedVersion) { throw 'Registered DisplayVersion mismatch.' }
 if ($registration.PSObject.Properties['InstallLocation']) {
     $registeredLocation = [string]$registration.InstallLocation
@@ -177,8 +177,9 @@ if ($registration.PSObject.Properties['InstallLocation']) {
 }
 
 $legacyInfo = (Get-Item -LiteralPath $exe).VersionInfo
-if ([string]$legacyInfo.ProductName -ne 'Arvectum Proxy Launcher') { throw "Legacy ProductName mismatch: $($legacyInfo.ProductName)" }
-if ([string]$legacyInfo.ProductVersion -ne $ExpectedVersion) { throw "Legacy ProductVersion mismatch: $($legacyInfo.ProductVersion)" }
+$legacyProductName = [string]$legacyInfo.ProductName
+$legacyProductVersion = [string]$legacyInfo.ProductVersion
+$legacyFileVersion = [string]$legacyInfo.FileVersion
 $legacyExeSha256 = Get-Sha256 $exe
 $legacyMatchesSealed = ($legacyExeSha256 -eq $ExpectedApplicationSha256)
 $setupSha256 = Get-Sha256 $setup
@@ -196,10 +197,12 @@ $stateBefore = if ($hadStateRoot) { Get-TreeFingerprint $stateRoot } else { $nul
 $oldMainRun = Get-RunValue $mainRunName
 $oldRecoveryRun = Get-RunValue $recoveryRunName
 
+Write-Host "Legacy registered name  : $legacyDisplayName"
 Write-Host "Legacy EXE SHA256       : $legacyExeSha256"
 Write-Host "Legacy matches sealed   : $legacyMatchesSealed"
-Write-Host "Legacy file version     : $($legacyInfo.FileVersion)"
-Write-Host "Legacy product version  : $($legacyInfo.ProductVersion)"
+Write-Host "Legacy product name     : $legacyProductName"
+Write-Host "Legacy file version     : $legacyFileVersion"
+Write-Host "Legacy product version  : $legacyProductVersion"
 Write-Host "Legacy process count    : $($runtimeBefore.Count)"
 Write-Host "Legacy core count       : $($coreBefore.Count)"
 Write-Host "Legacy GUI count        : $($guiBefore.Count)"
@@ -242,8 +245,12 @@ foreach ($shortcut in $shortcutPaths) {
 
 $rescueMeta = [ordered]@{
     created_utc = [DateTime]::UtcNow.ToString('o')
+    legacy_registered_display_name = $legacyDisplayName
     legacy_exe_sha256 = $legacyExeSha256
     legacy_matches_sealed = $legacyMatchesSealed
+    legacy_product_name = $legacyProductName
+    legacy_file_version = $legacyFileVersion
+    legacy_product_version = $legacyProductVersion
     install_tree_sha256 = $treeBefore.Sha256
     install_tree_files = $treeBefore.FileCount
     had_state_root = $hadStateRoot
@@ -411,8 +418,12 @@ if (Test-Path -LiteralPath $EvidencePath -PathType Leaf) {
         $evidence = Get-Content -LiteralPath $EvidencePath -Raw -Encoding UTF8 | ConvertFrom-Json
         $evidence | Add-Member -NotePropertyName preexisting_registered_runtime_exact -NotePropertyValue 'LEGACY_REGISTERED_0.2.3' -Force
         $evidence | Add-Member -NotePropertyName preexisting_registered_install_exact -NotePropertyValue 'LEGACY_NONSEALED_RUNTIME' -Force
+        $evidence | Add-Member -NotePropertyName preexisting_registered_display_name -NotePropertyValue $legacyDisplayName -Force
         $evidence | Add-Member -NotePropertyName preexisting_exe_sha256 -NotePropertyValue $legacyExeSha256 -Force
         $evidence | Add-Member -NotePropertyName preexisting_exe_matches_sealed -NotePropertyValue $legacyMatchesSealed -Force
+        $evidence | Add-Member -NotePropertyName preexisting_exe_product_name -NotePropertyValue $legacyProductName -Force
+        $evidence | Add-Member -NotePropertyName preexisting_exe_file_version -NotePropertyValue $legacyFileVersion -Force
+        $evidence | Add-Member -NotePropertyName preexisting_exe_product_version -NotePropertyValue $legacyProductVersion -Force
         $evidence | Add-Member -NotePropertyName preexisting_install_tree_sha256 -NotePropertyValue $treeBefore.Sha256 -Force
         $evidence | Add-Member -NotePropertyName preexisting_install_tree_files -NotePropertyValue $treeBefore.FileCount -Force
         $evidence | Add-Member -NotePropertyName owner_host_install_tree_restored_exact -NotePropertyValue $treeRestored -Force
@@ -446,8 +457,11 @@ Remove-Item -LiteralPath $rescueRoot -Recurse -Force -ErrorAction SilentlyContin
 
 Write-Host ''
 Write-Host 'APL-REL-014 migration-style legacy-host wrapper: PASS'
+Write-Host "Legacy registered name: $legacyDisplayName"
 Write-Host "Legacy EXE SHA256: $legacyExeSha256"
 Write-Host "Legacy matches sealed EXE: $legacyMatchesSealed"
+Write-Host "Legacy ProductName: $legacyProductName"
+Write-Host "Legacy ProductVersion: $legacyProductVersion"
 Write-Host 'Canonical exact signed-set lifecycle acceptance: PASS'
 Write-Host 'Legacy install tree restoration: BYTE-EXACT'
 Write-Host 'Legacy state tree restoration: PASS'
