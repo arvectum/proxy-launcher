@@ -166,7 +166,7 @@ try {
     $policyName = "Arvectum Proxy Launcher $ExpectedVersion Exact Hash"
 
     Write-Host '=== Generating exact-hash App Control policy ==='
-    New-CIPolicy -MultiplePolicyFormat -ScanPath $scanRoot -UserPEs -FilePath $policyXml -Level Hash | Out-Null
+    New-CIPolicy -MultiplePolicyFormat -ScanPath $scanRoot -UserPEs -NoScript -NoShadowCopy -FilePath $policyXml -Level Hash | Out-Null
     Set-CIPolicyIdInfo -FilePath $policyXml -ResetPolicyID -PolicyName $policyName -SupplementsBasePolicyID $BasePolicyId | Out-Null
     Set-CIPolicyVersion -FilePath $policyXml -Version '0.2.3.0'
 
@@ -258,10 +258,12 @@ EXE. For full lifecycle coverage use either:
 MANAGED INSTALLER PROFILE
 -------------------------
 For Intune / Configuration Manager / another customer-governed distribution system,
-Managed Installer is the preferred sustainable fleet path when available. Customer IT
-must designate and govern the managed installer. Arvectum supplies the exact release,
-release verification evidence and hashes; Arvectum does not silently designate itself
-as a managed installer.
+Managed Installer can reduce per-release policy churn when the customer's security
+model accepts its heuristic trust boundary. Customer IT must designate and govern the
+managed installer. Updates must also be deployed through that managed installer or be
+separately authorized; self-updated/generated binaries are not assumed trusted.
+Arvectum supplies exact release verification evidence and hashes and never designates
+itself as a managed installer.
 
 DO NOT
 ------
