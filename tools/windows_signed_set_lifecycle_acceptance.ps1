@@ -1,12 +1,6 @@
 <#
 .SYNOPSIS
-    Owner-operated exact signed-set lifecycle acceptance for the Windows 0.2.3 Russian production release.
-.DESCRIPTION
-    Verifies the published Russian release set, then performs a bounded lifecycle acceptance on the owner Windows host:
-      fresh install -> status smoke -> same-version repair -> corruption recovery -> uninstall.
-
-    The script never mutates the signed release directory. It isolates any existing portable state and restores it afterward.
-    If a registered installer installation already exists, the script fails closed instead of replacing it.
+    Owner-operated exact signed-set lifecycle acceptance for Windows 0.2.3.
 #>
 [CmdletBinding()]
 param(
@@ -16,10 +10,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-if ($env:OS -ne 'Windows_NT') {
-    throw 'Signed-set lifecycle acceptance must run on Windows.'
-}
+if ($env:OS -ne 'Windows_NT') { throw 'Signed-set lifecycle acceptance must run on Windows.' }
 
 $ExpectedVersion = '0.2.3'
 $ExpectedTag = 'v0.2.3-ru.2'
@@ -32,41 +23,28 @@ $SetupName = 'Arvectum-Proxy-Launcher-0.2.3-windows-x64-setup.exe'
 $VerifierName = 'verify_russian_release.ps1'
 
 $ReleaseDirectory = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
-if (-not $EvidencePath) {
-    $EvidencePath = $ReleaseDirectory + '.lifecycle-acceptance.json'
-}
-
+if (-not $EvidencePath) { $EvidencePath = $ReleaseDirectory + '.lifecycle-acceptance.json' }
 $portable = Join-Path $ReleaseDirectory $PortableName
 $setup = Join-Path $ReleaseDirectory $SetupName
 $verifier = Join-Path $ReleaseDirectory $VerifierName
 $decisionPath = $ReleaseDirectory + '.production-release-gate.json'
-
 foreach ($required in @($portable, $setup, $verifier, $decisionPath)) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "Required production-release file is missing: $required"
-    }
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required production-release file is missing: $required" }
 }
 
 function Get-Sha256([string]$Path) {
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
 function Invoke-NativeChecked {
-    param(
-        [Parameter(Mandatory = $true)] [string]$FilePath,
-        [string[]]$ArgumentList = @(),
-        [Parameter(Mandatory = $true)] [string]$Label
-    )
+    param([string]$FilePath, [string[]]$ArgumentList = @(), [string]$Label)
     $p = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -Wait
-    if ($p.ExitCode -ne 0) {
-        throw "$Label failed with exit code $($p.ExitCode)"
-    }
+    if ($p.ExitCode -ne 0) { throw "$Label failed with exit code $($p.ExitCode)" }
 }
 
 function Invoke-ReleaseVerifier([string]$Label) {
     $args = @(
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
+        '-NoProfile', '-ExecutionPolicy', 'Bypass',
         '-File', ('"' + $verifier + '"'),
         '-ReleaseDirectory', ('"' + $ReleaseDirectory + '"'),
         '-ExpectedSignerThumbprint', $ExpectedSignerThumbprint
@@ -80,7 +58,7 @@ function Get-RunValue([string]$Name) {
     if ($null -eq $item) { return $null }
     $property = $item.PSObject.Properties[$Name]
     if ($null -eq $property) { return $null }
-    return [string]$property.Value
+    [string]$property.Value
 }
 
 function Set-RunValue([string]$Name, [AllowNull()][string]$Value) {
@@ -88,8 +66,7 @@ function Set-RunValue([string]$Name, [AllowNull()][string]$Value) {
     New-Item -Path $runPath -Force | Out-Null
     if ($null -eq $Value) {
         Remove-ItemProperty -Path $runPath -Name $Name -ErrorAction SilentlyContinue
-    }
-    else {
+    } else {
         New-ItemProperty -Path $runPath -Name $Name -Value $Value -PropertyType String -Force | Out-Null
     }
 }
@@ -118,9 +95,8 @@ function Assert-NoRunningLauncher {
 
 function Invoke-Setup([string]$Path, [string]$Label, [string]$LogRoot) {
     $log = Join-Path $LogRoot ($Label + '.log')
-    $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',("/LOG=$log"))
-    Invoke-NativeChecked -FilePath $Path -ArgumentList $args -Label $Label
-    return $log
+    Invoke-NativeChecked -FilePath $Path -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',("/LOG=$log")) -Label $Label
+    $log
 }
 
 function Invoke-Status([string]$Exe, [string]$Label) {
@@ -128,36 +104,23 @@ function Invoke-Status([string]$Exe, [string]$Label) {
 }
 
 function Assert-InstallMode([string]$InstallLog, [string]$Mode) {
-    if (-not (Test-Path -LiteralPath $InstallLog -PathType Leaf)) {
-        throw "install.log is missing while checking $Mode"
-    }
+    if (-not (Test-Path -LiteralPath $InstallLog -PathType Leaf)) { throw "install.log is missing while checking $Mode" }
     $raw = Get-Content -LiteralPath $InstallLog -Raw
-    if ($raw -notmatch [regex]::Escape("PASS ($Mode)")) {
-        throw "install.log does not prove PASS ($Mode)"
-    }
+    if ($raw -notmatch [regex]::Escape("PASS ($Mode)")) { throw "install.log does not prove PASS ($Mode)" }
 }
 
 function Assert-InstalledMetadata([string]$Exe) {
-    if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) {
-        throw 'Installed executable is missing.'
-    }
+    if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw 'Installed executable is missing.' }
     $info = (Get-Item -LiteralPath $Exe).VersionInfo
-    if ([string]$info.ProductName -cne 'Arvectum Proxy Launcher') {
-        throw "Installed ProductName mismatch: $($info.ProductName)"
-    }
-    if ([string]$info.ProductVersion -cne $ExpectedVersion) {
-        throw "Installed ProductVersion mismatch: $($info.ProductVersion)"
-    }
+    if ([string]$info.ProductName -cne 'Arvectum Proxy Launcher') { throw "Installed ProductName mismatch: $($info.ProductName)" }
+    if ([string]$info.ProductVersion -cne $ExpectedVersion) { throw "Installed ProductVersion mismatch: $($info.ProductVersion)" }
 }
 
 function Invoke-Uninstall([string]$Uninstaller, [string]$Label, [string]$LogRoot) {
-    if (-not (Test-Path -LiteralPath $Uninstaller -PathType Leaf)) {
-        throw "$Label: uninstaller is missing"
-    }
+    if (-not (Test-Path -LiteralPath $Uninstaller -PathType Leaf)) { throw "${Label}: uninstaller is missing" }
     $log = Join-Path $LogRoot ($Label + '.log')
-    $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/LOG=$log"))
-    Invoke-NativeChecked -FilePath $Uninstaller -ArgumentList $args -Label $Label
-    return $log
+    Invoke-NativeChecked -FilePath $Uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',("/LOG=$log")) -Label $Label
+    $log
 }
 
 $decision = Get-Content -LiteralPath $decisionPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -177,7 +140,6 @@ Write-Host "Release: $ExpectedTag"
 Write-Host "Commit : $ExpectedCommit"
 Write-Host "Setup  : $setupHash"
 Invoke-ReleaseVerifier 'preflight signed-set verification'
-
 Assert-NoRegisteredInstall
 Assert-NoRunningLauncher
 
@@ -188,7 +150,6 @@ $repair = Join-Path $installRoot 'Arvectum Proxy Launcher Repair.exe'
 $uninstaller = Join-Path $installRoot 'unins000.exe'
 $stateRoot = Join-Path $env:LOCALAPPDATA 'Arvectum\ProxyLauncher'
 $installLog = Join-Path $stateRoot 'install.log'
-$runPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $mainRunName = 'ArvectumProxyLauncher'
 $recoveryRunName = 'ArvectumProxyLauncherRecovery'
 
@@ -198,7 +159,6 @@ $backupRoot = Join-Path $workRoot 'backup'
 $logRoot = Join-Path $workRoot 'logs'
 New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
-
 $installBackup = Join-Path $backupRoot 'install-root'
 $stateBackup = Join-Path $backupRoot 'state-root'
 $hadInstallRoot = Test-Path -LiteralPath $installRoot
@@ -226,12 +186,8 @@ $evidence = [ordered]@{
 }
 
 try {
-    if ($hadInstallRoot) {
-        Move-Item -LiteralPath $installRoot -Destination $installBackup
-    }
-    if ($hadStateRoot) {
-        Move-Item -LiteralPath $stateRoot -Destination $stateBackup
-    }
+    if ($hadInstallRoot) { Move-Item -LiteralPath $installRoot -Destination $installBackup }
+    if ($hadStateRoot) { Move-Item -LiteralPath $stateRoot -Destination $stateBackup }
     Set-RunValue $mainRunName $null
     Set-RunValue $recoveryRunName $null
     $testEnvironmentActive = $true
@@ -270,7 +226,6 @@ try {
     $ownedStart = '"' + $exe + '" --start'
     Set-RunValue $recoveryRunName $ownedStart
     Set-Content -LiteralPath $exe -Value 'damaged-binary-for-production-lifecycle-acceptance' -Encoding ASCII
-
     if ((Get-Sha256 $repair) -ne $ExpectedSetupSha256) { throw 'Cached repair installer changed before recovery.' }
     Invoke-Setup -Path $repair -Label 'cached-repair-recovery' -LogRoot $logRoot | Out-Null
     Assert-InstallMode $installLog 'REPAIR'
@@ -313,40 +268,29 @@ finally {
                 $p = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait -ErrorAction SilentlyContinue
                 if ($p -and $p.ExitCode -ne 0) { $cleanupWarnings += "cleanup uninstaller exit=$($p.ExitCode)" }
             }
-        }
-        catch { $cleanupWarnings += "cleanup uninstall: $($_.Exception.Message)" }
-
+        } catch { $cleanupWarnings += "cleanup uninstall: $($_.Exception.Message)" }
         try { Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $cleanupWarnings += "cleanup install root: $($_.Exception.Message)" }
         try { Remove-Item -LiteralPath $stateRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { $cleanupWarnings += "cleanup state root: $($_.Exception.Message)" }
         try { Set-RunValue $mainRunName $oldMainRun } catch { $cleanupWarnings += "restore main Run: $($_.Exception.Message)" }
         try { Set-RunValue $recoveryRunName $oldRecoveryRun } catch { $cleanupWarnings += "restore recovery Run: $($_.Exception.Message)" }
-
         try {
-            if ($hadInstallRoot -and (Test-Path -LiteralPath $installBackup)) {
-                Move-Item -LiteralPath $installBackup -Destination $installRoot
-            }
-        }
-        catch { $cleanupWarnings += "restore install root: $($_.Exception.Message)" }
-
+            if ($hadInstallRoot -and (Test-Path -LiteralPath $installBackup)) { Move-Item -LiteralPath $installBackup -Destination $installRoot }
+        } catch { $cleanupWarnings += "restore install root: $($_.Exception.Message)" }
         try {
             if ($hadStateRoot -and (Test-Path -LiteralPath $stateBackup)) {
-                $stateParent = Split-Path -Parent $stateRoot
-                New-Item -ItemType Directory -Path $stateParent -Force | Out-Null
+                New-Item -ItemType Directory -Path (Split-Path -Parent $stateRoot) -Force | Out-Null
                 Move-Item -LiteralPath $stateBackup -Destination $stateRoot
             }
-        }
-        catch { $cleanupWarnings += "restore state root: $($_.Exception.Message)" }
+        } catch { $cleanupWarnings += "restore state root: $($_.Exception.Message)" }
     }
 
     if ($cleanupWarnings.Count -eq 0) {
         $evidence.environment_restored = $true
-    }
-    else {
+    } else {
         $evidence.environment_restored = $false
         $evidence.cleanup_warnings = @($cleanupWarnings)
         $evidence.result = 'BLOCK'
     }
-
     $evidence.generated_utc = [DateTime]::UtcNow.ToString('o')
     $evidence.host = $env:COMPUTERNAME
     $evidenceDir = Split-Path -Parent $EvidencePath
@@ -355,10 +299,7 @@ finally {
     Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-if ($evidence.result -ne 'PASS' -or -not $evidence.environment_restored) {
-    throw "Signed-set lifecycle acceptance BLOCK. Evidence: $EvidencePath"
-}
-
+if ($evidence.result -ne 'PASS' -or -not $evidence.environment_restored) { throw "Signed-set lifecycle acceptance BLOCK. Evidence: $EvidencePath" }
 Write-Host ''
 Write-Host 'APL-REL-014 Windows signed-set lifecycle acceptance: PASS'
 Write-Host "Release tag: $ExpectedTag"
