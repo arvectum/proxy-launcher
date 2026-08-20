@@ -9,6 +9,7 @@ Status legend:
 - **DONE** — implementation and required acceptance are complete.
 - **ACTIVE** — current execution priority.
 - **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — repository/CI work is complete; remaining evidence requires the target machine or privileged local execution.
+- **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI work is complete enough to stop local execution; the remaining gate requires a separate eligible physical host and must not be forced on the normal owner workstation.
 - **HUMAN/LEGAL PENDING** — engineering controls are complete, but judgment/sign-off cannot be replaced by automation.
 - **DEFERRED / NOT RELEASE BLOCKER** — valuable hardening/resilience work intentionally removed from the current release critical path.
 - **STOP-GATE** — do not continue implementation until the named product/legal/infrastructure decision is made.
@@ -65,20 +66,25 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 
 ### APL-WIN-014 — Windows application-control execution compatibility
 
-- **AUTONOMOUS COMPLETE / REAL APP-CONTROL ACCEPTANCE PENDING** — implementation merged by PR #108 at `bcadbf3143dcee175b589827ba8617c380e312f1`.
+- **BLOCKED / EXTERNAL HOST REQUIRED** — autonomous compatibility tooling and owner-host diagnostics are complete; final App Control for Business PASS requires a separate eligible physical Windows acceptance host.
 - **DONE** — Russian release provenance and Windows execution trust are explicitly separated; detached CryptoPro/Rutoken evidence is never represented as Authenticode/Smart App Control trust.
 - **DONE** — read-only assessment: `tools/windows_app_control_assess.ps1`.
 - **DONE** — enterprise supplemental exact-hash trust-pack generator: `tools/windows_app_control_enterprise_trust_pack.ps1` with `BootstrapHash` and lifecycle-capable `ReferenceFullHash` modes.
 - **DONE** — customer Managed Installer deployment profile is documented as the preferred scalable enterprise path when supported; Arvectum tooling does not designate or deploy the customer's managed installer.
 - **DONE** — owner/developer safe source-mode profile: `tools/windows_owner_source_mode.ps1`; no Smart App Control/App Control mutation and no dependency on the blocked legacy EXE.
-- **DONE** — PowerShell 5.1 parser, repository safety contracts and Windows ConfigCI supplemental-policy conversion smoke PASS; portable, installer lifecycle E2E/Gate R6, SAST, SBOM, provenance, secret and dependency gates PASS on the merged head.
-- **LOCAL GATE** — prove execution on a representative organization-managed Windows 11 host/VM with App Control for Business enabled: exact release verification, supplemental/base-policy compatibility, Setup, first launch, core/GUI/PAC, rollback, repair, upgrade and uninstall without disabling host protection.
+- **DONE** — real local acceptance harness is present: `tools/windows_app_control_local_gate.ps1`, `tools/windows_app_control_upgrade_acceptance.ps1`, and `tools/windows_app_control_local_gate_complete.ps1`.
+- **DONE** — owner-host read-only preflight and policy diagnostic established that the current Windows 11 Home workstation has Smart App Control in Enforce state, no new network-stack Code Integrity blocks, historical Arvectum 3077 events only, and a live proxy stack that must not be disturbed.
+- **HOST ELIGIBILITY** — the current Windows 11 Home owner workstation is diagnostics-only and cannot close this enterprise App Control for Business acceptance gate. Consumer Smart App Control evidence is not a substitute for organization-managed ACB evidence.
+- **SAFETY BLOCK** — do not deploy/remove `.cip` policies, alter Smart App Control, replace the live owner-host Arvectum build, stop AmneziaVPN/NGate/proxy components, or run destructive lifecycle acceptance on the owner workstation.
+- **FINAL LOCAL GATE** — execute only on a separate physical Windows 11 Pro/Enterprise/Education acceptance host where App Control for Business can be managed deliberately and where loss of the test network stack cannot affect the owner's normal connectivity. The abandoned VM path remains out of scope.
+- Canonical owner-host eligibility decision: `docs/APL_WIN_014_HOST_ELIGIBILITY.md`.
+- Canonical local-gate runbook: `docs/APL_WIN_014_LOCAL_GATE.md`.
 - **PUBLIC UNMANAGED BOUNDARY** — deterministic Smart App Control admission for public unmanaged Windows remains unresolved until a supported trusted embedded code-signing path exists; international public code-signing remains a lower-priority fallback.
 - Canonical task definition: `docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md`.
 
 ### APL-REL-014 — exact signed-set lifecycle acceptance
 
-- **AUTONOMOUS COMPLETE / ISOLATED WINDOWS ACCEPTANCE PENDING** — repository/CI lifecycle automation is complete; real destructive acceptance must run only in a disposable/isolated Windows VM or dedicated acceptance host.
+- **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI lifecycle automation is complete, but destructive physical acceptance is prohibited on the normal owner workstation and remains pending until a separate eligible Windows acceptance host is available.
 - **DONE** — canonical script: `tools/windows_signed_set_lifecycle_acceptance.ps1`.
 - **DONE** — release identity is pinned to version `0.2.3`, tag `v0.2.3-ru.2`, release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`, governed signer thumbprint, and sealed portable/installer hashes.
 - **DONE** — exact Russian release verification runs before and after lifecycle execution; the signed release directory is never mutated by the acceptance script.
@@ -87,7 +93,7 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 - **DONE** — user configuration preservation and foreign-autostart ownership boundaries are tested.
 - **INCIDENT / OWNER-HOST PROHIBITION** — migration-style execution on the normal owner workstation on 2026-08-20 restored install/state trees but Windows application-control enforcement blocked restart of the legacy EXE. The run remained `BLOCK`; canonical lifecycle phases did not complete.
 - **RECOVERY DONE** — owner workstation was recovered from source without disabling Windows protection; proxy settings, PAC, core and GUI returned to a healthy state. Rescue evidence is retained.
-- **LOCAL GATE** — execute APL-REL-014 only in a disposable/isolated Windows acceptance environment and retain `result=PASS` + `environment_restored=true`. Do not run destructive acceptance on the normal owner workstation again.
+- **FINAL LOCAL GATE** — execute only on the same class of separate physical Windows acceptance host used for controlled Windows destructive acceptance. Do not run this gate on the normal owner workstation; do not revive the abandoned VM path merely to satisfy the gate.
 - Incident evidence: `docs/evidence/APL_REL_014_OWNER_HOST_INCIDENT_2026-08-20.md`.
 - Runbook: `docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md`.
 
@@ -151,13 +157,13 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **APL-WIN-014 local gate:** real App Control for Business acceptance on a representative organization-managed Windows 11 VM/host; owner workstation is not the destructive test environment.
-2. **APL-REL-014:** run exact signed-set lifecycle acceptance in an isolated/disposable Windows acceptance environment only; never again on the normal owner workstation.
-3. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
-4. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
-5. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+1. **APL-LNX-010:** real Astra Linux acceptance when a suitable real Astra host is available; close Gate R8 only from real-host evidence.
+2. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
+3. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
+4. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only after a separate physical Windows 11 Pro/Enterprise/Education acceptance host becomes available. Do not use the normal Windows 11 Home owner workstation and do not return to the abandoned VM path.
+5. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only after a separate physical Windows acceptance host becomes available; never again on the normal owner workstation.
 6. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
-Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Destructive Windows lifecycle acceptance is now additionally constrained to disposable/isolated acceptance environments. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
+Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. The normal owner Windows workstation is diagnostics-only for APL-WIN-014/APL-REL-014 and must not be used for destructive policy/lifecycle acceptance. The abandoned VM path remains out of scope. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
