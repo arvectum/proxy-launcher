@@ -2,22 +2,24 @@
 
 Status: **PENDING AUTHORIZED HUMAN/LEGAL REVIEW**. This record must be completed before a clean IP baseline/tag is created.
 
-Use `docs/APL_IP_001_REVIEW_PACKET.md` as the bounded review guide. Do not treat CI, hashes, Git authorship, commit metadata or AI tooling as legal proof of authorship or ownership by themselves.
+Use `docs/APL_IP_001_REVIEW_PACKET.md` as the bounded review guide and `docs/evidence/APL_IP_001_REVIEW_CANDIDATE_2026-08-20.md` as the automated evidence binding. Do not treat CI, hashes, Git authorship, commit metadata or AI tooling as legal proof of authorship or ownership by themselves.
 
 ## Candidate identity
 
-- Product version: ____________________
-- Candidate commit SHA: ________________________________________
-- Candidate source tree SHA: ___________________________________
-- Source provenance artifact/run reference: ______________________
-- Source provenance manifest SHA-256: ___________________________
-- Source provenance artifact digest: _____________________________
-- Build SBOM artifact/run reference: _____________________________
-- Build SBOM SHA-256: ___________________________________________
-- Platform payload/release-evidence references: ___________________
-- `THIRD_PARTY_NOTICES.txt` SHA-256: _____________________________
+- Product version: `0.2.3`
+- Candidate commit SHA: `7c3bdbd005e6ff27db8f5a00071dc81c8595dd9b`
+- Candidate source tree SHA: `9c372b440919b3b9e69d78ab0a85dca3f387d5af`
+- Source provenance artifact/run reference: workflow run `32409782542`, artifact `9421664020`
+- Source provenance manifest SHA-256: `7b1f42a124c1b0cf068937bb3bb8554609ab7294eb68583ba577b7ead93f1927`
+- Source provenance artifact digest: `528990e85b79a441ad8477451cf0537e47d6f3b5398056d4672d476690407b42`
+- Build SBOM artifact/run reference: workflow run `32409782544`, artifact `9421675129`
+- Build SBOM SHA-256: `fccd5d2d94a4c2f8ebbc9fdde709db5b0fd1ae13f962f9046d706086a345ac4a`
+- Platform payload/release-evidence references: Windows `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`; Linux/macOS payload/license reconciliation remains a reviewer checklist item
+- `THIRD_PARTY_NOTICES.txt` SHA-256: `c36fab57e42132ebcc4201d681e706dbd6fad3c54630d887aa836d04bd192530`
 - Reviewer / authority: _________________________________________
 - Review date: __________________________________________________
+
+Automated candidate facts: manifest schema `2`; `315` governed records; `34` product-source records; `0` automated provenance findings; `human_review_required=true`; `legal_signoff_required=true`. The PR head, PR merge-test ref and candidate commit share the same source tree SHA, as recorded in the candidate evidence file.
 
 ## Significant-source review
 
@@ -31,7 +33,7 @@ Inspect the exact candidate tree, relevant Git history, the mandatory source lis
 - [ ] GUI/failure-state logic and security/privacy boundaries.
 - [ ] Build/release/CI scripts that materially affect shipped artifacts or provenance.
 - [ ] Visual/brand assets claimed by ООО «Арвектум».
-- [ ] Every automated provenance finding is investigated and dispositioned.
+- [ ] Every automated provenance finding is investigated and dispositioned (candidate automated count: `0`; prior false-positive triage is documented in the review packet).
 - [ ] Any material AI-assisted or imported/template-like fragment has been human-reviewed and deliberately accepted, rewritten, or separately licensed as appropriate.
 - [ ] Human creative contribution is identifiable for material product modules; AI assistance is not represented as a legal author.
 
@@ -87,8 +89,8 @@ Select exactly one:
 
 Remediation: _____________________________________________________
 
-A clean IP tag may be created only after **APPROVED** and must point to the exact reviewed candidate commit. Any source/remediation change after review requires selecting and reviewing a new candidate.
+A clean IP tag may be created only after **APPROVED** and must point to the exact reviewed candidate commit `7c3bdbd005e6ff27db8f5a00071dc81c8595dd9b`. Any source/remediation change after review requires selecting and reviewing a new candidate.
 
-Suggested convention: `ip-clean/<product-version>/<YYYY-MM-DD>`.
+Suggested convention: `ip-clean/0.2.3/<YYYY-MM-DD>`.
 
 Approval/signature reference: _____________________________________
