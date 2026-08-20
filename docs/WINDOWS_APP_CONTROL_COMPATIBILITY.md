@@ -73,9 +73,11 @@ Modes:
 
 `ReferenceFullHash` must be generated only from an isolated reference installation whose application EXE and cached repair Setup match the sealed production hashes exactly.
 
+A customer's base policy must enable rule option 17 (`Allow Supplemental Policies`). If the base policy is signed, the customer's policy governance must also authorize the supplemental-policy signer; Arvectum tooling does not alter that base-policy trust configuration.
+
 #### Profile 2 — customer Managed Installer
 
-For managed fleets using Intune, Configuration Manager or another organization-governed deployment system, Managed Installer is the preferred sustainable path when available.
+For managed fleets using Intune, Configuration Manager or another organization-governed deployment system, Managed Installer is a sustainable path when the customer's security model accepts its trade-offs.
 
 Arvectum supplies:
 
@@ -86,7 +88,9 @@ Arvectum supplies:
 
 Customer IT designates and governs the managed installer. Arvectum does not silently mark itself as a managed installer and does not modify the customer's base policy.
 
-Managed Installer is preferred for repeated upgrades because an exact-hash pack is intentionally version/byte-specific.
+Managed Installer can reduce per-release hash-policy churn, but it is heuristic trust and is not equivalent to explicit hash/publisher rules. Microsoft documents important limitations: self-updated files do not automatically retain managed-installer origin, generated/downloaded binaries can require additional authorization, and administrator-level deployment requires careful security review. Therefore every Arvectum update used with this profile must be deployed through the customer's approved managed installer or separately authorized by policy.
+
+For high-assurance deployments where exact release bytes are fixed, `ReferenceFullHash` remains the more deterministic Arvectum-supplied policy artifact.
 
 ## Read-only assessment
 
@@ -120,12 +124,12 @@ This profile:
 - preserves the existing persistent proxy settings under LocalAppData;
 - keeps the desktop shortcut on the source GUI;
 - maintains a source rollback recovery Run entry;
-- optionally enables source core autostart only when explicitly requested;
+- deliberately keeps main runtime autostart disabled, avoiding an unordered `--start` versus `--rollback` Windows Run race;
 - records Python SHA-256, repository commit/clean state and a recovery snapshot;
 - does not change Smart App Control or App Control policy;
 - does not require the blocked unsigned legacy EXE.
 
-This is a permanent **owner/developer operating profile**, not a customer production distribution format.
+The owner starts the product from the normal desktop shortcut after logon. This is a permanent **owner/developer operating profile**, not a customer production distribution format.
 
 ## Why no automatic Smart App Control conversion on the owner workstation
 
@@ -143,7 +147,7 @@ APL-WIN-014 repository contracts include:
 - static proof that generated policy uses `Hash`, `MultiplePolicyFormat`, a customer base policy ID and `ConvertFrom-CIPolicy`;
 - static proof that the generator does not invoke `CiTool --update-policy` or mutate Smart App Control registry state;
 - Windows ConfigCI smoke generation of a non-deployed supplemental hash policy;
-- owner source-mode contract proving it is non-production and does not change App Control state.
+- owner source-mode contract proving it is non-production, main runtime autostart is disabled, and App Control state is unchanged.
 
 ## Required customer/real-host acceptance
 
