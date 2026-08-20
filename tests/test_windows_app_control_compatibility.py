@@ -90,9 +90,11 @@ def test_owner_source_mode_is_explicitly_nonproduction_and_never_changes_app_con
 
 def test_documentation_keeps_russian_provenance_separate_from_windows_execution_trust():
     body = text(DOC)
-    assert "Russian" in body
-    assert "Smart App Control" in body
-    assert "App Control for Business" in body
-    assert "Managed Installer" in body
-    assert "hash" in body.lower()
-    assert "do not" in body.lower()
+    lower = body.lower()
+    assert "russian" in lower
+    assert "smart app control" in lower
+    assert "app control for business" in lower
+    assert "managed installer" in lower
+    assert "hash" in lower
+    assert "do **not** disable smart app control" in lower
+    assert "release provenance and windows execution trust are separate controls" in lower
