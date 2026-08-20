@@ -13,12 +13,16 @@ on:
       - 'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_migration.ps1'
+      - 'tools/windows_app_control_assess.ps1'
+      - 'tools/windows_app_control_enterprise_trust_pack.ps1'
+      - 'tools/windows_owner_source_mode.ps1'
       - 'tools/russian_signed_release.ps1'
       - 'tools/russian_production_release_gate.ps1'
       - 'tools/verify_russian_release.ps1'
       - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
       - 'docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md'
       - 'docs/WINDOWS_SIGNED_SET_LIFECYCLE_RUNTIME.md'
+      - 'docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md'
       - 'docs/ROADMAP.md'
       - 'tests/test_windows_russian_production_signing.py'
       - 'tests/test_windows_powershell51_signing_chain.py'
@@ -29,6 +33,8 @@ on:
       - 'tests/test_windows_signed_set_lifecycle_legacy_host.py'
       - 'tests/test_windows_signed_set_lifecycle_guarded.py'
       - 'tests/test_windows_signed_set_lifecycle_migration.py'
+      - 'tests/test_windows_app_control_compatibility.py'
+      - 'tests/windows_app_control_configci_smoke.ps1'
       - '.github/workflows/windows-russian-production-signing.yml'
   pull_request:
     paths:
@@ -40,12 +46,16 @@ on:
       - 'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1'
       - 'tools/windows_signed_set_lifecycle_acceptance_migration.ps1'
+      - 'tools/windows_app_control_assess.ps1'
+      - 'tools/windows_app_control_enterprise_trust_pack.ps1'
+      - 'tools/windows_owner_source_mode.ps1'
       - 'tools/russian_signed_release.ps1'
       - 'tools/russian_production_release_gate.ps1'
       - 'tools/verify_russian_release.ps1'
       - 'docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md'
       - 'docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md'
       - 'docs/WINDOWS_SIGNED_SET_LIFECYCLE_RUNTIME.md'
+      - 'docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md'
       - 'docs/ROADMAP.md'
       - 'tests/test_windows_russian_production_signing.py'
       - 'tests/test_windows_powershell51_signing_chain.py'
@@ -56,6 +66,8 @@ on:
       - 'tests/test_windows_signed_set_lifecycle_legacy_host.py'
       - 'tests/test_windows_signed_set_lifecycle_guarded.py'
       - 'tests/test_windows_signed_set_lifecycle_migration.py'
+      - 'tests/test_windows_app_control_compatibility.py'
+      - 'tests/windows_app_control_configci_smoke.ps1'
       - '.github/workflows/windows-russian-production-signing.yml'
   workflow_dispatch:
 
@@ -75,15 +87,15 @@ jobs:
       - name: Install test runner
         run: python -m pip install pytest
       - name: Run Windows signing contract tests
-        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_windows_powershell51_signing_chain.py tests/test_windows_signed_set_lifecycle_acceptance.py tests/test_windows_signed_set_lifecycle_owner_host.py tests/test_windows_signed_set_lifecycle_runtime.py tests/test_windows_signed_set_lifecycle_drift.py tests/test_windows_signed_set_lifecycle_legacy_host.py tests/test_windows_signed_set_lifecycle_guarded.py tests/test_windows_signed_set_lifecycle_migration.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
+        run: python -m pytest -q tests/test_windows_russian_production_signing.py tests/test_windows_powershell51_signing_chain.py tests/test_windows_signed_set_lifecycle_acceptance.py tests/test_windows_signed_set_lifecycle_owner_host.py tests/test_windows_signed_set_lifecycle_runtime.py tests/test_windows_signed_set_lifecycle_drift.py tests/test_windows_signed_set_lifecycle_legacy_host.py tests/test_windows_signed_set_lifecycle_guarded.py tests/test_windows_signed_set_lifecycle_migration.py tests/test_windows_app_control_compatibility.py tests/test_russian_signed_release_integration.py tests/test_russian_production_release_gate.py
 
   powershell-syntax:
     name: Windows signing PowerShell syntax
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Parse signing scripts as UTF-8
+      - name: Parse signing and App Control scripts as UTF-8
         shell: powershell
         run: |
           $files = @(
@@ -95,10 +107,14 @@ jobs:
             'tools/windows_signed_set_lifecycle_acceptance_legacy_host.ps1',
             'tools/windows_signed_set_lifecycle_acceptance_guarded.ps1',
             'tools/windows_signed_set_lifecycle_acceptance_migration.ps1',
+            'tools/windows_app_control_assess.ps1',
+            'tools/windows_app_control_enterprise_trust_pack.ps1',
+            'tools/windows_owner_source_mode.ps1',
             'tools/russian_signed_release.ps1',
             'tools/prepare_russian_release_verification_ux.ps1',
             'tools/russian_production_release_gate.ps1',
-            'tools/verify_russian_release.ps1'
+            'tools/verify_russian_release.ps1',
+            'tests/windows_app_control_configci_smoke.ps1'
           )
           foreach ($file in $files) {
             $tokens = $null
@@ -119,3 +135,6 @@ jobs:
               throw "PowerShell parse failed: $file"
             }
           }
+      - name: Run APL-WIN-014 ConfigCI supplemental-policy smoke
+        shell: powershell
+        run: .\tests\windows_app_control_configci_smoke.ps1
