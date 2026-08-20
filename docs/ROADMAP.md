@@ -62,11 +62,18 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 - Canonical repository evidence: `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`.
 - Runbook: `docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md`.
 
-Remaining Windows release acceptance:
+### APL-REL-014 — exact signed-set lifecycle acceptance
 
-1. **DONE** — retain the canonical signed Windows release set and `PUBLISH` decision;
-2. **ACTIVE** — perform real install/update-or-repair/uninstall-or-rollback acceptance against that exact signed release set;
-3. **PENDING** — retain the final lifecycle acceptance evidence tied to the exact release tag, artifact hashes and signing identity.
+- **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — owner-host lifecycle automation for the exact published `v0.2.3-ru.2` release.
+- **DONE** — canonical script: `tools/windows_signed_set_lifecycle_acceptance.ps1`.
+- **DONE** — release identity is pinned to version `0.2.3`, tag `v0.2.3-ru.2`, release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`, governed signer thumbprint, and sealed portable/installer hashes.
+- **DONE** — exact Russian release verification runs before and after lifecycle execution; the signed release directory is never mutated by the acceptance script.
+- **DONE** — physical-host phases are automated: fresh install → `--status` smoke → same-version repair → deliberate binary/stale-state corruption → cached repair recovery → uninstall.
+- **DONE** — cached repair installer must hash-identically match the signed production installer.
+- **DONE** — user configuration preservation and foreign-autostart ownership boundaries are tested.
+- **DONE** — pre-existing unmanaged/portable install state and application state are isolated and restored; an already registered installer installation causes a fail-closed stop instead of destructive replacement.
+- **LOCAL GATE** — execute the script on the owner Windows host and retain `C:\Arvectum\Releases\0.2.3-russian-production.lifecycle-acceptance.json` with `result=PASS` and `environment_restored=true`.
+- Runbook: `docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md`.
 
 International Microsoft/GlobalSign-oriented distribution remains lower priority and is not a blocker for the Russian-first release.
 
@@ -128,7 +135,7 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **[Win] Signed-set lifecycle acceptance:** run real install → update/repair → uninstall/rollback acceptance against the exact `v0.2.3-ru.2` signed release set and retain evidence tied to commit `47823585c42da54ab51dc2246583dc24d74d4ba6`.
+1. **APL-REL-014 / [Win] Signed-set lifecycle acceptance:** execute `tools/windows_signed_set_lifecycle_acceptance.ps1` on the owner Windows host against the exact `v0.2.3-ru.2` release and retain PASS evidence.
 2. **APL-LNX-010:** real Astra Linux acceptance; close Gate R8 only from real-host evidence.
 3. **APL-IP-001:** authorized human/legal sign-off and clean IP baseline/tag.
 4. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
