@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task": "[Win] Russian-first production signing",
+  "product": "Arvectum Proxy Launcher",
+  "version": "0.2.3",
+  "accepted_date": "2026-08-20",
+  "execution_boundary": "owner-operated Windows signing station with physical Rutoken",
+  "artifact_build_commit": "54ce2585222948b51c67510ea620516ea6c3f876",
+  "release_policy_commit": "47823585c42da54ab51dc2246583dc24d74d4ba6",
+  "git_tag": "v0.2.3-ru.2",
+  "portable_zip": {
+    "name": "Arvectum-Proxy-Launcher-0.2.3-windows-x64-portable.zip",
+    "sha256": "62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801"
+  },
+  "installer": {
+    "name": "Arvectum-Proxy-Launcher-0.2.3-windows-x64-setup.exe",
+    "sha256": "5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414",
+    "size_bytes": 17559854
+  },
+  "signer": {
+    "organization": "ООО \"АРВЕКТУМ\"",
+    "thumbprint": "EE1CFA955BA22F03C39C76B183D94CD37494582E",
+    "certificate_classification": "RELEASE-EVIDENCE-ONLY"
+  },
+  "acceptance": {
+    "rel011_detached_signature_verified": true,
+    "rel011_result": "PASS",
+    "rel012_exact_release_verification": "PASS",
+    "rel012_negative_tamper_test": "PASS_EXPECTED_FAILURE",
+    "rel013_publication_decision": "PUBLISH",
+    "canonical_release_directory_created": true,
+    "publication_decision_file_created": true
+  },
+  "trust_boundary": {
+    "embedded_authenticode_claimed": false,
+    "smartscreen_trust_claimed": false
+  },
+  "historical_note": "The prior v0.2.3-ru.1 ceremony attempt created a valid detached signature but stopped before publication because Windows PowerShell 5.1 promoted CryptoPro informational stderr to NativeCommandError. That attempt was not published and its local release directory was archived before the clean ru.2 ceremony.",
+  "source": "Owner-station execution transcript supplied after the successful ceremony; exact final output recorded PUBLISH, REL-011 verification PASS, REL-012 exact-set PASS, and expected failure of the tampered-copy negative test.",
+  "next_gate": "Real install/update-or-repair/uninstall-or-rollback acceptance against this exact signed release set."
+}
