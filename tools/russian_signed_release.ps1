@@ -72,11 +72,24 @@ function Resolve-CspTest {
 }
 
 function Invoke-CspTest([string[]]$Arguments) {
-    $output = & $script:CspTest @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 promotes native stderr output to NativeCommandError
+        # under Stop even when csptest exits successfully. CryptoPro writes
+        # informational diagnostics to stderr, so trust the native exit code and
+        # evaluate the captured success markers explicitly below.
+        $ErrorActionPreference = 'Continue'
+        $rawOutput = & $script:CspTest @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $output = @($rawOutput | ForEach-Object { $_.ToString() })
     $output | ForEach-Object { Write-Host $_ }
     if ($exitCode -ne 0) { throw "csptest failed with exit code $exitCode." }
-    return @($output | ForEach-Object { $_.ToString() })
+    return $output
 }
 
 $releasePath = (Resolve-Path -LiteralPath $ReleaseDirectory).Path

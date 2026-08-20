@@ -54,12 +54,25 @@ function Resolve-CspTest {
 }
 
 function Invoke-CspTest([string[]]$Arguments) {
-    $output = & $script:CspTest @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # CryptoPro may emit informational diagnostics on stderr even when its
+        # native exit code is zero. Windows PowerShell 5.1 turns such stderr into
+        # NativeCommandError under Stop, so capture it under Continue and decide
+        # success from LASTEXITCODE plus the explicit verification markers.
+        $ErrorActionPreference = 'Continue'
+        $rawOutput = & $script:CspTest @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $output = @($rawOutput | ForEach-Object { $_.ToString() })
     if ($exitCode -ne 0) {
         throw "CryptoPro csptest завершился с кодом $exitCode. Вывод: $($output -join ' | ')"
     }
-    return @($output | ForEach-Object { $_.ToString() })
+    return $output
 }
 
 function Get-CmsSignerCertificate([string]$ManifestPath, [string]$SignaturePath) {
