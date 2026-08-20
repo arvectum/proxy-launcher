@@ -5,7 +5,11 @@
     Keeps the owner workstation operational without disabling Smart App Control.
     This is NOT a customer production distribution format. It runs the repository
     source under an already trusted controlled Python runtime, creates a recoverable
-    desktop shortcut, and optionally restores the existing source-mode autostart intent.
+    desktop shortcut, and keeps only the fail-safe source rollback Run entry.
+
+    Main runtime autostart is deliberately disabled in this profile because a separate
+    rollback Run entry has no guaranteed ordering relative to a start entry. The owner
+    launches Arvectum through the normal desktop shortcut after logon.
 
     No Windows application-control policy or Smart App Control registry value is changed.
 #>
@@ -16,7 +20,6 @@ param(
 
     [string]$RepoPath = 'C:\Opencode projects\proxy-launcher',
     [string]$PythonPath = 'C:\P0_2_RECOVERY\Python312\python.exe',
-    [switch]$EnableAutostart,
     [string]$EvidencePath = ''
 )
 
@@ -36,8 +39,14 @@ foreach ($required in @($coreScript, $guiScript)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required source file is missing: $required" }
 }
 
-$versionRaw = & $PythonPath -c 'import proxy_core; print(proxy_core.APP_VERSION)' 2>&1
-if ($LASTEXITCODE -ne 0) { throw "Controlled Python cannot import Arvectum source: $($versionRaw -join ' | ')" }
+$oldEap = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $versionRaw = @(& $PythonPath -c 'import proxy_core; print(proxy_core.APP_VERSION)' 2>&1)
+    $versionExit = $LASTEXITCODE
+}
+finally { $ErrorActionPreference = $oldEap }
+if ($versionExit -ne 0) { throw "Controlled Python cannot import Arvectum source: $($versionRaw -join ' | ')" }
 $version = [string]$versionRaw[-1]
 if ($version.Trim() -ne '0.2.3') { throw "Unexpected source runtime version: $version" }
 
@@ -48,11 +57,17 @@ if (Get-Command git.exe -ErrorAction SilentlyContinue) {
     $oldLocation = Get-Location
     try {
         Set-Location -LiteralPath $RepoPath
-        $repoHead = (& git rev-parse HEAD 2>$null | Select-Object -Last 1)
-        if ($LASTEXITCODE -eq 0) {
-            $dirty = (& git status --porcelain 2>$null) -join "`n"
-            $repoClean = -not [bool]$dirty.Trim()
+        $oldEap = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $headRaw = @(& git rev-parse HEAD 2>&1)
+            $headExit = $LASTEXITCODE
+            $statusRaw = @(& git status --porcelain 2>&1)
+            $statusExit = $LASTEXITCODE
         }
+        finally { $ErrorActionPreference = $oldEap }
+        if ($headExit -eq 0) { $repoHead = [string]$headRaw[-1] }
+        if ($statusExit -eq 0) { $repoClean = -not [bool](($statusRaw -join "`n").Trim()) }
     }
     finally { Set-Location $oldLocation }
 }
@@ -159,13 +174,9 @@ if ($Action -eq 'Enable') {
 
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     New-Item -Path $runKey -Force | Out-Null
+    Remove-ItemProperty -LiteralPath $runKey -Name 'ArvectumProxyLauncher' -ErrorAction SilentlyContinue
     $recoveryCommand = '"' + $pythonw + '" "' + $coreScript + '" --rollback'
     New-ItemProperty -LiteralPath $runKey -Name 'ArvectumProxyLauncherRecovery' -Value $recoveryCommand -PropertyType String -Force | Out-Null
-
-    if ($EnableAutostart) {
-        $mainCommand = '"' + $pythonw + '" "' + $coreScript + '" --start'
-        New-ItemProperty -LiteralPath $runKey -Name 'ArvectumProxyLauncher' -Value $mainCommand -PropertyType String -Force | Out-Null
-    }
 
     $marker = [ordered]@{
         schema = 'arvectum.proxy.owner-source-mode.v1'
@@ -177,7 +188,7 @@ if ($Action -eq 'Enable') {
         python_path = $PythonPath
         python_sha256 = $pythonHash
         desktop_shortcut = $shortcutPath
-        main_autostart_enabled = [bool]$EnableAutostart
+        main_autostart_enabled = $false
         recovery_autostart_enabled = $true
         recovery_snapshot = $recoveryRoot
         security_boundary = 'no Smart App Control or App Control policy changes'
@@ -189,8 +200,13 @@ if ($Action -eq 'Enable') {
 $coreNow = @(Get-SourceCore)
 $guiNow = @(Get-SourceGui)
 $listenerNow = @(Get-PacListener)
-$statusRaw = & $PythonPath $coreScript '--status' 2>&1
-$statusExit = $LASTEXITCODE
+$oldEap = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $statusRaw = @(& $PythonPath $coreScript '--status' 2>&1)
+    $statusExit = $LASTEXITCODE
+}
+finally { $ErrorActionPreference = $oldEap }
 
 $evidence = [ordered]@{
     schema = 'arvectum.proxy.owner-source-mode-status.v1'
@@ -217,6 +233,7 @@ $evidence = [ordered]@{
         'Smart App Control is not disabled',
         'App Control policy is not changed',
         'blocked unsigned legacy EXE is not required for operation',
+        'main runtime autostart is disabled to avoid start/rollback Run ordering races',
         'source mode is owner/developer profile only'
     )
 }
