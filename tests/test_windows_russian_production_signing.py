@@ -58,7 +58,16 @@ def test_governed_signer_must_be_present_currently_valid_and_private_key_backed(
     assert "$governedCertificate.NotBefore.ToUniversalTime()" in text
     assert "$governedCertificate.NotAfter.ToUniversalTime()" in text
     assert "Governed release certificate is not currently valid" in text
-    assert "Subject -notmatch 'АРВЕКТУМ'" in text
+    assert "$expectedOrganizationName = -join" in text
+    assert "[char]0x0410" in text
+    assert "[regex]::Escape($expectedOrganizationName)" in text
+
+
+def test_executable_source_is_ascii_only_for_windows_powershell_51():
+    raw = SCRIPT.read_bytes()
+    assert all(byte < 128 for byte in raw)
+    text = raw.decode("ascii")
+    assert "BOM-less UTF-8 scripts" in text
 
 
 def test_exact_023_portable_and_installer_are_bound_to_build_evidence():
