@@ -9,6 +9,7 @@ on:
       - capability_model.py
       - proxy_core.py
       - proxy_core_legacy.py
+      - system_proxy_runtime.py
       - windows_backend.py
       - macos_backend.py
       - linux_backend.py
@@ -21,6 +22,7 @@ on:
       - tests/test_backend_contract_matrix.py
       - tests/test_backend_runtime.py
       - tests/test_backend_runtime_wiring.py
+      - tests/test_canonical_source_refactor.py
       - tests/test_capability_model.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
@@ -49,6 +51,7 @@ on:
       - capability_model.py
       - proxy_core.py
       - proxy_core_legacy.py
+      - system_proxy_runtime.py
       - windows_backend.py
       - macos_backend.py
       - linux_backend.py
@@ -61,6 +64,7 @@ on:
       - tests/test_backend_contract_matrix.py
       - tests/test_backend_runtime.py
       - tests/test_backend_runtime_wiring.py
+      - tests/test_canonical_source_refactor.py
       - tests/test_capability_model.py
       - tests/test_windows_backend.py
       - tests/test_macos_backend.py
@@ -111,6 +115,7 @@ jobs:
           capability_model.py
           proxy_core.py
           proxy_core_legacy.py
+          system_proxy_runtime.py
           windows_backend.py
           macos_backend.py
           linux_backend.py
@@ -123,6 +128,7 @@ jobs:
           tests/test_backend_contract_matrix.py
           tests/test_backend_runtime.py
           tests/test_backend_runtime_wiring.py
+          tests/test_canonical_source_refactor.py
           tests/test_capability_model.py
           tests/test_windows_backend.py
           tests/test_macos_backend.py
@@ -140,6 +146,7 @@ jobs:
           tests.test_backend_contract_matrix
           tests.test_backend_runtime
           tests.test_backend_runtime_wiring
+          tests.test_canonical_source_refactor
           tests.test_capability_model
           tests.test_windows_backend
           tests.test_macos_backend
