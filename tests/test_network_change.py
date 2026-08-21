@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 
 import local_proxy_transport
+import process_supervision
 import proxy_core
 
 
@@ -101,7 +102,7 @@ class NetworkChangeTests(unittest.TestCase):
         listeners = [_ListenerSocket(), _ListenerSocket(), _ListenerSocket()]
         thread = mock.Mock()
 
-        with mock.patch.object(proxy_core.socket, "socket", side_effect=listeners), \
+        with mock.patch.object(local_proxy_transport.socket, "socket", side_effect=listeners), \
              mock.patch.object(local_proxy_transport.threading, "Thread", return_value=thread):
             core = proxy_core.ProxyCore(settings={
                 "local_http_port": 18080,
@@ -129,7 +130,7 @@ class NetworkChangeTests(unittest.TestCase):
         settings = {"local_pac_port": 18082, "pac_path": "/proxy.pac"}
 
         with mock.patch.object(
-            proxy_core.socket, "create_connection", return_value=connection
+            process_supervision.socket, "create_connection", return_value=connection
         ) as connect:
             self.assertTrue(proxy_core._pac_healthy(settings))
 
@@ -190,8 +191,8 @@ class NetworkChangeTests(unittest.TestCase):
                 {"host": "proxy.example.test", "port": 8000, "username": "u", "password": "p"}
             ]
         }
-        with mock.patch.object(proxy_core.socket, "getaddrinfo") as getaddrinfo, \
-             mock.patch.object(proxy_core.socket, "gethostbyname") as gethostbyname:
+        with mock.patch.object(local_proxy_transport.socket, "getaddrinfo") as getaddrinfo, \
+             mock.patch.object(local_proxy_transport.socket, "gethostbyname") as gethostbyname:
             core = proxy_core.ProxyCore(settings=settings)
 
         getaddrinfo.assert_not_called()
@@ -207,7 +208,7 @@ class NetworkChangeTests(unittest.TestCase):
 
         with mock.patch.object(proxy_core, "host_bypasses_proxy", return_value=True), \
              mock.patch.object(
-                 proxy_core.socket,
+                 local_proxy_transport.socket,
                  "create_connection",
                  side_effect=[OSError("adapter disconnected"), recovered_connection],
              ) as connect, \
@@ -235,7 +236,7 @@ class NetworkChangeTests(unittest.TestCase):
 
         with mock.patch.object(proxy_core, "host_bypasses_proxy", return_value=False), \
              mock.patch.object(
-                 proxy_core.socket, "socket", side_effect=[failed_socket, recovered_socket]
+                 local_proxy_transport.socket, "socket", side_effect=[failed_socket, recovered_socket]
              ) as socket_factory, \
              mock.patch.object(proxy_core.ProxyCore, "_relay") as relay:
             core._handle_http(first)
