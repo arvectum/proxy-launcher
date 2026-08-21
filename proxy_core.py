@@ -11,8 +11,9 @@ extracted platform-neutral ``no_proxy`` routing policy, bypass evaluation, and
 PAC generation; Slice 5 extracted the local HTTP/SOCKS/PAC transport server and
 listener lifecycle; Slice 6 extracted process supervision and runtime-status
 ownership; Slice 7 extracted top-level application runtime / CLI orchestration;
-Slice 8 extracts Windows WinINET, user proxy-environment persistence and the
-Windows system-proxy implementation consumed by backend composition.
+Slice 8 extracted Windows WinINET, user proxy-environment persistence and the
+Windows system-proxy implementation consumed by backend composition; Slice 9
+extracts strict Recovery Run/autostart ownership and classification.
 
 Existing callers still receive the established module object, so Windows 0.2.3
 behaviour and historical monkeypatch seams remain stable during the bounded
@@ -28,6 +29,7 @@ import local_proxy_transport as _local_proxy_transport
 import portable_lifecycle as _portable_lifecycle
 import process_supervision as _process_supervision
 import proxy_core_legacy as _core
+import recovery_autostart as _recovery_autostart
 import routing_policy as _routing_policy
 import system_proxy_runtime as _system_proxy_runtime
 import windows_system_proxy as _windows_system_proxy
@@ -66,10 +68,13 @@ _local_proxy_transport.configure(_core)
 _local_proxy_transport.install_into_core(_core)
 _process_supervision.configure(_core)
 _process_supervision.install_into_core(_core)
+_recovery_autostart.configure(_core)
+_recovery_autostart.install_into_core(_core)
 
 # Windows implementation ownership must be installed before system-proxy
-# composition captures its adapter. Recovery Run/autostart and orphan/stale
-# diagnostics intentionally remain in the historical owner for later slices.
+# composition captures its adapter. Recovery Run/autostart has already been
+# rewired above, so Windows rollback dynamically reaches the canonical Slice 9
+# owner. Stale/orphan PAC diagnostics remain historical for a later slice.
 _windows_system_proxy.configure(_core)
 _windows_system_proxy.install_into_core(_core)
 
@@ -80,8 +85,8 @@ _system_proxy_runtime.configure(
 _system_proxy_runtime.install_into_core(_core)
 
 # Application runtime is the top-level composition owner. Install it only
-# after transport/process/Windows/system-proxy seams have been rewired so every
-# command dynamically reaches the canonical lower-level implementation.
+# after transport/process/recovery/Windows/system-proxy seams have been rewired
+# so every command dynamically reaches the canonical lower-level implementation.
 _application_runtime.configure(_core)
 _application_runtime.install_into_core(_core)
 
@@ -89,8 +94,8 @@ _application_runtime.install_into_core(_core)
 # mutable module object until the legacy implementation is decomposed in later
 # APL-IP-003 slices. The boundary is isolated and explicit rather than mixed
 # with application filesystem, configuration storage, routing policy, local
-# transport, process supervision, Windows proxy persistence, application
-# orchestration, or backend selection logic.
+# transport, process supervision, recovery-autostart ownership, Windows proxy
+# persistence, application orchestration, or backend selection logic.
 _runtime_sys.modules[__name__] = _core
 
 
