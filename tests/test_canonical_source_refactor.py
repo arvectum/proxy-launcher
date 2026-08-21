@@ -27,10 +27,12 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         configuration = (ROOT / "configuration_storage.py").read_text(encoding="utf-8")
         portable = (ROOT / "portable_lifecycle.py").read_text(encoding="utf-8")
         routing = (ROOT / "routing_policy.py").read_text(encoding="utf-8")
+        transport = (ROOT / "local_proxy_transport.py").read_text(encoding="utf-8")
 
         for module_name in (
             "application_filesystem",
             "configuration_storage",
+            "local_proxy_transport",
             "portable_lifecycle",
             "routing_policy",
             "system_proxy_runtime",
@@ -45,7 +47,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def install_into_core", runtime)
         self.assertIn("fail-closed", runtime.lower())
 
-        for source in (filesystem, configuration, portable, routing):
+        for source in (filesystem, configuration, portable, routing, transport):
             self.assertIn("def configure", source)
             self.assertIn("def install_into_core", source)
         self.assertIn("def ensure_state_ready", filesystem)
@@ -61,6 +63,11 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def clean_domain", routing)
         self.assertIn("def host_bypasses_proxy", routing)
         self.assertIn("def build_pac", routing)
+        self.assertIn("class ProxyCore", transport)
+        self.assertIn("def _handle_http", transport)
+        self.assertIn("def _handle_socks", transport)
+        self.assertIn("def _handle_pac", transport)
+        self.assertIn("def _accept_loop", transport)
 
     def test_slice2_runtime_functions_are_owned_by_canonical_modules(self):
         for name in (
@@ -111,6 +118,21 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
             "build_pac",
         ):
             self.assertEqual(getattr(core, name).__module__, "routing_policy")
+
+    def test_slice5_local_transport_is_owned_by_canonical_module(self):
+        self.assertEqual(core.ProxyCore.__module__, "local_proxy_transport")
+        for name in (
+            "_build_upstreams",
+            "_send_error",
+            "_relay",
+            "_handle_http",
+            "_handle_socks",
+            "_handle_pac",
+            "start",
+            "_accept_loop",
+            "stop",
+        ):
+            self.assertEqual(getattr(core.ProxyCore, name).__module__, "local_proxy_transport")
 
     def test_slice4_no_proxy_keeps_atomic_writer_compatibility_seam(self):
         with mock.patch.object(core, "no_proxy_path", return_value="/tmp/apl-ip-003-no-proxy"), \
