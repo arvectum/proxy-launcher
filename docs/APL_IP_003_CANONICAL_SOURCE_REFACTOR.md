@@ -1,6 +1,6 @@
 # APL-IP-003 — Arvectum canonical source refactor
 
-Status: **ACTIVE — SLICES 1–3 MERGED; SLICE 4 IN REVIEW; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
+Status: **ACTIVE — SLICES 1–4 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
 
 ## Goal
 
@@ -21,7 +21,8 @@ The task is an engineering refactor, not an attempt to erase AI assistance, thir
 - **DONE — Slice 1:** system-proxy runtime composition extraction. Canonical merge baseline: `94e60fb51fe7d0b8f9d650025fce35bf69638bb6`.
 - **DONE — Slice 2:** application filesystem & portable lifecycle extraction. PR `#120`, merge commit `f2507cda77ded8e21e5e3a855853d94d79ef343f`.
 - **DONE — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction. PR `#122`, merge commit `9a59d1dfe5687fb8fafa59811be8c2fff994c9b0`. Canonical owner: `configuration_storage.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_3_CONFIGURATION_STORAGE.md`.
-- **IN REVIEW — Slice 4:** platform-neutral routing-policy ownership is extracted into `routing_policy.py`: default `no_proxy` policy, `no_proxy.txt` loading/atomic persistence, user-input/host normalization, common HTTP/SOCKS bypass evaluation, and PAC generation. The established mutable `proxy_core` compatibility seam is preserved; platform-specific system-proxy mutation remains in backend/runtime ownership and the sealed `0.2.3` behaviour contract is unchanged.
+- **DONE — Slice 4:** platform-neutral routing-policy ownership extraction. PR `#124`, merge commit `0a4256d0f16bb0c798f96f9d4a618564f38b92c5`. Canonical owner: `routing_policy.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_4_ROUTING_POLICY.md`.
+- **NEXT — Slice 5:** local proxy engine / transport-server ownership extraction from `proxy_core_legacy.py`: `ProxyCore` upstream preparation, HTTP/CONNECT handling, SOCKS5 handling, PAC serving, relay/listener lifecycle and start/stop ownership, while continuing to consume the canonical `routing_policy.py` bypass seam and preserving the sealed `0.2.3` transport behaviour.
 - The human/legal rights-basis reference remains a parallel governance gate. Completing engineering slices does not waive it and does not authorize a clean-IP tag.
 
 ## Scope
