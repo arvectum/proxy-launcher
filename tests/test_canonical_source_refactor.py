@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import application_filesystem
+import portable_lifecycle
 import proxy_core as core
 
 
@@ -201,7 +203,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                  mock.patch.object(core, "_legacy_state_dirs", return_value=[str(legacy)]), \
                  mock.patch.object(core, "_STATE_READY", False), \
                  mock.patch.object(
-                     core.os.path,
+                     application_filesystem.os.path,
                      "realpath",
                      side_effect=OSError("path resolution failed"),
                  ):
@@ -222,8 +224,8 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
             target.write_bytes(b"old payload")
 
             with mock.patch.object(core, "is_windows", return_value=True), \
-                 mock.patch.object(core.sys, "frozen", True, create=True), \
-                 mock.patch.object(core.sys, "executable", str(source)), \
+                 mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
+                 mock.patch.object(portable_lifecycle.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(target)), \
                  mock.patch.object(core, "_log"):
                 self.assertEqual(

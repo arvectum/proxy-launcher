@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import local_proxy_transport
 import proxy_core
 
 
@@ -101,7 +102,7 @@ class NetworkChangeTests(unittest.TestCase):
         thread = mock.Mock()
 
         with mock.patch.object(proxy_core.socket, "socket", side_effect=listeners), \
-             mock.patch.object(proxy_core.threading, "Thread", return_value=thread):
+             mock.patch.object(local_proxy_transport.threading, "Thread", return_value=thread):
             core = proxy_core.ProxyCore(settings={
                 "local_http_port": 18080,
                 "local_socks_port": 11080,

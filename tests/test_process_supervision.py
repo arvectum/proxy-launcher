@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import process_supervision
 import proxy_core as core
 
 
@@ -55,14 +56,14 @@ class ProcessSupervisionTests(unittest.TestCase):
         completed = mock.Mock(returncode=0, stderr="", stdout="")
         with mock.patch.object(core, "is_windows", return_value=True), \
              mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
-             mock.patch.object(core.subprocess, "run", return_value=completed) as run:
+             mock.patch.object(process_supervision.subprocess, "run", return_value=completed) as run:
             self.assertTrue(core._kill_pid({"pid": 9999, "created": 123}))
         run.assert_called_once()
         self.assertEqual(run.call_args.args[0], ["taskkill", "/PID", "9999", "/F"])
 
     def test_nonwindows_kill_preserves_sigkill_contract(self):
         with mock.patch.object(core, "is_windows", return_value=False), \
-             mock.patch.object(core.os, "kill") as kill:
+             mock.patch.object(process_supervision.os, "kill") as kill:
             self.assertTrue(core._kill_pid({"pid": 77, "created": None}))
         kill.assert_called_once_with(77, 9)
 

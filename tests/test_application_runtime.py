@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import application_runtime
 import proxy_core as core
 
 
@@ -31,8 +32,8 @@ class ApplicationRuntimeTests(unittest.TestCase):
 
             with mock.patch.object(core, "ensure_state_ready", return_value=True), \
                  mock.patch.object(core, "data_dir", return_value=str(state)), \
-                 mock.patch.object(core.sys, "frozen", True, create=True), \
-                 mock.patch.object(core.sys, "_MEIPASS", str(bundled), create=True):
+                 mock.patch.object(application_runtime.sys, "frozen", True, create=True), \
+                 mock.patch.object(application_runtime.sys, "_MEIPASS", str(bundled), create=True):
                 self.assertTrue(core._ensure_local_files())
 
             self.assertEqual(
@@ -45,7 +46,7 @@ class ApplicationRuntimeTests(unittest.TestCase):
             )
 
     def test_main_handoff_precedes_state_or_run_mutation(self):
-        with mock.patch.object(core.sys, "argv", ["proxy_core.py", "--start"]), \
+        with mock.patch.object(application_runtime.sys, "argv", ["proxy_core.py", "--start"]), \
              mock.patch.object(core, "handoff_to_stable_copy", return_value=True) as handoff, \
              mock.patch.object(core, "_ensure_local_files") as bootstrap, \
              mock.patch.object(core, "repair_portable_run_entries") as repair, \
@@ -56,7 +57,7 @@ class ApplicationRuntimeTests(unittest.TestCase):
         repair.assert_not_called()
 
     def test_main_state_failure_blocks_run_entry_repair(self):
-        with mock.patch.object(core.sys, "argv", ["proxy_core.py", "--status"]), \
+        with mock.patch.object(application_runtime.sys, "argv", ["proxy_core.py", "--status"]), \
              mock.patch.object(core, "handoff_to_stable_copy") as handoff, \
              mock.patch.object(core, "_ensure_local_files", return_value=False), \
              mock.patch.object(core, "repair_portable_run_entries") as repair, \

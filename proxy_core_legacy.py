@@ -2,10 +2,9 @@
 """Mutable compatibility/state shell for the canonical Proxy Launcher core.
 
 APL-IP-003 Slices 1–12 moved maintained runtime implementation into explicit
-canonical owners and removed the duplicated legacy implementation body. This
-module now retains only the narrow shared namespace still required before or
-across canonical owner composition: release/state identity plus a shrinking set
-of compatibility dependencies not yet decoupled from state-sensitive modules.
+canonical owners and removed the duplicated legacy implementation body. Later
+namespace-decoupling slices reduced this module to release/state identity plus
+only compatibility aliases with still-proven consumers.
 
 ``proxy_core.py`` imports this module object, installs every canonical owner
 onto it, and then exposes the same object as ``proxy_core``. Keeping that single
@@ -13,25 +12,21 @@ mutable object preserves the sealed 0.2.3 monkeypatch/import contract while
 later slices progressively remove non-contractual dependency lookups.
 
 ``socket`` remains exported intentionally as an established monkeypatch seam for
-network-change and transport regression tests. Canonical owners use their local
-stdlib import, which resolves to the same Python module object, so patching
-``core.socket`` still affects live transport/probe behavior without requiring
-runtime code to use the core module as a socket service locator.
+network-change and transport regression tests. ``os``, ``subprocess`` and
+``sys`` remain temporarily exported only for explicitly inventoried legacy
+regression consumers; maintained canonical owners do not resolve them through
+core. APL-IP-003 Slice 16 retired the previously compatibility-only ``base64``,
+``hashlib``, ``io``, ``json``, ``threading`` and ``time`` aliases after their
+internal consumers were removed or proven absent.
 
 No runtime function or class is implemented here. Historical implementation
 remains available through Git history and provenance evidence.
 """
 
-import base64
-import hashlib
-import io
-import json
 import os
 import socket
 import subprocess
 import sys
-import threading
-import time
 
 
 # Release identity consumed by the canonical logging bridge and release guards.

@@ -5,6 +5,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
+import configuration_storage
 import proxy_core as core
 
 
@@ -115,14 +116,14 @@ class ConfigSecurityTests(unittest.TestCase):
                 "host": "new.proxy", "port": 9000, "username": "", "password": ""
             }]
             with mock.patch.object(core, "data_dir", return_value=td), \
-                 mock.patch.object(core.os, "replace", side_effect=fail_primary):
+                 mock.patch.object(configuration_storage.os, "replace", side_effect=fail_primary):
                 self.assertFalse(core.save_settings(updated))
             self.assertEqual(primary.read_bytes(), before)
 
     def test_atomic_writer_flushes_with_fsync(self):
         with tempfile.TemporaryDirectory() as td:
             target = Path(td) / "value.json"
-            with mock.patch.object(core.os, "fsync", wraps=os.fsync) as fsync:
+            with mock.patch.object(configuration_storage.os, "fsync", wraps=os.fsync) as fsync:
                 core._atomic_write_json(str(target), {"ok": True})
             self.assertTrue(target.exists())
             self.assertGreaterEqual(fsync.call_count, 1)
@@ -187,7 +188,7 @@ class ConfigSecurityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             primary = Path(td) / "proxy_settings.json"
             primary.write_text(json.dumps(core.DEFAULT_SETTINGS), encoding="utf-8")
-            real_open = core.io.open
+            real_open = configuration_storage.io.open
 
             def denied(path, *args, **kwargs):
                 if os.path.realpath(path) == os.path.realpath(primary):
@@ -195,7 +196,7 @@ class ConfigSecurityTests(unittest.TestCase):
                 return real_open(path, *args, **kwargs)
 
             with mock.patch.object(core, "data_dir", return_value=td), \
-                 mock.patch.object(core.io, "open", side_effect=denied):
+                 mock.patch.object(configuration_storage.io, "open", side_effect=denied):
                 loaded = core.load_settings()
             self.assertEqual(loaded, core.DEFAULT_SETTINGS)
             self.assertTrue(primary.exists())
