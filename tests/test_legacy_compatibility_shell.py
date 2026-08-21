@@ -48,23 +48,18 @@ RETIRED_CORE_STDLIB_ALIASES = {
     "hashlib",
     "io",
     "json",
+    "os",
     "re",
     "select",
     "struct",
+    "subprocess",
+    "sys",
     "threading",
     "time",
 }
-RETAINED_COMPATIBILITY_ALIASES = {
-    "os",
-    "socket",
-    "subprocess",
-    "sys",
-}
+RETAINED_COMPATIBILITY_ALIASES = {"socket"}
 SUPPORTED_COMPATIBILITY_ALIAS_CONSUMERS = {
-    "os": "legacy-regression-only",
     "socket": "established-shared-monkeypatch-seam",
-    "subprocess": "legacy-regression-only",
-    "sys": "legacy-regression-only",
 }
 
 DECOUPLED_OWNER_ATTRIBUTES = {
@@ -194,13 +189,12 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         }
         self.assertEqual(retired_consumers, {})
 
-    def test_retained_alias_consumers_are_bounded_to_regression_tests(self):
+    def test_only_socket_remains_as_live_compatibility_alias_consumer(self):
         consumers = _compatibility_alias_consumers()
         self.assertEqual(set(consumers), RETAINED_COMPATIBILITY_ALIASES)
-        for name, paths in consumers.items():
-            self.assertTrue(paths, name)
-            for path in paths:
-                self.assertTrue(path.startswith("tests/"), "%s: %s" % (name, path))
+        self.assertTrue(consumers["socket"])
+        for path in consumers["socket"]:
+            self.assertTrue(path.startswith("tests/"), "socket: %s" % path)
 
     def test_socket_is_retained_as_shared_monkeypatch_compatibility_alias(self):
         self.assertIs(core.socket, local_proxy_transport.socket)
