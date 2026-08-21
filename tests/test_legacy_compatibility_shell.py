@@ -25,6 +25,28 @@ CANONICAL_RUNTIME_OWNERS = {
     "windows_system_proxy",
 }
 
+DECOUPLED_CORE_STDLIB = ("re", "select", "socket", "struct")
+
+DECOUPLED_SOURCE_LOOKUPS = {
+    "routing_policy.py": ("core.os", "core.io", "core.re"),
+    "local_proxy_transport.py": (
+        "core.base64",
+        "core.re",
+        "core.select",
+        "core.socket",
+        "core.struct",
+        "core.threading",
+    ),
+    "process_supervision.py": (
+        "core.io",
+        "core.json",
+        "core.os",
+        "core.socket",
+        "core.subprocess",
+        "core.sys",
+    ),
+}
+
 
 class LegacyCompatibilityShellTests(unittest.TestCase):
     def test_proxy_core_and_legacy_name_share_one_mutable_module_object(self):
@@ -52,6 +74,16 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertEqual(core._USER_AUTOSTART_RUN_VALUE, "ArvectumProxyLauncher")
         self.assertIsInstance(core._STATE_READY, bool)
         self.assertIn("proxy_core.log", core._STATE_FILES)
+
+    def test_decoupled_stdlib_modules_are_absent_from_core_namespace(self):
+        for name in DECOUPLED_CORE_STDLIB:
+            self.assertFalse(hasattr(core, name), name)
+
+    def test_decoupled_owners_do_not_use_core_as_stdlib_service_locator(self):
+        for relative_path, forbidden in DECOUPLED_SOURCE_LOOKUPS.items():
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            for lookup in forbidden:
+                self.assertNotIn(lookup, source, "%s: %s" % (relative_path, lookup))
 
     def test_no_live_runtime_callable_is_owned_by_proxy_core_legacy(self):
         legacy_owned = sorted(
