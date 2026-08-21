@@ -12,6 +12,12 @@ onto it, and then exposes the same object as ``proxy_core``. Keeping that single
 mutable object preserves the sealed 0.2.3 monkeypatch/import contract while
 later slices progressively remove non-contractual dependency lookups.
 
+``socket`` remains exported intentionally as an established monkeypatch seam for
+network-change and transport regression tests. Canonical owners use their local
+stdlib import, which resolves to the same Python module object, so patching
+``core.socket`` still affects live transport/probe behavior without requiring
+runtime code to use the core module as a socket service locator.
+
 No runtime function or class is implemented here. Historical implementation
 remains available through Git history and provenance evidence.
 """
@@ -21,6 +27,7 @@ import hashlib
 import io
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
