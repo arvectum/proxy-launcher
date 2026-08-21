@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 import application_filesystem
+import local_proxy_transport
 import portable_lifecycle
 import process_supervision
 import proxy_core as core
@@ -392,7 +393,7 @@ class ProxyCoreTests(unittest.TestCase):
             return original_create_connection(address, *args, **kwargs)
 
         with mock.patch.object(core, "load_no_proxy", return_value=["excluded.test"]), \
-             mock.patch.object(core.socket, "create_connection", side_effect=route_fake_host):
+             mock.patch.object(local_proxy_transport.socket, "create_connection", side_effect=route_fake_host):
             t = threading.Thread(target=engine._handle_http, args=(proxy_side,), daemon=True)
             t.start()
             client_side.sendall(
@@ -447,7 +448,7 @@ class ProxyCoreTests(unittest.TestCase):
             return original_create_connection(address, *args, **kwargs)
 
         with mock.patch.object(core, "load_no_proxy", return_value=["excluded.test"]), \
-             mock.patch.object(core.socket, "create_connection", side_effect=route_fake_host):
+             mock.patch.object(local_proxy_transport.socket, "create_connection", side_effect=route_fake_host):
             t = threading.Thread(target=engine._handle_http, args=(proxy_side,), daemon=True)
             t.start()
             client_side.sendall(("CONNECT excluded.test:%d HTTP/1.1\r\nHost: excluded.test:%d\r\n\r\n" % (dest_port, dest_port)).encode())
@@ -501,7 +502,7 @@ class ProxyCoreTests(unittest.TestCase):
             return original_create_connection(address, *args, **kwargs)
 
         with mock.patch.object(core, "load_no_proxy", return_value=["excluded.test"]), \
-             mock.patch.object(core.socket, "create_connection", side_effect=route_fake_host):
+             mock.patch.object(local_proxy_transport.socket, "create_connection", side_effect=route_fake_host):
             t = threading.Thread(target=engine._handle_socks, args=(proxy_side,), daemon=True)
             t.start()
             client_side.settimeout(2)

@@ -2,6 +2,7 @@ import base64
 import unittest
 from unittest import mock
 
+import local_proxy_transport
 import proxy_core as core
 
 
@@ -39,7 +40,7 @@ class LocalProxyTransportExtractionTests(unittest.TestCase):
 
         with mock.patch.object(core, "_normalize_host", return_value="example.test") as normalize, \
              mock.patch.object(core, "host_bypasses_proxy", return_value=True) as bypass, \
-             mock.patch.object(core.socket, "create_connection", return_value=direct) as connect, \
+             mock.patch.object(local_proxy_transport.socket, "create_connection", return_value=direct) as connect, \
              mock.patch.object(engine, "_relay") as relay:
             engine._handle_http(client)
 
