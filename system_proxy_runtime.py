@@ -1,11 +1,15 @@
 """Canonical system-proxy runtime composition for Arvectum Proxy Launcher.
 
 This module owns platform backend selection, capability gates and fail-closed
-public system-proxy seams. The proven Windows proxy engine remains in
-``proxy_core_legacy`` during the behaviour-preserving APL-IP-003 migration.
-Historical monkeypatch seams are kept as module-level functions until their
-dependent regression tests can be migrated deliberately rather than silently
-broken.
+public system-proxy seams. APL-IP-003 Slice 8 installs ``windows_system_proxy``
+before this module is configured, so the captured Windows adapter delegates to
+the canonical WinINET/proxy-environment implementation rather than to the
+historical storage definitions in ``proxy_core_legacy``.
+
+Recovery Run/autostart and stale/orphan PAC ownership remain separate bounded
+migration concerns. Historical monkeypatch seams are kept as module-level
+functions until their dependent regression tests can be migrated deliberately
+rather than silently broken.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from proxy_backend import ProxyBackendConfig
 
 @dataclass(frozen=True)
 class WindowsCoreAdapter:
-    """Stable view of the captured Windows implementation before rewiring."""
+    """Stable view of the canonical Windows implementation captured at wiring."""
 
     core: ModuleType
     enable: Callable[[], Any]

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Windows implementation of the ProxyBackend contract.
 
-APL-CORE-002 is intentionally a compatibility extraction: the proven Windows
-0.2.3 registry, environment and rollback implementation remains in
-``proxy_core`` for now, while this class gives the application a concrete
-platform backend with configuration-specific semantics.
+APL-CORE-002 introduced this compatibility backend around the proven Windows
+0.2.3 behaviour. APL-IP-003 Slice 8 moves WinINET, per-user proxy-environment
+persistence and Windows system-proxy mutation into ``windows_system_proxy``;
+``system_proxy_runtime`` injects the captured canonical implementation here
+through the established compatibility adapter.
 """
 
 from typing import Any, Iterable, Tuple
@@ -28,15 +29,18 @@ def _normalize_no_proxy(values: Iterable[Any]) -> Tuple[str, ...]:
 class WindowsBackend(ProxyBackend):
     """Concrete backend backed by the customer-proven Windows implementation.
 
-    ``proxy_core`` is injected lazily so importing this module does not import
-    Windows-specific implementation details.  Injection also keeps the adapter
-    independently testable on non-Windows CI runners.
+    The implementation seam is injected lazily so importing this module does
+    not import Windows-specific mutation details. Injection also keeps the
+    adapter independently testable on non-Windows CI runners.
 
-    The legacy Windows entry points currently read their own persisted settings.
-    Therefore ``enable`` and ``sync_no_proxy`` delegate only when the supplied
-    resolved config exactly matches what those entry points would apply.  This
-    prevents the backend from reporting success for a configuration the legacy
+    The Windows entry points read their own persisted settings. Therefore
+    ``enable`` and ``sync_no_proxy`` delegate only when the supplied resolved
+    config exactly matches what those entry points would apply. This prevents
+    the backend from reporting success for a configuration the canonical
     implementation would silently ignore.
+
+    Private method names containing ``legacy`` are retained as compatibility
+    seams only; they no longer describe implementation ownership after Slice 8.
     """
 
     def __init__(self, legacy_core=None):
