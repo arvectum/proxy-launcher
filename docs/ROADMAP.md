@@ -29,27 +29,31 @@ The customer-proven Windows `0.2.3` system-proxy path remains the protected prod
 - **CONSTRAINT** — the sealed `0.2.3` source/release evidence is an immutable comparison baseline for APL-IP-003; the refactor must not rewrite or relabel that historical release.
 - **CONSTRAINT** — per-application routing is a new enforcement plane and remains separated from the proven system-proxy baseline.
 
-### Dedicated physical acceptance laptop
+### Dedicated physical dual-boot acceptance laptop
 
-A separate x86-64 laptop with Windows 11 is now allocated as a sequential acceptance stand.
+A separate x86-64 laptop with Windows 11 and a 512 GB SSD is now allocated as a persistent dual-platform acceptance stand.
 
 Canonical stand runbook: `docs/PHYSICAL_WIN_TO_ASTRA_ACCEPTANCE_STAND.md`.
 
 Use it in this order:
 
-1. retain Windows 11 and execute all desired clean-machine / physical Windows gates;
-2. export and verify all Windows evidence outside the laptop;
-3. mark the Windows phase complete;
-4. wipe the internal disk and install Astra Linux Special Edition 1.8 x86-64;
-5. retain Astra on the laptop as the persistent Linux/Astra stand and execute APL-LNX-010 / Gate R8.
+1. retain the current Windows 11 installation and execute all desired clean-machine / physical Windows gates while Windows is still the only installed OS;
+2. export and hash-verify all clean-Windows evidence outside the laptop;
+3. mark the clean-Windows phase complete;
+4. shrink the Windows NTFS partition using Windows Disk Management while preserving the existing GPT/UEFI, EFI System, Microsoft Reserved and Recovery partitions;
+5. install Astra Linux Special Edition 1.8 x86-64 into separate Linux partitions in the resulting unallocated space;
+6. preserve Windows Boot Manager and keep both Windows 11 and Astra Linux bootable;
+7. execute APL-LNX-010 / Gate R8 on the real Astra installation;
+8. retain both operating systems as the persistent dual-platform regression stand.
 
-Do not erase Windows until every Windows gate intentionally assigned to this laptop is complete or explicitly deferred.
+Do not repartition the disk or install Astra until every Windows gate that requires an untouched/clean Windows baseline is complete or explicitly deferred. Windows does **not** need to be erased after those gates.
 
 ### P0.2 independent clean-machine offline rebuild drill
 
-- **READY / HOST AVAILABLE — DEFERRED / NOT RELEASE BLOCKER** — the new physical Windows 11 x86-64 laptop makes a clean-machine reproduction drill possible again without reviving the abandoned VM path.
+- **READY / HOST AVAILABLE — DEFERRED / NOT RELEASE BLOCKER** — the physical Windows 11 x86-64 laptop makes a clean-machine reproduction drill possible again without reviving the abandoned VM path.
 - This remains resilience/supply-chain hardening, not a prerequisite for shipping the current Windows product.
-- If executed, do it before product installation and before converting the laptop to Astra Linux: governed P0.1 inputs, frozen source authority, endpoint denial, full tests/package contract/SBOM and artifact comparison.
+- If executed on this laptop, do it before repartitioning/installing Astra: governed P0.1 inputs, frozen source authority, endpoint denial, full tests/package contract/SBOM and artifact comparison.
+- After Astra dual boot is installed, this Windows installation remains a valid regression host but is no longer an untouched clean-machine baseline for P0.2.
 - The abandoned VM path remains historical/forensic evidence only and must not be used to claim this drill passed.
 
 ## 1. Windows production release contour
@@ -78,7 +82,7 @@ Do not erase Windows until every Windows gate intentionally assigned to this lap
 - **EDITION GATE** — first record the laptop's Windows edition. APL-WIN-014 requires Windows 11 Pro, Enterprise or Education. If the laptop is Home, do not force App Control policy deployment; upgrade/reinstall an eligible edition before executing this gate.
 - **SAFETY BLOCK REMAINS** — the normal owner workstation stays diagnostics-only. Do not move destructive APL-WIN-014 execution back to it.
 - Canonical runbook: `docs/APL_WIN_014_LOCAL_GATE.md`.
-- Physical stand sequencing: execute on the new laptop before it is wiped for Astra Linux.
+- Physical stand sequencing: preferably execute APL-WIN-014 before Linux repartitioning so its evidence is tied to the clean Windows-only phase. Windows remains available for later regression after Astra is installed.
 
 ### APL-REL-014 — exact signed-set lifecycle acceptance
 
@@ -86,7 +90,7 @@ Do not erase Windows until every Windows gate intentionally assigned to this lap
 - Execute fresh install/update/repair/uninstall/rollback/recovery acceptance using the exact governed signed release set on this disposable Windows host.
 - **RECOVERY DONE** — the normal owner workstation remains recovered/protected after the 2026-08-20 incident and is not the destructive acceptance target.
 - Incident evidence: `docs/evidence/APL_REL_014_OWNER_HOST_INCIDENT_2026-08-20.md`.
-- Physical stand sequencing: finish and export evidence before converting the laptop to Astra Linux.
+- Physical stand sequencing: complete/export the initial clean-host lifecycle evidence before repartitioning. The retained Windows installation may continue to serve future regression work after Astra dual boot is installed.
 
 International Microsoft/GlobalSign-oriented distribution remains lower priority and must not silently replace the Russian-first strategy.
 
@@ -97,8 +101,8 @@ International Microsoft/GlobalSign-oriented distribution remains lower priority 
 - **DONE** — APL-LNX-008 — AppImage packaging with hash-pinned build-only toolchain.
 - **DONE** — APL-LNX-009 — Ubuntu 22.04/24.04 CI acceptance.
 - **DONE** — APL-IP-002-LNX — Linux stack/dependency sovereignty audit (conditional pass).
-- **READY / HOST AVAILABLE** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance. The new x86-64 laptop is allocated to become the persistent Astra stand after its Windows acceptance phase.
-- **INSTALLATION TASK** — after Windows evidence is complete, wipe Windows and install Astra Linux Special Edition 1.8 x86-64 using `docs/PHYSICAL_WIN_TO_ASTRA_ACCEPTANCE_STAND.md`.
+- **READY / HOST AVAILABLE** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance. The x86-64 acceptance laptop is allocated as the persistent Astra stand while retaining Windows 11 in dual boot.
+- **INSTALLATION TASK** — after the clean-Windows evidence phase is complete, shrink the Windows partition and install Astra Linux Special Edition 1.8 x86-64 into separate ext4 space using `docs/PHYSICAL_WIN_TO_ASTRA_ACCEPTANCE_STAND.md`; preserve the existing EFI System Partition and Windows Boot Manager.
 - **LOCAL GATE** — Gate R8 closes only from the resulting real Astra host evidence; Ubuntu CI/another distro is not a substitute.
 
 For controlled Astra deployments, `.deb` remains the preferred package. AppImage remains optional and is **not yet cleared for promoted commercial distribution** until the exact type-2 runtime/transitive-license obligations recorded by APL-IP-001 are reviewed/satisfied.
@@ -187,7 +191,7 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Parallel execution model
 
-The roadmap now has two genuinely parallel tracks plus one sequential physical-host track.
+The roadmap now has two genuinely parallel tracks plus one sequential dual-boot physical-host track.
 
 ### Track A — IP / source governance
 
@@ -195,22 +199,27 @@ The roadmap now has two genuinely parallel tracks plus one sequential physical-h
 2. **[Web] NEXT — APL-IP-003:** immediately after the rights-basis reference exists, perform the canonical source refactor under the protected `0.2.3` behavioural/release baseline.
 3. **[Web + Human] POST-REFACTOR IP REVIEW:** regenerate provenance/SBOM/platform evidence, bounded human/legal review, then clean-IP tag only after APPROVED.
 
-### Track B — dedicated physical acceptance laptop
+### Track B — dedicated physical dual-boot acceptance laptop
 
-**Windows phase — execute before wiping the laptop:**
+**Windows clean-host phase — execute before repartitioning/installing Astra:**
 
-1. **[Win] READY — clean-host inventory and edition check.**
-2. **[Win] OPTIONAL / REACTIVATED — P0.2 clean-machine offline rebuild drill** while the Windows installation is still disposable; remains non-release-blocking.
+1. **[Win] READY — clean-host inventory and Windows edition check.**
+2. **[Win] OPTIONAL / REACTIVATED — P0.2 clean-machine offline rebuild drill** while Windows is still the only installed OS; remains non-release-blocking.
 3. **[Win] READY — APL-WIN-014** if the edition is Pro/Enterprise/Education; if Home, upgrade/reinstall an eligible edition before this gate.
 4. **[Win] READY — APL-REL-014** exact signed-set lifecycle acceptance.
-5. Export/hash-verify all Windows evidence and mark `WINDOWS ACCEPTANCE COMPLETE`.
+5. Export/hash-verify all clean-Windows evidence and mark `WINDOWS CLEAN-HOST ACCEPTANCE COMPLETE`.
 
-**Linux phase — immediately after the Windows phase:**
+**Dual-boot provisioning phase:**
 
-6. **[Linux] READY — install Astra Linux Special Edition 1.8 x86-64** according to `docs/PHYSICAL_WIN_TO_ASTRA_ACCEPTANCE_STAND.md`.
-7. **[Linux] READY — APL-LNX-010** real Astra graphical/runtime/package acceptance.
-8. **[Linux] Gate R8** — close only from PASS evidence on this real Astra installation.
-9. Keep the machine as the persistent Astra/Linux regression stand.
+6. **[Win] READY — shrink the Windows `C:` partition** using Windows Disk Management; preserve EFI/MSR/Recovery partitions, BitLocker recovery information and Windows Boot Manager.
+7. **[Linux] READY — install Astra Linux Special Edition 1.8 x86-64 alongside Windows** using manual GPT/UEFI partitioning; reuse the existing EFI System Partition as `/boot/efi` without formatting it; create Astra `/` on new ext4 space.
+8. Verify that both Astra and Windows Boot Manager boot successfully after installation.
+
+**Astra acceptance phase:**
+
+9. **[Linux] READY — APL-LNX-010** real Astra graphical/runtime/package acceptance.
+10. **[Linux] Gate R8** — close only from PASS evidence on this real Astra installation.
+11. Keep **both Windows and Astra** on the laptop as the persistent dual-platform regression stand.
 
 ### Track C — product architecture decision
 
@@ -220,8 +229,8 @@ The roadmap now has two genuinely parallel tracks plus one sequential physical-h
 
 - controlled Linux/macOS build-input mirrors;
 - later international signing/notarization paths;
-- any clean-machine drill not completed before the physical laptop is converted to Astra may be deferred to another future Windows host rather than forcing a reinstall.
+- future truly pristine P0.2 repetitions may require Windows reset/reinstallation or another clean physical Windows host, because the retained Windows side of the dual-boot stand is no longer an untouched baseline after Astra/GRUB installation.
 
 ## Completion rule
 
-Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Historical provenance must remain truthful: canonicalization may normalize current code, repository references and human identity presentation through `.mailmap`, but must not rewrite commits or relabel AI/bot identities as human authors. The normal owner Windows workstation remains diagnostics-only for APL-WIN-014/APL-REL-014. The abandoned VM path remains out of scope. The dedicated physical acceptance laptop must finish and export its Windows evidence before its disk is wiped for Astra Linux.
+Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Historical provenance must remain truthful: canonicalization may normalize current code, repository references and human identity presentation through `.mailmap`, but must not rewrite commits or relabel AI/bot identities as human authors. The normal owner Windows workstation remains diagnostics-only for APL-WIN-014/APL-REL-014. The abandoned VM path remains out of scope. The dedicated physical acceptance laptop must finish/export any clean-Windows evidence before its disk layout is changed for Astra, but Windows itself should be preserved as the permanent second side of the dual-boot regression stand.
