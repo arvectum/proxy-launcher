@@ -1,6 +1,6 @@
 # APL-IP-003 — Arvectum canonical source refactor
 
-Status: **PLANNED — NEXT AFTER APL-IP-001 CURRENT BASELINE**
+Status: **ACTIVE — SLICES 1–2 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
 
 ## Goal
 
@@ -8,13 +8,20 @@ Create a unified, intentionally Arvectum-authored canonical source edition of Pr
 
 The task is an engineering refactor, not an attempt to erase AI assistance, third-party dependency history, or Git evidence. Historical commits remain intact. The resulting source tree should use one coherent architecture, terminology, code style, repository identity, and ownership model.
 
-## Preconditions
+## Preconditions and standing gates
 
 - Preserve the sealed Windows `0.2.3` release and its evidence as an immutable behavioural/release baseline.
-- Complete the current APL-IP-001 review baseline far enough to preserve the pre-refactor provenance record and chain-of-title evidence.
+- The APL-IP-001 autonomous provenance/carry-forward baseline is complete enough to preserve the pre-refactor record. Its named author-to-ООО rights-basis execution reference remains **HUMAN/LEGAL PENDING** and is still required before any post-refactor clean-IP candidate can be declared APPROVED or tagged.
 - Do not create or rewrite historical commits to manufacture authorship.
 - Do not weaken tests, security controls, recovery semantics, platform ownership boundaries, or release gates.
 - Do not disturb the live owner Windows proxy/VPN/network stack during refactor work.
+
+## Current bounded execution
+
+- **DONE — Slice 1:** system-proxy runtime composition extraction. Canonical merge baseline: `94e60fb51fe7d0b8f9d650025fce35bf69638bb6`.
+- **DONE — Slice 2:** application filesystem & portable lifecycle extraction. PR `#120`, merge commit `f2507cda77ded8e21e5e3a855853d94d79ef343f`.
+- **NEXT — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction from `proxy_core_legacy.py`, preserving the established config/security contract and `0.2.3` behaviour.
+- The human/legal rights-basis reference remains a parallel governance gate. Completing engineering slices does not waive it and does not authorize a clean-IP tag.
 
 ## Scope
 
