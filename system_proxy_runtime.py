@@ -1,10 +1,11 @@
 """Canonical system-proxy runtime composition for Arvectum Proxy Launcher.
 
-This module owns platform backend selection and the public system-proxy seams.
-The proven Windows proxy engine remains in ``proxy_core_legacy`` during the
-behaviour-preserving APL-IP-003 migration. Historical monkeypatch seams are
-kept as module-level functions until their dependent regression tests can be
-migrated deliberately rather than silently broken.
+This module owns platform backend selection, capability gates and fail-closed
+public system-proxy seams. The proven Windows proxy engine remains in
+``proxy_core_legacy`` during the behaviour-preserving APL-IP-003 migration.
+Historical monkeypatch seams are kept as module-level functions until their
+dependent regression tests can be migrated deliberately rather than silently
+broken.
 """
 
 from __future__ import annotations
