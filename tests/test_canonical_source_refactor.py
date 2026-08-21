@@ -26,11 +26,13 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         filesystem = (ROOT / "application_filesystem.py").read_text(encoding="utf-8")
         configuration = (ROOT / "configuration_storage.py").read_text(encoding="utf-8")
         portable = (ROOT / "portable_lifecycle.py").read_text(encoding="utf-8")
+        routing = (ROOT / "routing_policy.py").read_text(encoding="utf-8")
 
         for module_name in (
             "application_filesystem",
             "configuration_storage",
             "portable_lifecycle",
+            "routing_policy",
             "system_proxy_runtime",
             "proxy_core_legacy",
         ):
@@ -43,7 +45,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def install_into_core", runtime)
         self.assertIn("fail-closed", runtime.lower())
 
-        for source in (filesystem, configuration, portable):
+        for source in (filesystem, configuration, portable, routing):
             self.assertIn("def configure", source)
             self.assertIn("def install_into_core", source)
         self.assertIn("def ensure_state_ready", filesystem)
@@ -55,6 +57,10 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def save_settings", configuration)
         self.assertIn("def ensure_stable_app_copy", portable)
         self.assertIn("def handoff_to_stable_copy", portable)
+        self.assertIn("def load_no_proxy", routing)
+        self.assertIn("def clean_domain", routing)
+        self.assertIn("def host_bypasses_proxy", routing)
+        self.assertIn("def build_pac", routing)
 
     def test_slice2_runtime_functions_are_owned_by_canonical_modules(self):
         for name in (
@@ -95,7 +101,18 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         ):
             self.assertEqual(getattr(core, name).__module__, "configuration_storage")
 
-    def test_slice3_no_proxy_keeps_atomic_writer_compatibility_seam(self):
+    def test_slice4_routing_policy_functions_are_owned_by_canonical_module(self):
+        for name in (
+            "load_no_proxy",
+            "save_no_proxy",
+            "clean_domain",
+            "_normalize_host",
+            "host_bypasses_proxy",
+            "build_pac",
+        ):
+            self.assertEqual(getattr(core, name).__module__, "routing_policy")
+
+    def test_slice4_no_proxy_keeps_atomic_writer_compatibility_seam(self):
         with mock.patch.object(core, "no_proxy_path", return_value="/tmp/apl-ip-003-no-proxy"), \
              mock.patch.object(core, "_atomic_write_text") as writer:
             self.assertTrue(core.save_no_proxy(["https://Example.COM/path", "example.com"]))
