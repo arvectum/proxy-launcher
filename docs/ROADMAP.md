@@ -113,7 +113,7 @@ Apple production identity signing/notarization remains a later distribution-poli
 - base Arvectum logo is confirmed self-authored by the project owner;
 - conscious copying from Stack Overflow/GitHub/foreign projects was denied by the human author; AI-generated code was human-reviewed and accepted/corrected as part of development;
 - author-to-ООО rights instrument template: done (`docs/legal/APL_IP_001_RIGHTS_ASSIGNMENT_TEMPLATE.md`);
-- **remaining human/legal prerequisite before APL-IP-003:** execute/retain the author-to-ООО rights basis (or independently verified equivalent basis) and record a stable non-secret evidence reference;
+- **remaining human/legal prerequisite before a post-refactor clean-IP APPROVED verdict/tag:** execute/retain the author-to-ООО rights basis (or independently verified equivalent basis) and record a stable non-secret evidence reference;
 - build SBOM boundary is explicitly classified as build-dependency SBOM, not universal final-artifact SBOM;
 - Windows release-set notice/license delivery: reconciled against existing exact production evidence;
 - Linux `.deb`: notice/license packaging contract reconciled;
@@ -123,12 +123,17 @@ Apple production identity signing/notarization remains a later distribution-poli
 - carry-forward closure evidence: `docs/evidence/APL_IP_001_CARRY_FORWARD_CLOSURE_2026-08-21.md`;
 - current sign-off record: `docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`.
 
-**Sequencing decision:** the repository/engineering carry-forward is closed. Preserve the exact pre-refactor evidence baseline and do not create a clean-IP tag on it. After the human/legal rights-basis execution reference exists, execute APL-IP-003, then perform one new exact post-refactor source/provenance/SBOM/platform-license/human/legal review and create the clean-IP tag only after explicit APPROVED status.
+**Sequencing decision:** the repository/engineering carry-forward is closed and bounded canonical-source refactor slices may proceed under the protected pre-refactor evidence baseline. Preserve that exact evidence and do not create a clean-IP tag on it. The named author-to-ООО rights-basis execution reference remains mandatory before the post-refactor candidate can receive an APPROVED human/legal verdict or clean-IP tag.
 
 ### APL-IP-003 — Arvectum canonical source refactor
 
-- **PLANNED / NEXT — WAITING ONLY FOR THE NAMED APL-IP-001 HUMAN/LEGAL RIGHTS-BASIS EXECUTION REFERENCE**.
+- **ACTIVE — SLICES 1–2 MERGED; CONTINUE BOUNDED REFACTOR**.
 - Canonical task specification: `docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md`.
+- **DONE — Slice 1:** system-proxy runtime composition extraction; canonical merge baseline `94e60fb51fe7d0b8f9d650025fce35bf69638bb6`.
+- **DONE — Slice 2:** application filesystem & portable lifecycle extraction; PR `#120`, merge commit `f2507cda77ded8e21e5e3a855853d94d79ef343f`.
+- **DONE — Slice 2 acceptance:** canonical-source regression Windows/Linux/macOS; Windows portable clean build + Documents smoke; Windows installer fresh/upgrade/repair/uninstall E2E; controlled offline Windows build; Debian package on Ubuntu 22.04/24.04; AppImage; macOS `.app`/DMG on Apple Silicon and Intel; security/provenance/SBOM/diagnostics gates all green.
+- **DONE — packaging trigger hardening:** changes to `proxy_core.py`, `proxy_core_legacy.py`, `system_proxy_runtime.py`, `application_filesystem.py` or `portable_lifecycle.py` now trigger the relevant canonical-source and platform packaging gates.
+- **NEXT — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction from `proxy_core_legacy.py`, preserving the existing Phase 5 config/security contract and sealed `0.2.3` behaviour.
 - Goal: produce one coherent Arvectum source edition with unified architecture, terminology, code style, repository identity and ownership conventions while preserving truthful Git/provenance history.
 - Add a governed `.mailmap` to normalize the owner's historical `arvectum` / `arutyunoveth` identities without rewriting commits.
 - Normalize maintained repository references to `arvectum/proxy-launcher`; preserve required upstream dependency/license/provenance links.
@@ -139,6 +144,7 @@ Apple production identity signing/notarization remains a later distribution-poli
 - Refactor incrementally under full regression and packaging/build-contract checks; do not combine unrelated product features with structural cleanup.
 - Carry forward the APL-IP-001 package-notice hardening; do not regress the `.deb`, AppImage or macOS notice contracts.
 - The sealed Windows `0.2.3` release remains immutable and serves as the behavioural/release reference baseline.
+- The APL-IP-001 human/legal rights-basis reference remains pending in parallel and is mandatory before final clean-IP approval/tag; engineering progress does not waive that gate.
 - After refactor: select a new exact candidate, regenerate provenance/SBOM evidence, repeat similarity/provenance review, build/reconcile the promoted platform artifacts, perform bounded human/legal review, and create the clean-IP tag only after APPROVED.
 
 Controlled Linux/macOS build-input mirrors remain medium-priority sovereignty hardening after the primary Windows release contour.
@@ -163,14 +169,15 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **HUMAN/LEGAL PENDING — APL-IP-001 rights-basis execution:** repository carry-forward closure is complete. Execute/retain the author→ООО «Арвектум» rights instrument (or establish an independently verified equivalent rights basis) and record a stable non-secret evidence reference. Do not create a pre-refactor clean-IP tag.
-2. **NEXT — APL-IP-003:** immediately after the rights-basis reference exists, perform the full Arvectum canonical source refactor under protected `0.2.3` behavioural/release baselines and retain all APL-IP-001 package-notice hardening.
-3. **POST-REFACTOR IP REVIEW:** select the new exact canonical candidate, regenerate provenance/SBOM evidence, repeat bounded source/license/human review, build/reconcile promoted platform artifacts, then create the clean-IP baseline/tag only after explicit APPROVED.
-4. **APL-ROUTE-003:** only after the canonical source/IP baseline, make the product decision on the Windows per-app enforcement/signing path.
-5. **PAUSED — APL-LNX-010:** resume real Astra Linux acceptance only when a suitable real Astra host is available.
-6. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only on a separate eligible physical Windows host; never on the normal owner workstation and never via the abandoned VM path.
-7. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only on the separate physical Windows acceptance host.
-8. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
+1. **ACTIVE — APL-IP-003 Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction under the protected `0.2.3` baseline.
+2. **PARALLEL HUMAN/LEGAL PENDING — APL-IP-001 rights-basis execution:** execute/retain the author→ООО «Арвектум» rights instrument (or establish an independently verified equivalent rights basis) and record a stable non-secret evidence reference before final post-refactor APPROVED/clean-IP tagging.
+3. **CONTINUE APL-IP-003:** proceed through further bounded canonical-source slices using the required baseline → targeted tests → full regression → packaging/build loop until the exit criteria are met.
+4. **POST-REFACTOR IP REVIEW:** select the new exact canonical candidate, regenerate provenance/SBOM evidence, repeat bounded source/license/human review, build/reconcile promoted platform artifacts, then create the clean-IP baseline/tag only after explicit APPROVED.
+5. **APL-ROUTE-003:** only after the canonical source/IP baseline, make the product decision on the Windows per-app enforcement/signing path.
+6. **PAUSED — APL-LNX-010:** resume real Astra Linux acceptance only when a suitable real Astra host is available.
+7. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only on a separate eligible physical Windows host; never on the normal owner workstation and never via the abandoned VM path.
+8. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only on the separate physical Windows acceptance host.
+9. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
