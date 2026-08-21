@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'proxy_core.py'
+      - 'configuration_storage.py'
       - 'windows_diagnostics.py'
       - 'tests/test_config_security.py'
       - 'CONFIGURATION_MODEL.md'
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - 'proxy_core.py'
+      - 'configuration_storage.py'
       - 'windows_diagnostics.py'
       - 'tests/test_config_security.py'
       - 'CONFIGURATION_MODEL.md'
@@ -44,7 +46,7 @@ jobs:
         with:
           python-version: '3.12.10'
       - name: Compile governed modules
-        run: python -m py_compile proxy_core.py windows_diagnostics.py
+        run: python -m py_compile proxy_core.py configuration_storage.py windows_diagnostics.py
       - name: Run Phase 5 contract tests
         run: python -m unittest tests.test_config_security -v
       - name: Run full unit suite
