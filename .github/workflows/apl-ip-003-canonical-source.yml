@@ -8,6 +8,7 @@ on:
       - 'proxy_core_legacy.py'
       - 'system_proxy_runtime.py'
       - 'windows_system_proxy.py'
+      - 'windows_pac_recovery.py'
       - 'windows_backend.py'
       - 'recovery_autostart.py'
       - 'application_filesystem.py'
@@ -21,6 +22,7 @@ on:
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
+      - 'tests/test_windows_pac_recovery.py'
       - 'tests/test_windows_backend.py'
       - 'tests/test_recovery_autostart.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
@@ -33,6 +35,7 @@ on:
       - 'proxy_core_legacy.py'
       - 'system_proxy_runtime.py'
       - 'windows_system_proxy.py'
+      - 'windows_pac_recovery.py'
       - 'windows_backend.py'
       - 'recovery_autostart.py'
       - 'application_filesystem.py'
@@ -46,6 +49,7 @@ on:
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
+      - 'tests/test_windows_pac_recovery.py'
       - 'tests/test_windows_backend.py'
       - 'tests/test_recovery_autostart.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
@@ -76,6 +80,7 @@ jobs:
           proxy_core_legacy.py
           system_proxy_runtime.py
           windows_system_proxy.py
+          windows_pac_recovery.py
           windows_backend.py
           recovery_autostart.py
           application_filesystem.py
@@ -89,6 +94,7 @@ jobs:
           tests/test_process_supervision.py
           tests/test_application_runtime.py
           tests/test_windows_system_proxy.py
+          tests/test_windows_pac_recovery.py
           tests/test_windows_backend.py
           tests/test_recovery_autostart.py
       - name: Run canonical-source regression
@@ -98,6 +104,7 @@ jobs:
           tests.test_process_supervision
           tests.test_application_runtime
           tests.test_windows_system_proxy
+          tests.test_windows_pac_recovery
           tests.test_windows_backend
           tests.test_recovery_autostart
           -v
