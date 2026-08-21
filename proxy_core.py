@@ -10,7 +10,9 @@ persistence, credential protection, and configuration recovery; Slice 4
 extracted platform-neutral ``no_proxy`` routing policy, bypass evaluation, and
 PAC generation; Slice 5 extracted the local HTTP/SOCKS/PAC transport server and
 listener lifecycle; Slice 6 extracted process supervision and runtime-status
-ownership; Slice 7 extracts top-level application runtime / CLI orchestration.
+ownership; Slice 7 extracted top-level application runtime / CLI orchestration;
+Slice 8 extracts Windows WinINET, user proxy-environment persistence and the
+Windows system-proxy implementation consumed by backend composition.
 
 Existing callers still receive the established module object, so Windows 0.2.3
 behaviour and historical monkeypatch seams remain stable during the bounded
@@ -28,6 +30,7 @@ import process_supervision as _process_supervision
 import proxy_core_legacy as _core
 import routing_policy as _routing_policy
 import system_proxy_runtime as _system_proxy_runtime
+import windows_system_proxy as _windows_system_proxy
 
 # Source-contract index retained for release guards that intentionally inspect
 # the canonical proxy_core.py text while executable definitions migrate out of
@@ -64,6 +67,12 @@ _local_proxy_transport.install_into_core(_core)
 _process_supervision.configure(_core)
 _process_supervision.install_into_core(_core)
 
+# Windows implementation ownership must be installed before system-proxy
+# composition captures its adapter. Recovery Run/autostart and orphan/stale
+# diagnostics intentionally remain in the historical owner for later slices.
+_windows_system_proxy.configure(_core)
+_windows_system_proxy.install_into_core(_core)
+
 _system_proxy_runtime.configure(
     core=_core,
     runtime_platform=lambda: _runtime_sys.platform,
@@ -71,8 +80,8 @@ _system_proxy_runtime.configure(
 _system_proxy_runtime.install_into_core(_core)
 
 # Application runtime is the top-level composition owner. Install it only
-# after transport/process/system-proxy seams have been rewired so every command
-# dynamically reaches the canonical lower-level implementation.
+# after transport/process/Windows/system-proxy seams have been rewired so every
+# command dynamically reaches the canonical lower-level implementation.
 _application_runtime.configure(_core)
 _application_runtime.install_into_core(_core)
 
@@ -80,8 +89,8 @@ _application_runtime.install_into_core(_core)
 # mutable module object until the legacy implementation is decomposed in later
 # APL-IP-003 slices. The boundary is isolated and explicit rather than mixed
 # with application filesystem, configuration storage, routing policy, local
-# transport, process supervision, application orchestration, or backend
-# selection logic.
+# transport, process supervision, Windows proxy persistence, application
+# orchestration, or backend selection logic.
 _runtime_sys.modules[__name__] = _core
 
 
