@@ -3,6 +3,8 @@ import inspect
 import pathlib
 import unittest
 
+import local_proxy_transport
+import process_supervision
 import proxy_core as core
 import proxy_core_legacy as legacy
 
@@ -23,6 +25,28 @@ CANONICAL_RUNTIME_OWNERS = {
     "system_proxy_runtime",
     "windows_pac_recovery",
     "windows_system_proxy",
+}
+
+DECOUPLED_CORE_STDLIB = ("re", "select", "struct")
+
+DECOUPLED_SOURCE_LOOKUPS = {
+    "routing_policy.py": ("core.os", "core.io", "core.re"),
+    "local_proxy_transport.py": (
+        "core.base64",
+        "core.re",
+        "core.select",
+        "core.socket",
+        "core.struct",
+        "core.threading",
+    ),
+    "process_supervision.py": (
+        "core.io",
+        "core.json",
+        "core.os",
+        "core.socket",
+        "core.subprocess",
+        "core.sys",
+    ),
 }
 
 
@@ -52,6 +76,37 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertEqual(core._USER_AUTOSTART_RUN_VALUE, "ArvectumProxyLauncher")
         self.assertIsInstance(core._STATE_READY, bool)
         self.assertIn("proxy_core.log", core._STATE_FILES)
+
+    def test_decoupled_stdlib_modules_are_absent_from_core_namespace(self):
+        for name in DECOUPLED_CORE_STDLIB:
+            self.assertFalse(hasattr(core, name), name)
+
+    def test_socket_is_retained_only_as_shared_monkeypatch_compatibility_alias(self):
+        self.assertIs(core.socket, local_proxy_transport.socket)
+        self.assertIs(core.socket, process_supervision.socket)
+        for relative_path in ("local_proxy_transport.py", "process_supervision.py"):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn("core.socket", source, relative_path)
+
+    def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
+        for owner in CANONICAL_RUNTIME_OWNERS:
+            source = (ROOT / (owner + ".py")).read_text(encoding="utf-8")
+            tree = ast.parse(source)
+            exact_core_attributes = {
+                node.attr
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "core"
+            }
+            for name in DECOUPLED_CORE_STDLIB:
+                self.assertNotIn(name, exact_core_attributes, "%s: core.%s" % (owner, name))
+
+    def test_decoupled_owners_do_not_use_core_as_stdlib_service_locator(self):
+        for relative_path, forbidden in DECOUPLED_SOURCE_LOOKUPS.items():
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            for lookup in forbidden:
+                self.assertNotIn(lookup, source, "%s: %s" % (relative_path, lookup))
 
     def test_no_live_runtime_callable_is_owned_by_proxy_core_legacy(self):
         legacy_owned = sorted(

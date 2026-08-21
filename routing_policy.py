@@ -6,15 +6,17 @@ PAC clients and by the local HTTP/SOCKS proxy engine: default bypass entries,
 evaluation, and PAC generation.
 
 The module is installed into the established ``proxy_core`` module object.
-Collaborators are deliberately resolved through that compatibility seam so the
-sealed Windows 0.2.3 behaviour and historical monkeypatch-based regression
-contract remain stable while implementation ownership moves out of
-``proxy_core_legacy.py``.  Platform-specific system-proxy mutation remains in
-the backend/runtime layer and is intentionally outside this module.
+Behavior-sensitive collaborators continue to resolve through that mutable seam,
+while ordinary standard-library dependencies are module-local so the core
+namespace is no longer a generic service locator for routing internals.
+Platform-specific system-proxy mutation remains outside this module.
 """
 
 from __future__ import annotations
 
+import io
+import os
+import re
 from types import ModuleType
 
 
@@ -51,9 +53,9 @@ def load_no_proxy() -> list[str]:
     core = _core()
     domains: list[str] = []
     path = core.no_proxy_path()
-    if core.os.path.exists(path):
+    if os.path.exists(path):
         try:
-            with core.io.open(path, "r", encoding="utf-8") as stream:
+            with io.open(path, "r", encoding="utf-8") as stream:
                 for line in stream:
                     line = line.strip()
                     if not line or line.startswith("#"):
@@ -140,8 +142,8 @@ def host_bypasses_proxy(host) -> bool:
         if pattern.startswith("."):
             pattern = pattern[1:]
         if "*" in pattern or "?" in pattern:
-            regex = "^" + core.re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".") + "$"
-            if core.re.match(regex, host, flags=core.re.IGNORECASE):
+            regex = "^" + re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".") + "$"
+            if re.match(regex, host, flags=re.IGNORECASE):
                 return True
         elif host == pattern or host.endswith("." + pattern):
             return True
