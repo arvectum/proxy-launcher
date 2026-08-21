@@ -89,6 +89,20 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                 "example.invalid\n",
             )
 
+    def test_slice2_state_migration_path_resolution_is_fail_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            stable = pathlib.Path(td) / "stable"
+            legacy = pathlib.Path(td) / "legacy"
+            with mock.patch.object(core, "data_dir", return_value=str(stable)), \
+                 mock.patch.object(core, "_legacy_state_dirs", return_value=[str(legacy)]), \
+                 mock.patch.object(core, "_STATE_READY", False), \
+                 mock.patch.object(
+                     core.os.path,
+                     "realpath",
+                     side_effect=OSError("path resolution failed"),
+                 ):
+                self.assertFalse(core.ensure_state_ready())
+
     def test_slice2_portable_self_heal_preserves_hash_guard(self):
         with tempfile.TemporaryDirectory() as td:
             source = pathlib.Path(td) / "Downloads" / "Arvectum Proxy Launcher.exe"

@@ -213,7 +213,13 @@ def ensure_state_ready() -> bool:
             sources = []
             for folder in core._legacy_state_dirs():
                 candidate = core.os.path.join(folder, name)
-                if core._same_path(candidate, existing):
+                candidate_resolved = core.os.path.normcase(
+                    core.os.path.realpath(candidate)
+                )
+                existing_resolved = core.os.path.normcase(
+                    core.os.path.realpath(existing)
+                )
+                if candidate_resolved == existing_resolved:
                     continue
                 if core._valid_state_file(name, candidate):
                     sources.append(candidate)
