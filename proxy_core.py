@@ -55,7 +55,6 @@ _recovery_autostart.install_into_core(_core)
 # Install the Windows implementation before composition captures its adapter.
 _windows_system_proxy.configure(_core)
 _windows_system_proxy.install_into_core(_core)
-_system_proxy_runtime = _system_proxy_runtime
 _system_proxy_runtime.configure(
     core=_core,
     runtime_platform=lambda: _runtime_sys.platform,
