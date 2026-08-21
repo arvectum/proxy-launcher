@@ -1,19 +1,36 @@
-# Physical x86-64 acceptance laptop: Windows 11 -> Astra Linux
+# Physical x86-64 acceptance laptop: Windows 11 + Astra Linux dual boot
 
 Updated: 2026-08-21
 
 ## Purpose
 
-Use one separate physical x86-64 laptop as a sequential two-stage acceptance stand:
+Use one separate physical x86-64 laptop with a 512 GB internal SSD as a persistent dual-platform acceptance stand:
 
-1. keep the existing Windows 11 installation long enough to execute the physical Windows acceptance gates that must not run on the normal owner workstation;
-2. export and retain all Windows evidence;
-3. only after the Windows stage is explicitly closed, wipe the laptop and install Astra Linux Special Edition 1.8 x86-64;
-4. keep that installation as the real Astra Linux stand for APL-LNX-010 and Gate R8.
+1. keep the existing Windows 11 installation and execute the physical Windows acceptance gates that must not run on the normal owner workstation;
+2. export and retain all clean-Windows evidence before changing the disk layout;
+3. shrink the Windows partition without deleting Windows;
+4. install Astra Linux Special Edition 1.8 x86-64 into separate GPT partitions in the newly unallocated space;
+5. keep both Windows 11 and Astra Linux bootable on the laptop for future regression work;
+6. execute APL-LNX-010 / Gate R8 on the real Astra installation.
 
 This host is disposable from the product-data perspective. Do not place unique secrets, source-of-truth evidence or the only copy of any release artifact on it.
 
-## Stage A — Windows 11 physical acceptance
+The preferred final state is **UEFI/GPT dual boot**, not two MBR-style logical disks. Windows remains on NTFS; Astra uses its own ext4 filesystem; both boot through UEFI. The existing EFI System Partition must be preserved and must never be formatted during Astra installation.
+
+## Recommended 512 GB layout
+
+Exact sizes may be adjusted after inspecting the current Windows layout and free space. A practical target is:
+
+- existing EFI System Partition: preserve exactly as-is; do not format;
+- existing Microsoft Reserved / Windows Recovery partitions: preserve;
+- Windows `C:`: approximately 220–250 GiB NTFS;
+- Astra Linux `/`: approximately 180–220 GiB ext4;
+- optional shared data partition: approximately 30–50 GiB NTFS/exFAT if useful for non-secret transfer data;
+- no dedicated swap partition is required for this acceptance stand unless the installed Astra configuration specifically needs one; a swapfile can be used later.
+
+Do not reduce Windows below a comfortable working margin. If the current Windows installation already occupies substantial space, prefer a larger Windows partition and a smaller Astra partition rather than forcing the sizes above.
+
+## Stage A — Windows 11 physical acceptance before repartitioning
 
 ### A1. Inventory before changing the machine
 
@@ -22,14 +39,14 @@ Record:
 - laptop manufacturer/model and serial only in private operator notes if needed; do not commit sensitive identifiers;
 - CPU architecture: x86-64;
 - Windows edition, version and build (`winver`, `Get-ComputerInfo`);
-- Secure Boot state;
+- UEFI/Secure Boot state;
 - TPM state;
 - disk layout and free space;
 - whether BitLocker/device encryption is enabled;
 - network adapters;
 - current installed third-party security/VPN/proxy software.
 
-If device encryption/BitLocker is enabled, retain the recovery key outside the laptop before any destructive work.
+If BitLocker/device encryption is enabled, retain the recovery key outside the laptop before any partition or firmware change.
 
 ### A2. Determine Windows gate eligibility
 
@@ -44,99 +61,159 @@ Canonical Windows runbooks remain authoritative:
 - APL-REL-014 lifecycle evidence/runbook files already present in the repository;
 - P0.2 clean-machine rebuild documentation if that deferred hardening drill is deliberately reactivated.
 
-### A3. Windows execution order on this laptop
+### A3. Windows execution order before dual boot
 
 Recommended order:
 
 1. capture the untouched-host inventory;
-2. perform any desired clean-machine/offline-rebuild evidence while the machine is still disposable and before product installation;
+2. perform any desired P0.2 clean-machine/offline-rebuild evidence while Windows is still the only installed OS;
 3. run APL-WIN-014 if the Windows edition is eligible;
 4. run APL-REL-014 exact signed-set install/update/uninstall/rollback lifecycle acceptance;
 5. collect diagnostics and final evidence;
 6. copy all non-secret evidence to the canonical repository/evidence location and a separate retained storage location;
 7. verify the copied evidence is readable and hash-stable;
-8. mark the Windows stage `WINDOWS ACCEPTANCE COMPLETE` before wiping the disk.
+8. mark the clean-Windows phase `WINDOWS CLEAN-HOST ACCEPTANCE COMPLETE`;
+9. only then repartition the disk for Astra Linux.
 
-Do not convert the machine to Linux while any Windows real-host gate still depends on it.
+Windows is **not** deleted after this point. The clean-host evidence simply becomes historical after the boot/disk layout changes.
 
-## Stage B — Prepare Astra Linux installation media
+## Stage B — Prepare Windows for safe partition shrink
 
-### B1. Target operating system
+### B1. Recovery preparation
+
+Before touching partitions:
+
+1. make sure all Windows acceptance evidence is stored elsewhere;
+2. retain the BitLocker/device-encryption recovery key outside this laptop;
+3. create or retain a Windows recovery/install USB if available;
+4. verify that Windows boots normally before starting;
+5. record the current partition layout using Disk Management or PowerShell.
+
+If BitLocker/device encryption is active, **suspend protection** for the partitioning/Linux-installation operation rather than permanently removing encryption. Firmware/boot-chain changes may otherwise trigger BitLocker recovery.
+
+### B2. Disable Windows Fast Startup / hibernation
+
+Dual boot is safer when Windows does not leave NTFS volumes in a hibernated/fast-startup state. From an elevated terminal:
+
+```powershell
+powercfg /h off
+```
+
+This disables hibernation and Fast Startup. It can be reconsidered later after dual-boot behavior is stable.
+
+### B3. Shrink Windows from Windows itself
+
+Use Windows Disk Management (`diskmgmt.msc`) to shrink `C:`.
+
+1. open **Disk Management**;
+2. identify the correct internal 512 GB SSD;
+3. do **not** delete the EFI, Microsoft Reserved or Recovery partitions;
+4. right-click the main Windows `C:` partition and choose **Shrink Volume**;
+5. shrink it to leave roughly 180–220 GiB unallocated for Astra, adjusted to actual free space;
+6. leave the Linux destination as **unallocated space** — do not format it as NTFS in Windows;
+7. reboot Windows once and confirm Windows still starts correctly.
+
+If Windows cannot shrink as far as desired because of immovable files, do not use destructive third-party partitioning immediately. First reduce the requested shrink size and keep a larger Windows partition.
+
+### B4. Optional shared partition
+
+A shared partition is optional and is not required for APL-LNX-010.
+
+If desired, reserve about 30–50 GiB for non-secret cross-platform transfer files. NTFS is preferable if Windows is the primary owner of that data. Do not use a shared partition as the only copy of acceptance evidence.
+
+## Stage C — Prepare Astra Linux installation media
+
+### C1. Target operating system
 
 Canonical target for APL-LNX-010 on this stand:
 
 - Astra Linux Special Edition 1.8;
 - x86-64 / AMD64 build;
 - graphical Fly desktop;
-- UEFI installation where supported by the laptop.
+- UEFI installation.
 
 Use only an official Astra Linux distribution source/account available to Arvectum. Record the exact ISO filename, release/update level and published verification value in local acceptance evidence.
 
-Astra Linux documentation for 1.8 supports x86-64 AMD/Intel systems and BIOS/UEFI. Astra recommends at least 4 GB RAM and 40 GB disk for normal graphical use.
+### C2. Download and verify the ISO
 
-### B2. Download and verify the ISO
+On a trusted machine:
 
-On a separate trusted machine, not from an unverified mirror:
-
-1. obtain the current approved Astra Linux Special Edition 1.8 x86-64 installation ISO from the official Astra Linux source available to the organization;
-2. obtain the vendor-provided checksum/signature verification material for that exact ISO;
+1. obtain the approved Astra Linux Special Edition 1.8 x86-64 installation ISO from the official Astra source available to the organization;
+2. obtain the vendor-provided checksum/signature material for that exact ISO;
 3. verify the ISO before writing the USB stick;
-4. record the ISO filename and verified digest in the future APL-LNX-010 evidence.
+4. record the ISO filename and verified digest for APL-LNX-010 evidence.
 
 Do not continue if the image cannot be verified.
 
-### B3. Create the bootable USB from Windows
+### C3. Create the bootable USB
 
-Astra Linux documentation lists Rufus and Etcher as supported approaches for preparing Astra Linux USB media from Windows.
+Astra documentation lists Rufus and Etcher as Windows approaches for preparing installation media.
 
-Recommended Windows path:
+Recommended path:
 
 1. use a USB flash drive of at least 16 GB;
-2. copy any needed files off it first — the device will be erased;
-3. start Rufus on the trusted Windows machine;
+2. copy any needed files off it first;
+3. start Rufus on a trusted Windows machine;
 4. select the **correct USB device**;
 5. select the verified Astra Linux ISO;
-6. keep UEFI/GPT-oriented defaults for a modern UEFI laptop unless hardware-specific documentation requires otherwise;
-7. write the image and wait for successful completion;
+6. keep GPT/UEFI-oriented settings for this modern UEFI laptop unless hardware-specific documentation requires otherwise;
+7. write the image;
 8. safely eject the USB drive.
 
-Do not use the future Astra system disk itself as installation media.
+## Stage D — Install Astra alongside Windows
 
-## Stage C — Wipe Windows and install Astra Linux
+### D1. Firmware preparation
 
-**Destructive boundary:** everything on the laptop's internal disk may be removed. Before continuing, verify that Stage A evidence and any BitLocker recovery information have been copied elsewhere.
+1. fully shut down Windows;
+2. insert the Astra USB;
+3. enter UEFI/BIOS setup or the one-time boot menu (`F2`, `F12`, `Esc`, `Del` or manufacturer equivalent);
+4. keep **UEFI** mode; do not switch to Legacy/CSM;
+5. boot the USB in its UEFI entry;
+6. keep Secure Boot enabled if the chosen Astra image/install path supports it;
+7. if the Astra installer cannot boot with Secure Boot enabled, first ensure BitLocker is suspended, then disable Secure Boot only as required and record the change as part of stand evidence.
 
-### C1. Firmware preparation
+Do not erase or recreate the disk's GPT partition table.
 
-1. power the laptop off;
-2. insert the Astra installation USB;
-3. enter UEFI/BIOS setup or the one-time boot menu using the laptop manufacturer's key (`F2`, `F12`, `Esc`, `Del` or equivalent);
-4. prefer UEFI mode rather than Legacy/CSM;
-5. select the USB device as the temporary boot source;
-6. if the Astra installation media does not boot with Secure Boot enabled, follow the Astra 1.8 installation guidance and temporarily disable Secure Boot for this stand; record that state in acceptance evidence rather than hiding it;
-7. boot the Astra installer.
+### D2. Manual partitioning — critical safety boundary
 
-### C2. Installation choices
+Choose **manual/custom partitioning**, not "use entire disk".
 
-For this dedicated acceptance stand:
+The installer must show the existing Windows partitions plus the unallocated space created in Stage B.
 
-1. choose the graphical installation path/Fly desktop;
-2. choose Russian or English UI as convenient for testing, but record the choice;
-3. use the internal system disk as the target;
-4. because the laptop becomes a dedicated Linux stand, select full-disk replacement rather than Windows dual boot;
-5. for UEFI installation, ensure an EFI System Partition is created/mounted at `/boot/efi`;
-6. use a normal Linux filesystem such as ext4 for the root filesystem;
-7. create a normal non-root operator account and use `sudo` for administration;
-8. configure hostname, for example `apl-astra-stand`, unless another governed test hostname is chosen;
-9. install the graphical Fly environment and NetworkManager components required for desktop networking;
-10. complete installation and reboot;
-11. remove the USB stick when prompted / before the machine boots the installer again.
+Rules:
 
-Do not create a Windows dual-boot configuration for this stand unless a later explicit testing requirement needs one. A single-OS Astra installation is simpler and gives cleaner acceptance evidence.
+1. **do not delete or format the Windows NTFS partition**;
+2. **do not delete or format Windows Recovery/MSR partitions**;
+3. locate the existing EFI System Partition;
+4. assign the existing EFI System Partition as `/boot/efi` **without formatting it**;
+5. in the unallocated space create an Astra root partition mounted as `/` with `ext4`;
+6. allocate roughly 180–220 GiB to `/`, or the available amount selected during planning;
+7. optionally create a separate `/home`, but it is not required for this acceptance stand;
+8. a dedicated swap partition is optional; do not sacrifice large disk space to swap solely for this project;
+9. install the graphical Fly environment and required NetworkManager components;
+10. create a normal non-root operator account;
+11. use a governed hostname such as `apl-dualboot-stand`.
 
-### C3. First boot baseline
+Before accepting the installer's final partition-write confirmation, re-check visually that **only newly allocated Linux space is being formatted**. If the installer proposes formatting the Windows NTFS or existing EFI partition, cancel and correct the layout.
 
-Before installing Proxy Launcher, capture the clean Astra baseline:
+Official Astra 1.8 documentation requires a `/boot/efi` partition for UEFI installations; the existing EFI System Partition can serve this purpose as long as it is preserved rather than formatted.
+
+### D3. Bootloader behavior
+
+After installation:
+
+1. reboot with the USB removed;
+2. confirm Astra boots;
+3. confirm a Windows Boot Manager UEFI entry still exists;
+4. confirm Windows still boots, either from GRUB or from the firmware one-time boot menu;
+5. do not treat automatic Windows detection in the Astra GRUB menu as mandatory — two valid UEFI boot entries are sufficient for the stand;
+6. after booting Windows, confirm BitLocker/device encryption returns to its expected protected state and no unexpected recovery loop exists.
+
+If Astra becomes the default boot entry, that is acceptable. The Windows entry must remain usable.
+
+### D4. First Astra baseline
+
+Before installing Proxy Launcher, capture:
 
 ```bash
 cat /etc/os-release
@@ -159,22 +236,21 @@ Also verify:
 - wired/Wi-Fi connectivity works as applicable;
 - NetworkManager is active and manages the primary connection;
 - reboot/shutdown/resume are stable enough for acceptance;
-- date/time are correct.
+- Windows remains bootable after at least one Astra reboot cycle;
+- date/time are correct in both operating systems.
 
-Save this as clean-host evidence before application installation.
+### D5. Update policy
 
-### C4. Update policy
+Do not blindly dist-upgrade Astra before recording the installed version. First capture the baseline, then decide whether APL-LNX-010 targets the image as shipped or the current vendor-supported 1.8 update level.
 
-Do not blindly dist-upgrade the stand before recording the installed Astra version. First capture the baseline, then decide whether APL-LNX-010 targets the installation image as shipped or the current vendor-supported 1.8 update level.
+If updating, use only official Astra repositories applicable to the installed edition/update level and record the resulting version. Do not add unrelated third-party repositories before APL-LNX-010.
 
-If updating, use only the official Astra repositories applicable to the installed edition/update level and record the resulting version. Do not add unrelated third-party repositories before APL-LNX-010.
-
-## Stage D — APL-LNX-010 real Astra acceptance
+## Stage E — APL-LNX-010 real Astra acceptance
 
 After the clean Astra baseline is retained:
 
 1. obtain the exact governed `.deb` release candidate and its hash/evidence;
-2. run the repository preflight collector:
+2. run:
 
 ```bash
 bash qa/collect_astra_acceptance_preflight.sh
@@ -196,24 +272,38 @@ bash qa/collect_astra_acceptance_preflight.sh
 
 Ubuntu CI or another Linux distribution is not a substitute for this gate.
 
+## Using Windows after Astra installation
+
+The Windows installation remains a permanent second side of the stand. It can later be used for:
+
+- Windows installer/regression acceptance;
+- signed-set lifecycle regression;
+- diagnostic compatibility checks;
+- future Windows application-control experiments when the Windows edition is eligible.
+
+However, once Astra has been installed and the disk/boot chain changed, this Windows installation must no longer be described as an untouched clean-machine baseline. A future P0.2 clean-machine proof that requires a truly pristine environment may need reset/reinstallation or another physical host.
+
 ## Failure handling
 
 If Astra installation or hardware support fails:
 
-- do not silently switch the gate to Ubuntu/Debian;
-- record the exact hardware/installer failure;
-- first check the current Astra Linux hardware/install guidance;
-- if the laptop is materially incompatible with Astra, classify the host as unsuitable and use another real Astra-capable x86-64 host.
+- do not silently switch Gate R8 to Ubuntu/Debian;
+- do not destroy the working Windows installation as a troubleshooting shortcut;
+- record the exact hardware/installer/bootloader failure;
+- first check current Astra Linux hardware/install guidance;
+- use the firmware boot menu to verify Windows Boot Manager remains available;
+- if the laptop is materially incompatible with Astra, classify it as unsuitable for Gate R8 and use another real Astra-capable x86-64 host.
 
-Astra Linux 1.8 documentation notes that installation from USB may in some cases stall around the kernel-installation stage; follow the current vendor workaround/documentation rather than improvising changes to the product acceptance criteria.
+Astra Linux 1.8 documentation notes that USB installation may in some cases stall around the kernel-installation stage; follow the current vendor workaround/documentation rather than improvising changes to the product acceptance criteria.
 
 ## Stand lifecycle after Gate R8
 
-After Gate R8, keep Astra Linux installed on this laptop as the persistent Linux/Astra regression stand. Use it for later:
+After Gate R8, retain **both** Windows 11 and Astra Linux on this laptop as the persistent dual-platform regression stand. Use it for later:
 
+- Windows installer/lifecycle regression;
 - Astra packaging regression;
 - controlled Linux build-input mirror/recovery work;
 - future privileged per-application routing prototypes when explicitly authorized;
-- real Linux diagnostics and upgrade acceptance.
+- real cross-platform diagnostics and upgrade acceptance.
 
-Do not repurpose or wipe the stand until its retained evidence has been copied and verified elsewhere.
+Do not repartition, reinstall or wipe either OS until its retained evidence has been copied and verified elsewhere.
