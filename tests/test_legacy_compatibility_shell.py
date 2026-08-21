@@ -3,6 +3,8 @@ import inspect
 import pathlib
 import unittest
 
+import local_proxy_transport
+import process_supervision
 import proxy_core as core
 import proxy_core_legacy as legacy
 
@@ -25,7 +27,7 @@ CANONICAL_RUNTIME_OWNERS = {
     "windows_system_proxy",
 }
 
-DECOUPLED_CORE_STDLIB = ("re", "select", "socket", "struct")
+DECOUPLED_CORE_STDLIB = ("re", "select", "struct")
 
 DECOUPLED_SOURCE_LOOKUPS = {
     "routing_policy.py": ("core.os", "core.io", "core.re"),
@@ -78,6 +80,13 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
     def test_decoupled_stdlib_modules_are_absent_from_core_namespace(self):
         for name in DECOUPLED_CORE_STDLIB:
             self.assertFalse(hasattr(core, name), name)
+
+    def test_socket_is_retained_only_as_shared_monkeypatch_compatibility_alias(self):
+        self.assertIs(core.socket, local_proxy_transport.socket)
+        self.assertIs(core.socket, process_supervision.socket)
+        for relative_path in ("local_proxy_transport.py", "process_supervision.py"):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn("core.socket", source, relative_path)
 
     def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
         for owner in CANONICAL_RUNTIME_OWNERS:
