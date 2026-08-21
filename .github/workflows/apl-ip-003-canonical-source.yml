@@ -8,6 +8,7 @@ on:
       - 'proxy_core_legacy.py'
       - 'system_proxy_runtime.py'
       - 'application_filesystem.py'
+      - 'configuration_storage.py'
       - 'portable_lifecycle.py'
       - 'tests/test_canonical_source_refactor.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
@@ -20,6 +21,7 @@ on:
       - 'proxy_core_legacy.py'
       - 'system_proxy_runtime.py'
       - 'application_filesystem.py'
+      - 'configuration_storage.py'
       - 'portable_lifecycle.py'
       - 'tests/test_canonical_source_refactor.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
@@ -50,6 +52,7 @@ jobs:
           proxy_core_legacy.py
           system_proxy_runtime.py
           application_filesystem.py
+          configuration_storage.py
           portable_lifecycle.py
           tests/test_canonical_source_refactor.py
       - name: Run canonical-source regression
