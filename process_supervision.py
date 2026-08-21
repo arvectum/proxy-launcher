@@ -5,15 +5,21 @@ PAC health probing, listener diagnostics, Windows process identity checks, PID
 record persistence, ownership-aware running-state evaluation, and safe process
 termination.
 
-The implementation is installed into the established mutable ``proxy_core``
-module object. Collaborators are resolved dynamically through that compatibility
-seam so the sealed Windows 0.2.3 behaviour and historical monkeypatch-based
-regression tests remain stable. CLI orchestration and network recovery stay
-outside this module for later bounded slices.
+Behavior-sensitive collaborators remain resolved through the established
+mutable ``proxy_core`` seam, while ordinary standard-library dependencies are
+module-local. This preserves the sealed Windows 0.2.3 ownership/termination
+contract without using the core module as a generic dependency service locator.
+CLI orchestration and network recovery stay outside this module.
 """
 
 from __future__ import annotations
 
+import io
+import json
+import os
+import socket
+import subprocess
+import sys
 from types import ModuleType
 
 _CORE: ModuleType | None = None
@@ -39,7 +45,7 @@ def _pac_healthy(settings=None):
     if not path.startswith("/"):
         path = "/" + path
     try:
-        sock = core.socket.create_connection(("127.0.0.1", port), timeout=1.0)
+        sock = socket.create_connection(("127.0.0.1", port), timeout=1.0)
         request = (
             "GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n" % path
         ).encode("ascii")
@@ -146,7 +152,7 @@ def _windows_process_executable_path(pid):
                 handle, 0, buffer, ctypes.byref(size)
             ):
                 return None
-            return core.os.path.realpath(buffer.value)
+            return os.path.realpath(buffer.value)
         finally:
             ctypes.windll.kernel32.CloseHandle(handle)
     except Exception:
@@ -156,10 +162,10 @@ def _windows_process_executable_path(pid):
 def _read_pid():
     core = _core()
     try:
-        with core.io.open(core.pid_path(), "r", encoding="utf-8") as stream:
+        with io.open(core.pid_path(), "r", encoding="utf-8") as stream:
             raw = stream.read().strip()
         try:
-            data = core.json.loads(raw)
+            data = json.loads(raw)
         except Exception:
             data = None
         if isinstance(data, dict) and data.get("pid"):
@@ -198,25 +204,23 @@ def is_running():
     return bool(
         recorded_path
         and actual_path
-        and core.os.path.normcase(core.os.path.realpath(recorded_path))
-        == core.os.path.normcase(core.os.path.realpath(actual_path))
+        and os.path.normcase(os.path.realpath(recorded_path))
+        == os.path.normcase(os.path.realpath(actual_path))
     )
 
 
 def _write_pid():
     core = _core()
     try:
-        pid = core.os.getpid()
+        pid = os.getpid()
         record = {
             "pid": pid,
             "created": core._windows_process_creation_time(pid),
-            "exe_path": core.os.path.realpath(core.sys.executable),
-            "identity": core.os.path.normcase(
-                core.os.path.realpath(core.install_dir())
-            ),
+            "exe_path": os.path.realpath(sys.executable),
+            "identity": os.path.normcase(os.path.realpath(core.install_dir())),
         }
-        with core.io.open(core.pid_path(), "w", encoding="utf-8") as stream:
-            core.json.dump(record, stream)
+        with io.open(core.pid_path(), "w", encoding="utf-8") as stream:
+            json.dump(record, stream)
     except Exception as exc:
         core._log("pid write error: %r" % exc)
 
@@ -224,7 +228,7 @@ def _write_pid():
 def _remove_pid():
     core = _core()
     try:
-        core.os.remove(core.pid_path())
+        os.remove(core.pid_path())
     except Exception:
         pass
 
@@ -248,11 +252,11 @@ def _kill_pid(record):
                     "process identity mismatch/unverified" % pid
                 )
                 return False
-            result = core.subprocess.run(
+            result = subprocess.run(
                 ["taskkill", "/PID", str(pid), "/F"],
                 capture_output=True,
                 text=True,
-                creationflags=getattr(core.subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if result.returncode != 0:
                 core._log(
@@ -261,7 +265,7 @@ def _kill_pid(record):
                 )
                 return False
             return True
-        core.os.kill(pid, 9)
+        os.kill(pid, 9)
         return True
     except Exception as exc:
         core._log("kill pid error (%s): %r" % (pid, exc))
