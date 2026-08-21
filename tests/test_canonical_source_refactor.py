@@ -28,12 +28,14 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         portable = (ROOT / "portable_lifecycle.py").read_text(encoding="utf-8")
         routing = (ROOT / "routing_policy.py").read_text(encoding="utf-8")
         transport = (ROOT / "local_proxy_transport.py").read_text(encoding="utf-8")
+        supervision = (ROOT / "process_supervision.py").read_text(encoding="utf-8")
 
         for module_name in (
             "application_filesystem",
             "configuration_storage",
             "local_proxy_transport",
             "portable_lifecycle",
+            "process_supervision",
             "routing_policy",
             "system_proxy_runtime",
             "proxy_core_legacy",
@@ -47,7 +49,14 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def install_into_core", runtime)
         self.assertIn("fail-closed", runtime.lower())
 
-        for source in (filesystem, configuration, portable, routing, transport):
+        for source in (
+            filesystem,
+            configuration,
+            portable,
+            routing,
+            transport,
+            supervision,
+        ):
             self.assertIn("def configure", source)
             self.assertIn("def install_into_core", source)
         self.assertIn("def ensure_state_ready", filesystem)
@@ -68,6 +77,10 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def _handle_socks", transport)
         self.assertIn("def _handle_pac", transport)
         self.assertIn("def _accept_loop", transport)
+        self.assertIn("def _pac_healthy", supervision)
+        self.assertIn("def proxy_listener_active", supervision)
+        self.assertIn("def is_running", supervision)
+        self.assertIn("def _kill_pid", supervision)
 
     def test_slice2_runtime_functions_are_owned_by_canonical_modules(self):
         for name in (
@@ -132,7 +145,24 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
             "_accept_loop",
             "stop",
         ):
-            self.assertEqual(getattr(core.ProxyCore, name).__module__, "local_proxy_transport")
+            self.assertEqual(
+                getattr(core.ProxyCore, name).__module__,
+                "local_proxy_transport",
+            )
+
+    def test_slice6_process_supervision_is_owned_by_canonical_module(self):
+        for name in (
+            "_pac_healthy",
+            "proxy_listener_active",
+            "_windows_process_creation_time",
+            "_windows_process_executable_path",
+            "_read_pid",
+            "is_running",
+            "_write_pid",
+            "_remove_pid",
+            "_kill_pid",
+        ):
+            self.assertEqual(getattr(core, name).__module__, "process_supervision")
 
     def test_slice4_no_proxy_keeps_atomic_writer_compatibility_seam(self):
         with mock.patch.object(core, "no_proxy_path", return_value="/tmp/apl-ip-003-no-proxy"), \
@@ -196,25 +226,40 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                  mock.patch.object(core.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(target)), \
                  mock.patch.object(core, "_log"):
-                self.assertEqual(core.ensure_stable_app_copy(), os.path.realpath(target))
-                self.assertEqual(core.canonical_install_exe(), os.path.realpath(target))
+                self.assertEqual(
+                    core.ensure_stable_app_copy(), os.path.realpath(target)
+                )
+                self.assertEqual(
+                    core.canonical_install_exe(), os.path.realpath(target)
+                )
 
             self.assertEqual(target.read_bytes(), source.read_bytes())
             self.assertEqual(
-                (target.parent / core._INSTALL_OWNER_MARKER).read_text(encoding="ascii"),
+                (target.parent / core._INSTALL_OWNER_MARKER).read_text(
+                    encoding="ascii"
+                ),
                 core._INSTALL_OWNER_VALUE,
             )
 
     def test_runtime_preserves_recovery_without_enable_preflight(self):
         runtime = (ROOT / "system_proxy_runtime.py").read_text(encoding="utf-8")
-        disable_body = runtime.split("\ndef disable_system_proxy", 1)[1].split("\ndef system_proxy_enabled", 1)[0]
-        restore_body = runtime.split("\ndef network_restore_pending", 1)[1].split("\ndef sync_client_no_proxy", 1)[0]
+        disable_body = runtime.split("\ndef disable_system_proxy", 1)[1].split(
+            "\ndef system_proxy_enabled", 1
+        )[0]
+        restore_body = runtime.split("\ndef network_restore_pending", 1)[1].split(
+            "\ndef sync_client_no_proxy", 1
+        )[0]
         self.assertNotIn("require_new_mutation_operational", disable_body)
         self.assertNotIn("require_new_mutation_operational", restore_body)
         self.assertIn("return True", restore_body)
 
     def test_historical_customer_baseline_is_not_relabelled(self):
-        baseline = (ROOT / "release" / "baselines" / "APL-CLIENT-002_WINDOWS_0.2.3_CUSTOMER_CONFIRMED.md").read_text(encoding="utf-8-sig")
+        baseline = (
+            ROOT
+            / "release"
+            / "baselines"
+            / "APL-CLIENT-002_WINDOWS_0.2.3_CUSTOMER_CONFIRMED.md"
+        ).read_text(encoding="utf-8-sig")
         self.assertIn("CONFIRMED CUSTOMER BASELINE FROZEN", baseline)
         self.assertIn("0.2.3", baseline)
 
