@@ -6,6 +6,7 @@ BUILD = (ROOT / "tools" / "build_linux_appimage.sh").read_text(encoding="utf-8")
 FETCH = (ROOT / "tools" / "fetch_appimage_toolchain.sh").read_text(encoding="utf-8")
 LOCK = (ROOT / "tools" / "appimage-toolchain.lock").read_text(encoding="utf-8")
 
+
 class AppImagePackagingContractTests(unittest.TestCase):
     def test_appdir_contract_is_explicit(self):
         for token in ("AppRun", "arvectum-proxy-launcher.desktop", ".DirIcon", "usr/bin/arvectum-proxy-launcher"):
@@ -26,6 +27,12 @@ class AppImagePackagingContractTests(unittest.TestCase):
         self.assertNotIn("/latest/", LOCK)
         self.assertNotIn("curl ", BUILD)
         self.assertIn("APPIMAGE_RUNTIME_SOURCE_COMMIT=", LOCK)
+
+    def test_appimage_contains_product_and_third_party_notices(self):
+        self.assertIn("usr/share/doc/arvectum-proxy-launcher", BUILD)
+        self.assertIn('install -m644 LICENSE "$docdir/LICENSE.txt"', BUILD)
+        self.assertIn('install -m644 THIRD_PARTY_NOTICES.txt "$docdir/THIRD_PARTY_NOTICES.txt"', BUILD)
+
 
 if __name__ == "__main__":
     unittest.main()
