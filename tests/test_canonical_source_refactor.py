@@ -17,12 +17,13 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
     def test_proxy_core_is_thin_composition_boundary(self):
         facade = (ROOT / "proxy_core.py").read_text(encoding="utf-8")
         runtime = (ROOT / "system_proxy_runtime.py").read_text(encoding="utf-8")
-        self.assertIn("SystemProxyRuntime", facade)
+        self.assertIn("system_proxy_runtime", facade)
         self.assertIn("proxy_core_legacy", facade)
         self.assertIn("sys.modules", facade.replace("_runtime_sys.modules", "sys.modules"))
         self.assertLess(len(facade), 5000)
-        self.assertIn("class SystemProxyRuntime", runtime)
         self.assertIn("class WindowsCoreAdapter", runtime)
+        self.assertIn("def configure", runtime)
+        self.assertIn("def install_into_core", runtime)
         self.assertIn("fail-closed", runtime.lower())
 
     def test_runtime_preserves_recovery_without_enable_preflight(self):
