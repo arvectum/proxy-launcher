@@ -81,7 +81,7 @@ class WindowsBackend(ProxyBackend):
         if callable(logger):
             logger(
                 "WindowsBackend %s aborted: supplied config does not match "
-                "the canonical Windows runtime configuration" % operation
+                "the legacy Windows runtime configuration" % operation
             )
 
     def enable(self, config: ProxyBackendConfig) -> bool:
