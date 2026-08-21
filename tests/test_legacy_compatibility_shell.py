@@ -79,6 +79,12 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         for name in DECOUPLED_CORE_STDLIB:
             self.assertFalse(hasattr(core, name), name)
 
+    def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
+        for owner in CANONICAL_RUNTIME_OWNERS:
+            source = (ROOT / (owner + ".py")).read_text(encoding="utf-8")
+            for name in DECOUPLED_CORE_STDLIB:
+                self.assertNotIn("core.%s" % name, source, "%s: core.%s" % (owner, name))
+
     def test_decoupled_owners_do_not_use_core_as_stdlib_service_locator(self):
         for relative_path, forbidden in DECOUPLED_SOURCE_LOOKUPS.items():
             source = (ROOT / relative_path).read_text(encoding="utf-8")
