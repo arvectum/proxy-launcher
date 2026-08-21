@@ -5,7 +5,8 @@ orchestration while preserving the sealed Windows 0.2.3 command contract.
 Lower-level collaborators remain owned by their canonical modules and are
 resolved dynamically through the established mutable ``proxy_core`` seam so
 historical monkeypatch-based regression tests continue to exercise the same
-public boundary.
+public boundary. Ordinary standard-library dependencies are owned locally by
+this module rather than resolved through ``proxy_core``.
 
 Windows registry/environment backup and recovery implementation deliberately
 remains outside this module for a later bounded ownership slice.
@@ -13,6 +14,9 @@ remains outside this module for a later bounded ownership slice.
 
 from __future__ import annotations
 
+import os
+import shutil
+import sys
 from types import ModuleType
 
 _CORE: ModuleType | None = None
@@ -35,16 +39,14 @@ def _ensure_local_files():
     core = _core()
     if not core.ensure_state_ready():
         return False
-    if not getattr(core.sys, "frozen", False) or not hasattr(core.sys, "_MEIPASS"):
+    if not getattr(sys, "frozen", False) or not hasattr(sys, "_MEIPASS"):
         return True
     for name in ("no_proxy.txt", "proxy_settings.json"):
-        target = core.os.path.join(core.data_dir(), name)
-        if not core.os.path.exists(target):
-            source = core.os.path.join(core.sys._MEIPASS, name)
+        target = os.path.join(core.data_dir(), name)
+        if not os.path.exists(target):
+            source = os.path.join(sys._MEIPASS, name)
             try:
-                if core.os.path.exists(source):
-                    import shutil
-
+                if os.path.exists(source):
                     shutil.copyfile(source, target)
             except Exception as exc:
                 core._log("ensure files error: %r" % exc)
@@ -158,15 +160,15 @@ def _cmd_status():
 def main():
     core = _core()
     action = (
-        core.sys.argv[1][2:]
-        if len(core.sys.argv) > 1 and core.sys.argv[1].startswith("--")
-        else ("start" if len(core.sys.argv) == 1 else None)
+        sys.argv[1][2:]
+        if len(sys.argv) > 1 and sys.argv[1].startswith("--")
+        else ("start" if len(sys.argv) == 1 else None)
     )
 
     # A portable --start must never register its temporary extraction path in
     # HKCU Run. Re-execute from the stable copy before mutating any network
     # settings or recovery state.
-    if action == "start" and core.handoff_to_stable_copy(core.sys.argv[1:]):
+    if action == "start" and core.handoff_to_stable_copy(sys.argv[1:]):
         print("opened permanent launcher copy")
         return 0
     if not core._ensure_local_files():

@@ -1,10 +1,12 @@
 """Canonical Windows Recovery Run ownership for Arvectum Proxy Launcher.
 
 APL-IP-003 Slice 9 owns strict recovery/autostart command classification and
-HKCU Run-entry mutation.  The implementation preserves the sealed Windows
+HKCU Run-entry mutation. The implementation preserves the sealed Windows
 0.2.3 safety contract: ownership is proven by exact command/path structure,
 foreign same-named Run values are never overwritten or deleted, and process
-inspection failures are treated fail-closed.
+inspection failures are treated fail-closed. Ordinary standard-library
+process/runtime dependencies are owned locally rather than resolved through
+``proxy_core``.
 
 Stale/orphan PAC diagnosis and cleanup deliberately remain outside this slice.
 """
@@ -13,6 +15,8 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import sys
 from types import ModuleType
 
 
@@ -40,10 +44,10 @@ def _core() -> ModuleType:
 def _self_start_command():
     """Return the exact command representing the current launcher start path."""
     core = _core()
-    if getattr(core.sys, "frozen", False):
+    if getattr(sys, "frozen", False):
         return '"%s" --start' % core.managed_executable()
     return '"%s" "%s" --start' % (
-        core.sys.executable,
+        sys.executable,
         os.path.realpath(core.__file__),
     )
 
@@ -100,7 +104,6 @@ def _is_proven_legacy_arvectum_start(command):
     parent = os.path.normcase(os.path.realpath(os.path.dirname(target)))
     if parent in core._known_legacy_recovery_dirs():
         return True
-    # Historical portable P0 packages used this exact release-directory form.
     return any(
         part.lower().startswith("arvectum-proxy-launcher-windows-")
         for part in os.path.normpath(target).split(os.sep)
@@ -130,13 +133,7 @@ def _delete_run_value(name):
 
 
 def repair_portable_run_entries():
-    """Repair only provably-owned legacy Run entries to the canonical P0 state.
-
-    The ordinary user-autostart opt-in is retained and, when legacy-owned,
-    pointed at the canonical Documents copy.  The obsolete recovery Run value
-    is removed only when strict ownership is proven.  Foreign same-named values
-    are left untouched.
-    """
+    """Repair only provably-owned legacy Run entries to the canonical P0 state."""
     core = _core()
     if not core.is_windows():
         return True
@@ -228,7 +225,7 @@ def _recovery_legacy_process_active(command):
             "[IO.Path]::GetFullPath($args[0]) -and $_.CommandLine -eq $args[1] }; "
             "if($p){exit 10}else{exit 0}"
         )
-        result = core.subprocess.run(
+        result = subprocess.run(
             [
                 "powershell",
                 "-NoProfile",
@@ -240,8 +237,8 @@ def _recovery_legacy_process_active(command):
                 target,
                 str(command),
             ],
-            stdout=core.subprocess.DEVNULL,
-            stderr=core.subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=5,
         )
         return result.returncode != 0
@@ -286,12 +283,6 @@ def _set_recovery_run_value(value):
 
 
 def _enable_recovery_autostart():
-    """Preserve the sealed P0 recovery-Run compatibility behavior.
-
-    Current/legacy Arvectum recovery entries are removed because P0 uses one
-    canonical user-autostart mechanism.  A foreign or unreadable shared value is
-    never overwritten and does not block proxy start.
-    """
     core = _core()
     if not core.is_windows():
         return True

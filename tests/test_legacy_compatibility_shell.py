@@ -4,12 +4,14 @@ import pathlib
 import unittest
 
 import application_filesystem
+import application_runtime
 import configuration_storage
 import local_proxy_transport
 import portable_lifecycle
 import process_supervision
 import proxy_core as core
 import proxy_core_legacy as legacy
+import recovery_autostart
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -31,6 +33,18 @@ CANONICAL_RUNTIME_OWNERS = {
 }
 
 DECOUPLED_CORE_STDLIB = ("re", "select", "struct")
+RETAINED_COMPATIBILITY_ALIASES = {
+    "base64",
+    "hashlib",
+    "io",
+    "json",
+    "os",
+    "socket",
+    "subprocess",
+    "sys",
+    "threading",
+    "time",
+}
 
 DECOUPLED_OWNER_ATTRIBUTES = {
     "routing_policy.py": {"os", "io", "re"},
@@ -61,6 +75,8 @@ DECOUPLED_OWNER_ATTRIBUTES = {
         "time",
     },
     "portable_lifecycle.py": {"hashlib", "io", "os", "subprocess", "sys"},
+    "application_runtime.py": {"os", "sys"},
+    "recovery_autostart.py": {"subprocess", "sys"},
 }
 
 
@@ -106,6 +122,15 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         for name in DECOUPLED_CORE_STDLIB:
             self.assertFalse(hasattr(core, name), name)
 
+    def test_retained_stdlib_alias_inventory_is_explicit(self):
+        legacy_source = LEGACY_PATH.read_text(encoding="utf-8")
+        imported = {
+            node.names[0].name
+            for node in ast.parse(legacy_source).body
+            if isinstance(node, ast.Import) and len(node.names) == 1
+        }
+        self.assertEqual(imported, RETAINED_COMPATIBILITY_ALIASES)
+
     def test_socket_is_retained_only_as_shared_monkeypatch_compatibility_alias(self):
         self.assertIs(core.socket, local_proxy_transport.socket)
         self.assertIs(core.socket, process_supervision.socket)
@@ -114,13 +139,9 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
             self.assertNotIn("socket", _exact_core_attributes(source), relative_path)
 
     def test_state_bootstrap_stdlib_aliases_share_module_objects_but_are_not_looked_up_via_core(self):
-        # Existing tests and external callers may patch these compatibility
-        # aliases. Local imports intentionally resolve to the same Python module
-        # objects, so those monkeypatches keep working without service-location.
         self.assertIs(core.os, application_filesystem.os)
         self.assertIs(core.io, application_filesystem.io)
         self.assertIs(core.sys, application_filesystem.sys)
-
         self.assertIs(core.base64, configuration_storage.base64)
         self.assertIs(core.hashlib, configuration_storage.hashlib)
         self.assertIs(core.io, configuration_storage.io)
@@ -128,12 +149,17 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertIs(core.os, configuration_storage.os)
         self.assertIs(core.threading, configuration_storage.threading)
         self.assertIs(core.time, configuration_storage.time)
-
         self.assertIs(core.hashlib, portable_lifecycle.hashlib)
         self.assertIs(core.io, portable_lifecycle.io)
         self.assertIs(core.os, portable_lifecycle.os)
         self.assertIs(core.subprocess, portable_lifecycle.subprocess)
         self.assertIs(core.sys, portable_lifecycle.sys)
+
+    def test_application_recovery_aliases_share_module_objects_without_service_location(self):
+        self.assertIs(core.os, application_runtime.os)
+        self.assertIs(core.sys, application_runtime.sys)
+        self.assertIs(core.sys, recovery_autostart.sys)
+        self.assertIs(core.subprocess, recovery_autostart.subprocess)
 
     def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
         for owner in CANONICAL_RUNTIME_OWNERS:
@@ -175,9 +201,6 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertTrue(inventory)
         self.assertEqual(unexpected, {})
 
-        # Representative public/mutation-sensitive seams from every bounded
-        # extraction area prove that the inventory is observing composed core,
-        # not merely an empty shell import.
         expected = {
             "install_dir": "application_filesystem",
             "ensure_stable_app_copy": "portable_lifecycle",
