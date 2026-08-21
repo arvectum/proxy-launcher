@@ -8,7 +8,11 @@ import threading
 import unittest
 from unittest import mock
 
+import application_filesystem
+import portable_lifecycle
+import process_supervision
 import proxy_core as core
+import windows_system_proxy
 
 
 def _listener():
@@ -35,9 +39,9 @@ def _recv_all(sock, timeout=3):
 class ProxyCoreTests(unittest.TestCase):
     def test_state_paths_are_independent_of_executable_directory(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.dict(core.os.environ, {"LOCALAPPDATA": r"C:\State"}, clear=False), \
+             mock.patch.dict(application_filesystem.os.environ, {"LOCALAPPDATA": r"C:\State"}, clear=False), \
              mock.patch.object(core, "install_dir", return_value=r"C:\Some\Copy"), \
-             mock.patch.object(core.os, "path", ntpath):
+             mock.patch.object(application_filesystem.os, "path", ntpath):
             self.assertEqual(core.data_dir(), r"C:\State\Arvectum\ProxyLauncher")
             self.assertTrue(core.settings_path().endswith(r"Arvectum\ProxyLauncher\proxy_settings.json"))
 
@@ -48,8 +52,8 @@ class ProxyCoreTests(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_bytes(b"portable launcher payload")
             with mock.patch.object(core, "is_windows", return_value=True), \
-                 mock.patch.object(core.sys, "frozen", True, create=True), \
-                 mock.patch.object(core.sys, "executable", str(source)), \
+                 mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
+                 mock.patch.object(portable_lifecycle.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(stable)), \
                  mock.patch.object(core, "_log"):
                 self.assertEqual(core.ensure_stable_app_copy(), os.path.realpath(stable))
@@ -66,8 +70,8 @@ class ProxyCoreTests(unittest.TestCase):
             source.write_bytes(b"new portable payload")
             canonical.write_bytes(b"old payload")
             with mock.patch.object(core, "is_windows", return_value=True), \
-                 mock.patch.object(core.sys, "frozen", True, create=True), \
-                 mock.patch.object(core.sys, "executable", str(source)), \
+                 mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
+                 mock.patch.object(portable_lifecycle.sys, "executable", str(source)), \
                  mock.patch.object(core, "stable_app_exe", return_value=str(canonical)), \
                  mock.patch.object(core, "_log"):
                 self.assertEqual(core.ensure_stable_app_copy(), os.path.realpath(canonical))
@@ -89,23 +93,23 @@ class ProxyCoreTests(unittest.TestCase):
     def test_paths_keep_documents_executable_and_localappdata_state_with_cyrillic_user(self):
         home = r"C:\Users\Анастасия"
         local = home + r"\AppData\Local"
-        with mock.patch.dict(core.os.environ, {"LOCALAPPDATA": local}, clear=False), \
+        with mock.patch.dict(application_filesystem.os.environ, {"LOCALAPPDATA": local}, clear=False), \
              mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core.os, "path", ntpath), \
+             mock.patch.object(application_filesystem.os, "path", ntpath), \
              mock.patch.object(ntpath, "expanduser", return_value=home):
             self.assertEqual(core.stable_app_exe(), home + r"\Documents\ArvectumProxyLauncher\Arvectum Proxy Launcher.exe")
             self.assertEqual(core.data_dir(), local + r"\Arvectum\ProxyLauncher")
 
     def test_canonical_copy_failure_never_launches_old_executable(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core.sys, "frozen", True, create=True), \
+             mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
              mock.patch.object(core, "ensure_stable_app_copy", return_value=None), \
-             mock.patch.object(core.subprocess, "Popen") as spawn:
+             mock.patch.object(portable_lifecycle.subprocess, "Popen") as spawn:
             self.assertFalse(core.handoff_to_stable_copy())
         spawn.assert_not_called()
 
     def test_failed_self_heal_never_returns_portable_path_for_autostart(self):
-        with mock.patch.object(core.sys, "frozen", True, create=True), \
+        with mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
              mock.patch.object(core, "ensure_stable_app_copy", return_value=None):
             self.assertIsNone(core.managed_executable())
 
@@ -124,8 +128,8 @@ class ProxyCoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(core, "pid_path", return_value=str(Path(td) / "pid.json")), \
              mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
-             mock.patch.object(core.sys, "executable", exe), \
-             mock.patch.object(core.os.path, "realpath", side_effect=lambda x: x):
+             mock.patch.object(process_supervision.sys, "executable", exe), \
+             mock.patch.object(process_supervision.os.path, "realpath", side_effect=lambda x: x):
             core._write_pid()
             self.assertEqual(os.path.normcase(core._read_pid()["exe_path"]),
                              os.path.normcase(exe))
@@ -241,7 +245,7 @@ class ProxyCoreTests(unittest.TestCase):
              mock.patch.object(core, "_valid_internet_backup_at", return_value=False), \
              mock.patch.object(core, "_restore_internet_backup", return_value=True), \
              mock.patch.object(core, "_disable_client_proxy_env", return_value=True), \
-             mock.patch.object(core.os.path, "exists", return_value=False), \
+             mock.patch.object(windows_system_proxy.os.path, "exists", return_value=False), \
              mock.patch.object(core, "_refresh_internet"), \
              mock.patch.object(core, "_log", side_effect=logs.append):
             self.assertFalse(core.disable_system_proxy())
@@ -272,9 +276,9 @@ class ProxyCoreTests(unittest.TestCase):
             canonical.write_bytes(b"exe")
             with mock.patch.object(core, "is_windows", return_value=True), \
                  mock.patch.object(core, "install_dir", return_value=str(other)), \
-                 mock.patch.object(core.os.path, "expanduser", return_value=str(Path(td))), \
-                 mock.patch.object(core.sys, "frozen", True, create=True), \
-                 mock.patch.object(core.sys, "executable", str(other / "Arvectum Proxy Launcher.exe")):
+                 mock.patch.object(application_filesystem.os.path, "expanduser", return_value=str(Path(td))), \
+                 mock.patch.object(portable_lifecycle.sys, "frozen", True, create=True), \
+                 mock.patch.object(portable_lifecycle.sys, "executable", str(other / "Arvectum Proxy Launcher.exe")):
                 self.assertIsNone(core.canonical_install_exe())
 
     def test_no_proxy_matching_is_boundary_safe(self):
@@ -564,12 +568,12 @@ class ProxyCoreTests(unittest.TestCase):
 
     def test_network_restore_pending_detects_local_backup_files(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core.os.path, "exists", side_effect=[True, False]):
+             mock.patch.object(windows_system_proxy.os.path, "exists", side_effect=[True, False]):
             self.assertTrue(core.network_restore_pending())
 
     def test_foreign_pac_without_local_backup_is_not_our_pending_recovery(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
-             mock.patch.object(core.os.path, "exists", return_value=False):
+             mock.patch.object(windows_system_proxy.os.path, "exists", return_value=False):
             self.assertFalse(core.network_restore_pending())
 
     def test_nonexcluded_http_host_uses_upstream_and_adds_auth(self):
@@ -628,14 +632,14 @@ class ProxyCoreTests(unittest.TestCase):
     def test_unverified_stale_windows_pid_is_never_taskkilled(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
              mock.patch.object(core, "_windows_process_creation_time", return_value=123), \
-             mock.patch.object(core.subprocess, "run") as run:
+             mock.patch.object(process_supervision.subprocess, "run") as run:
             self.assertFalse(core._kill_pid({"pid": 9999, "created": None}))
             run.assert_not_called()
 
     def test_mismatched_windows_process_creation_time_is_never_taskkilled(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
              mock.patch.object(core, "_windows_process_creation_time", return_value=456), \
-             mock.patch.object(core.subprocess, "run") as run:
+             mock.patch.object(process_supervision.subprocess, "run") as run:
             self.assertFalse(core._kill_pid({"pid": 9999, "created": 123}))
             run.assert_not_called()
 
@@ -711,7 +715,7 @@ class ProxyCoreTests(unittest.TestCase):
             with mock.patch.object(core, "_internet_backup_path", return_value=str(path)), \
                  mock.patch.object(core, "_reg_set", return_value=True), \
                  mock.patch.object(core, "_reg_del", return_value=True), \
-                 mock.patch.object(core.os, "remove", side_effect=PermissionError("locked")):
+                 mock.patch.object(windows_system_proxy.os, "remove", side_effect=PermissionError("locked")):
                 self.assertFalse(core._restore_internet_backup())
 
     def test_is_running_requires_owned_windows_pid_record(self):
