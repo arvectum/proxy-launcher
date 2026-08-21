@@ -3,11 +3,11 @@
 
 APL-IP-003 moves owned responsibilities out of ``proxy_core_legacy.py`` in
 bounded slices while preserving the sealed Windows 0.2.3 behaviour and mutable
-monkeypatch seam. Slices 1–10 own runtime composition, filesystem/portable
+monkeypatch seam. Slices 1–11 own runtime composition, filesystem/portable
 lifecycle, configuration, routing, local transport, process supervision,
-application runtime, Windows system-proxy persistence/recovery, Recovery Run
-ownership, and stale/orphan PAC cleanup. Slice 11 extracts the proxy-core
-structured logging bridge.
+application runtime, Windows system-proxy persistence/recovery, Recovery Run,
+stale/orphan PAC cleanup, and the structured logging bridge. Slice 12 reduces
+``proxy_core_legacy.py`` to the shared compatibility/state shell only.
 """
 
 import sys as _runtime_sys
@@ -77,8 +77,9 @@ _windows_pac_recovery.install_into_core(_core)
 _application_runtime.configure(_core)
 _application_runtime.install_into_core(_core)
 
-# ``import proxy_core`` still returns the established mutable module object
-# until the remaining historical implementation is decomposed.
+# ``import proxy_core`` intentionally returns this one established mutable
+# module object. Slice 12 removes duplicate implementation from the shell but
+# does not remove the compatibility identity itself.
 _runtime_sys.modules[__name__] = _core
 
 
