@@ -1,8 +1,10 @@
 # APL-IP-003 Slice 2 — application filesystem & portable lifecycle extraction
 
 Date: 2026-08-21  
-Status: **IMPLEMENTED — CI/PR acceptance required before merge**  
-Protected behavioural baseline: Windows `0.2.3`
+Status: **DONE — ACCEPTED AND MERGED**  
+Protected behavioural baseline: Windows `0.2.3`  
+Implementation PR: `#120`  
+Merge commit: `f2507cda77ded8e21e5e3a855853d94d79ef343f`
 
 ## Purpose
 
@@ -77,25 +79,49 @@ semantics established by Slice 1.
   running portable executable; otherwise it is replaced atomically.
 - Ambiguous differing recovery backups continue to block migration rather than
   selecting one heuristically.
+- Path-resolution failures during state migration remain fail-closed.
 - Historical customer baseline/evidence is not rewritten or relabelled.
 
-## Regression coverage
+## Regression and package acceptance
 
-`tests/test_canonical_source_refactor.py` is extended to prove:
+`tests/test_canonical_source_refactor.py` proves:
 
 - runtime ownership of extracted functions is the new canonical module;
 - the `proxy_core` facade remains thin and explicitly wires both Slice 2 modules;
 - legacy state migration still works through historical monkeypatch seams;
-- portable self-heal still replaces a mismatched canonical copy by verified
-  hash and writes the install-owner marker;
+- path canonicalization failure during migration returns failure rather than
+  continuing heuristically;
+- portable self-heal replaces a mismatched canonical copy by verified hash and
+  writes the install-owner marker;
 - Slice 1 recovery guarantees and the frozen Windows `0.2.3` customer baseline
   remain asserted.
 
-The existing repository regression and packaging/build contracts remain the
-acceptance authority; no test or release gate is weakened for this slice.
+Accepted GitHub gates on the final PR head included:
 
-## Exit condition for Slice 2
+- `APL-IP-003 canonical source` on Windows, Ubuntu and macOS;
+- `Core backend contract`;
+- `Phase 5 Config and Security` including the full unit suite;
+- Windows canonical clean build and Documents execution smoke;
+- Windows installer fresh / upgrade / repair / uninstall E2E and Gate R6 matrix;
+- APL-IP-002-WIN controlled offline build;
+- Debian package on Ubuntu 22.04 and 24.04;
+- Linux AppImage build and inspection;
+- macOS `.app` / DMG build and inspection on Apple Silicon and Intel;
+- provenance, SAST, dependency vulnerability, secret, SBOM and diagnostics gates.
 
-Slice 2 is complete when the bounded commit/PR containing the two canonical
-modules, facade wiring, and regression updates passes the applicable GitHub
-checks and is merged without modifying the sealed `0.2.3` release artifacts.
+Platform packaging path filters were hardened so future changes to the canonical
+core/extracted modules automatically trigger the relevant macOS, Debian and
+AppImage package gates instead of relying only on unit-level checks.
+
+No test or release gate was weakened for this slice.
+
+## Closure
+
+The bounded Slice 2 implementation was merged through PR `#120` as merge commit
+`f2507cda77ded8e21e5e3a855853d94d79ef343f`. The sealed Windows `0.2.3`
+release artifacts and customer baseline were not modified.
+
+The APL-IP-001 author-to-ООО rights-basis execution reference remains a separate
+**HUMAN/LEGAL PENDING** gate before any final post-refactor clean-IP candidate can
+be declared APPROVED or tagged; Slice 2 completion does not waive or replace
+that requirement.
