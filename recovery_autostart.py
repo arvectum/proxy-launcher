@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from types import ModuleType
 
 
@@ -229,7 +228,7 @@ def _recovery_legacy_process_active(command):
             "[IO.Path]::GetFullPath($args[0]) -and $_.CommandLine -eq $args[1] }; "
             "if($p){exit 10}else{exit 0}"
         )
-        result = subprocess.run(
+        result = core.subprocess.run(
             [
                 "powershell",
                 "-NoProfile",
@@ -241,8 +240,8 @@ def _recovery_legacy_process_active(command):
                 target,
                 str(command),
             ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=core.subprocess.DEVNULL,
+            stderr=core.subprocess.DEVNULL,
             timeout=5,
         )
         return result.returncode != 0
