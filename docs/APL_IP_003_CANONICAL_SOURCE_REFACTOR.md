@@ -1,6 +1,6 @@
 # APL-IP-003 — Arvectum canonical source refactor
 
-Status: **ACTIVE — SLICES 1–6 MERGED; SLICE 7 IN REVIEW; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
+Status: **ACTIVE — SLICES 1–7 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
 
 ## Goal
 
@@ -24,7 +24,8 @@ The task is an engineering refactor, not an attempt to erase AI assistance, thir
 - **DONE — Slice 4:** platform-neutral routing-policy ownership extraction. PR `#124`, merge commit `0a4256d0f16bb0c798f96f9d4a618564f38b92c5`. Canonical owner: `routing_policy.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_4_ROUTING_POLICY.md`.
 - **DONE — Slice 5:** local HTTP/SOCKS/PAC transport-server ownership extraction. PR `#126`, merge commit `e2733e19172bff0c1c15df070fb6e1951bc50c2c`. Canonical owner: `local_proxy_transport.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_5_LOCAL_PROXY_TRANSPORT.md`.
 - **DONE — Slice 6:** process supervision / runtime-status ownership extraction. PR `#128`, merge commit `82333217bb992c00c22663d5b636f90252c05171`. Canonical owner: `process_supervision.py`. All 18 PR workflows completed successfully; the canonical-source guard was extended through Slice 6; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_6_PROCESS_SUPERVISION.md`.
-- **IN REVIEW — Slice 7:** CLI / application runtime orchestration ownership is extracted into `application_runtime.py`: bundled local-state bootstrap (`_ensure_local_files`), `_cmd_start`, `_cmd_stop`, `_cmd_rollback`, `_cmd_status`, and `main`. Exact `0.2.3` exit codes/messages, portable handoff-before-mutation ordering, no-upstream guard, ProxyCore/PID/system-proxy sequencing, rollback reachability, status reporting and long-running start lifecycle remain the behavioural contract. Windows network backup/registry/environment/recovery implementation remains a separate later ownership slice.
+- **DONE — Slice 7:** CLI / application runtime orchestration ownership extraction. PR `#130`, merge commit `c176f51e2c85185e2319a5f8669a14c9db18e50d`. Canonical owner: `application_runtime.py`. All 18 PR workflows completed successfully; exact `0.2.3` CLI/runtime ordering, messages and exit-code behaviour remain the contract; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_7_APPLICATION_RUNTIME.md`.
+- **NEXT — Slice 8:** Windows WinINET / proxy-environment persistence and system-proxy implementation ownership extraction from `proxy_core_legacy.py`: PAC URL/state helpers, Internet Settings snapshot/restore validation, registry mutation primitives, user proxy-environment snapshot/restore/synchronization, WinINET refresh, and the Windows implementations consumed by `system_proxy_runtime` for enable/disable/status/restore-pending. Recovery Run/autostart ownership/classification and stale/orphan PAC diagnostics/cleanup remain separate later slices so ownership-sensitive recovery semantics can be reviewed independently.
 - The human/legal rights-basis reference remains a parallel governance gate. Completing engineering slices does not waive it and does not authorize a clean-IP tag.
 
 ## Scope
