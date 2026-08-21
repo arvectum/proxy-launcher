@@ -3,8 +3,6 @@ import inspect
 import pathlib
 import unittest
 
-import local_proxy_transport
-import process_supervision
 import proxy_core as core
 import proxy_core_legacy as legacy
 
@@ -43,24 +41,8 @@ HISTORICAL_CORE_STDLIB_ALIASES = {
     "threading",
     "time",
 }
-RETIRED_CORE_STDLIB_ALIASES = {
-    "base64",
-    "hashlib",
-    "io",
-    "json",
-    "os",
-    "re",
-    "select",
-    "struct",
-    "subprocess",
-    "sys",
-    "threading",
-    "time",
-}
-RETAINED_COMPATIBILITY_ALIASES = {"socket"}
-SUPPORTED_COMPATIBILITY_ALIAS_CONSUMERS = {
-    "socket": "established-shared-monkeypatch-seam",
-}
+RETIRED_CORE_STDLIB_ALIASES = set(HISTORICAL_CORE_STDLIB_ALIASES)
+RETAINED_COMPATIBILITY_ALIASES = set()
 
 DECOUPLED_OWNER_ATTRIBUTES = {
     "routing_policy.py": {"os", "io", "re"},
@@ -136,6 +118,15 @@ def _compatibility_alias_consumers() -> dict[str, set[str]]:
     return {name: paths for name, paths in consumers.items() if paths}
 
 
+def _plain_imports(path: pathlib.Path) -> set[str]:
+    return {
+        imported.name
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if isinstance(node, ast.Import)
+        for imported in node.names
+    }
+
+
 class LegacyCompatibilityShellTests(unittest.TestCase):
     def test_proxy_core_and_legacy_name_share_one_mutable_module_object(self):
         self.assertIs(core, legacy)
@@ -163,44 +154,26 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertIsInstance(core._STATE_READY, bool)
         self.assertIn("proxy_core.log", core._STATE_FILES)
 
-    def test_retired_stdlib_aliases_are_absent_from_core_namespace(self):
-        for name in RETIRED_CORE_STDLIB_ALIASES:
+    def test_all_historical_stdlib_aliases_are_absent_from_core_namespace(self):
+        self.assertEqual(RETIRED_CORE_STDLIB_ALIASES, HISTORICAL_CORE_STDLIB_ALIASES)
+        for name in HISTORICAL_CORE_STDLIB_ALIASES:
             self.assertFalse(hasattr(core, name), name)
 
-    def test_retained_stdlib_alias_inventory_is_exact_and_classified(self):
-        legacy_source = LEGACY_PATH.read_text(encoding="utf-8")
-        imported = {
-            node.names[0].name
-            for node in ast.parse(legacy_source).body
-            if isinstance(node, ast.Import) and len(node.names) == 1
-        }
-        self.assertEqual(imported, RETAINED_COMPATIBILITY_ALIASES)
-        self.assertEqual(
-            set(SUPPORTED_COMPATIBILITY_ALIAS_CONSUMERS),
-            RETAINED_COMPATIBILITY_ALIASES,
-        )
+    def test_legacy_shell_has_zero_stdlib_compatibility_imports(self):
+        imported = _plain_imports(LEGACY_PATH)
+        self.assertEqual(RETAINED_COMPATIBILITY_ALIASES, set())
+        self.assertEqual(imported & HISTORICAL_CORE_STDLIB_ALIASES, set())
+        self.assertEqual(imported, set())
 
-    def test_retired_aliases_have_no_live_project_consumers(self):
-        consumers = _compatibility_alias_consumers()
-        retired_consumers = {
-            name: paths
-            for name, paths in consumers.items()
-            if name in RETIRED_CORE_STDLIB_ALIASES
-        }
-        self.assertEqual(retired_consumers, {})
+    def test_historical_aliases_have_no_live_project_consumers(self):
+        self.assertEqual(_compatibility_alias_consumers(), {})
 
-    def test_only_socket_remains_as_live_compatibility_alias_consumer(self):
-        consumers = _compatibility_alias_consumers()
-        self.assertEqual(set(consumers), RETAINED_COMPATIBILITY_ALIASES)
-        self.assertTrue(consumers["socket"])
-        for path in consumers["socket"]:
-            self.assertTrue(path.startswith("tests/"), "socket: %s" % path)
-
-    def test_socket_is_retained_as_shared_monkeypatch_compatibility_alias(self):
-        self.assertIs(core.socket, local_proxy_transport.socket)
-        self.assertIs(core.socket, process_supervision.socket)
+    def test_socket_dependency_is_owned_only_by_canonical_network_modules(self):
+        self.assertFalse(hasattr(core, "socket"))
         for relative_path in ("local_proxy_transport.py", "process_supervision.py"):
-            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            path = ROOT / relative_path
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("socket", _plain_imports(path), relative_path)
             self.assertNotIn("socket", _exact_core_attributes(source), relative_path)
 
     def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
