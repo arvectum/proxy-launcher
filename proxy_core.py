@@ -11,7 +11,7 @@ stable during the behaviour-preserving migration.
 import sys as _runtime_sys
 
 import proxy_core_legacy as _core
-from system_proxy_runtime import SystemProxyRuntime as _SystemProxyRuntime
+import system_proxy_runtime as _system_proxy_runtime
 
 # Source-contract index retained for release guards that intentionally inspect
 # the canonical proxy_core.py text while executable definitions migrate out of
@@ -31,11 +31,11 @@ _FACADE_FILE = __file__
 # behaviour exactly as before this refactor.
 _core.__file__ = _FACADE_FILE
 
-_RUNTIME = _SystemProxyRuntime(
+_system_proxy_runtime.configure(
     core=_core,
     runtime_platform=lambda: _runtime_sys.platform,
 )
-_RUNTIME.install_into_core()
+_system_proxy_runtime.install_into_core(_core)
 
 # Compatibility boundary: ``import proxy_core`` still returns the established
 # mutable module object until the legacy implementation is decomposed in later
