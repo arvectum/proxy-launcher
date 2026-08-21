@@ -4,23 +4,28 @@ APL-IP-003 Slice 5 centralizes the platform-neutral local enforcement plane:
 upstream preparation/failover, HTTP and CONNECT proxying, SOCKS5 tunnelling,
 PAC serving, relay/accept loops, and listener start/stop lifecycle.
 
-The class is installed into the established ``proxy_core`` module object.
-Collaborators that are part of the historical test/runtime contract are
-resolved through that mutable compatibility seam, so the sealed Windows 0.2.3
-transport behaviour and monkeypatch-based regression seams remain stable.
+Behavior-sensitive collaborators remain resolved through the mutable
+``proxy_core`` compatibility seam, while ordinary standard-library dependencies
+are module-local. This preserves the sealed Windows 0.2.3 transport contract
+without using the core module as a generic dependency service locator.
 Process/PID status, CLI orchestration, system-proxy mutation and recovery stay
-outside this module for later bounded ownership slices.
+outside this module.
 """
 
 from __future__ import annotations
 
-import socket as _socket
+import base64
+import re
+import select
+import socket
+import struct
+import threading
 from types import ModuleType
 
 
 # SOCKS5 reply BND.ADDR field per RFC 1928. ``0.0.0.0`` is serialized protocol
 # data here, not a socket bind to all interfaces; Bandit B104 does not apply.
-SOCKS5_REPLY_BIND_ADDR = _socket.inet_aton("0.0.0.0")  # nosec B104
+SOCKS5_REPLY_BIND_ADDR = socket.inet_aton("0.0.0.0")  # nosec B104
 
 _CORE: ModuleType | None = None
 
@@ -43,20 +48,19 @@ class ProxyCore:
     def __init__(self, settings=None):
         core = _core()
         self.settings = settings if settings is not None else core.load_settings()
-        self._stop = core.threading.Event()
+        self._stop = threading.Event()
         self._socks = []
         self._threads = []
         self._upstreams = self._build_upstreams()
 
     def _build_upstreams(self):
-        core = _core()
         out = []
         for up in self.settings.get("upstream") or []:
             host = (up.get("host") or "").strip()
             if not host:
                 continue
             raw = ("%s:%s" % (up.get("username") or "", up.get("password") or "")).encode("utf-8")
-            token = core.base64.b64encode(raw).decode("ascii")
+            token = base64.b64encode(raw).decode("ascii")
             try:
                 port = int(up.get("port", 8000))
             except (TypeError, ValueError):
@@ -79,11 +83,10 @@ class ProxyCore:
 
     @staticmethod
     def _relay(src, dst, stop):
-        core = _core()
         try:
             while not stop.is_set():
                 try:
-                    ready, _, _ = core.select.select([src, dst], [], [], 300)
+                    ready, _, _ = select.select([src, dst], [], [], 300)
                 except (OSError, ValueError):
                     return
                 if not ready:
@@ -152,7 +155,7 @@ class ProxyCore:
             host = core._normalize_host(host)
             if core.host_bypasses_proxy(host):
                 try:
-                    direct = core.socket.create_connection((host, port), timeout=15)
+                    direct = socket.create_connection((host, port), timeout=15)
                 except Exception:
                     self._send_error(client, 502, "Localhost connection failed")
                     return
@@ -168,7 +171,7 @@ class ProxyCore:
                 upstream = None
                 for host_u, proxy_port, token in self._upstreams:
                     try:
-                        stream = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
+                        stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         stream.settimeout(15)
                         stream.connect((host_u, proxy_port))
                         if is_connect:
@@ -220,27 +223,27 @@ class ProxyCore:
                 return
             atype = data[3]
             if atype == 1:
-                host = core.socket.inet_ntoa(client.recv(4))
+                host = socket.inet_ntoa(client.recv(4))
             elif atype == 3:
                 length = client.recv(1)[0]
                 host = client.recv(length).decode()
             elif atype == 4:
-                host = core.socket.inet_ntop(core.socket.AF_INET6, client.recv(16))
+                host = socket.inet_ntop(socket.AF_INET6, client.recv(16))
             else:
                 return
-            port = core.struct.unpack(">H", client.recv(2))[0]
+            port = struct.unpack(">H", client.recv(2))[0]
 
             upstream = None
             host = core._normalize_host(host)
             if core.host_bypasses_proxy(host):
                 try:
-                    upstream = core.socket.create_connection((host, port), timeout=15)
+                    upstream = socket.create_connection((host, port), timeout=15)
                 except Exception:
                     upstream = None
             else:
                 for host_u, proxy_port, token in self._upstreams:
                     try:
-                        stream = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
+                        stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         stream.settimeout(15)
                         stream.connect((host_u, proxy_port))
                         request = (
@@ -260,7 +263,7 @@ class ProxyCore:
 
             bind_addr = core._SOCKS5_REPLY_BIND_ADDR
             if upstream is None:
-                client.sendall(b"\x05\x03\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+                client.sendall(b"\x05\x03\x00\x01" + bind_addr + struct.pack(">H", 0))
                 return
             if not core.host_bypasses_proxy(host):
                 response = b""
@@ -271,9 +274,9 @@ class ProxyCore:
                     response += chunk
                 if b"200" not in response:
                     upstream.close()
-                    client.sendall(b"\x05\x03\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+                    client.sendall(b"\x05\x03\x00\x01" + bind_addr + struct.pack(">H", 0))
                     return
-            client.sendall(b"\x05\x00\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+            client.sendall(b"\x05\x00\x00\x01" + bind_addr + struct.pack(">H", 0))
             self._relay(upstream, client, self._stop)
         except Exception:
             pass
@@ -289,7 +292,7 @@ class ProxyCore:
             data = client.recv(4096)
             if not data:
                 return
-            match = core.re.search(rb"GET\s+(\S+)\s+HTTP", data)
+            match = re.search(rb"GET\s+(\S+)\s+HTTP", data)
             if not match:
                 client.close()
                 return
@@ -326,8 +329,8 @@ class ProxyCore:
         bound = []
         try:
             for _name, port, _handler in ports:
-                listener = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
-                listener.setsockopt(core.socket.SOL_SOCKET, core.socket.SO_REUSEADDR, 1)
+                listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 listener.bind(("127.0.0.1", port))
                 listener.listen(200)
                 listener.settimeout(1.0)
@@ -340,9 +343,9 @@ class ProxyCore:
                     pass
             return False, "Не удалось занять порт: %s" % error
         self._socks = bound
-        self._stop = core.threading.Event()
+        self._stop = threading.Event()
         for listener, (_name, _port, handler) in zip(bound, ports):
-            thread = core.threading.Thread(
+            thread = threading.Thread(
                 target=self._accept_loop,
                 args=(listener, handler),
                 daemon=True,
@@ -356,11 +359,10 @@ class ProxyCore:
         return True, "OK"
 
     def _accept_loop(self, listener, handler):
-        core = _core()
         while not self._stop.is_set():
             try:
                 client, _ = listener.accept()
-            except core.socket.timeout:
+            except socket.timeout:
                 continue
             except OSError:
                 break
@@ -370,14 +372,14 @@ class ProxyCore:
                 except Exception:
                     pass
                 break
-            core.threading.Thread(target=handler, args=(client,), daemon=True).start()
+            threading.Thread(target=handler, args=(client,), daemon=True).start()
 
     def stop(self):
         core = _core()
         self._stop.set()
         for listener in self._socks:
             try:
-                listener.shutdown(core.socket.SHUT_RDWR)
+                listener.shutdown(socket.SHUT_RDWR)
             except Exception:
                 pass
             try:
