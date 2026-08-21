@@ -29,6 +29,7 @@ on:
       - 'tests/test_recovery_autostart.py'
       - 'tests/test_logging_bridge.py'
       - 'tests/test_structured_logging.py'
+      - 'tests/test_legacy_compatibility_shell.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
       - 'docs/evidence/APL_IP_003_*'
       - '.github/workflows/apl-ip-003-canonical-source.yml'
@@ -60,6 +61,7 @@ on:
       - 'tests/test_recovery_autostart.py'
       - 'tests/test_logging_bridge.py'
       - 'tests/test_structured_logging.py'
+      - 'tests/test_legacy_compatibility_shell.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
       - 'docs/evidence/APL_IP_003_*'
       - '.github/workflows/apl-ip-003-canonical-source.yml'
@@ -109,6 +111,7 @@ jobs:
           tests/test_recovery_autostart.py
           tests/test_logging_bridge.py
           tests/test_structured_logging.py
+          tests/test_legacy_compatibility_shell.py
       - name: Run canonical-source regression
         run: >-
           python -m unittest
@@ -121,4 +124,5 @@ jobs:
           tests.test_recovery_autostart
           tests.test_logging_bridge
           tests.test_structured_logging
+          tests.test_legacy_compatibility_shell
           -v
