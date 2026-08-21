@@ -1,24 +1,12 @@
 # -*- coding: utf-8 -*-
 """Canonical runtime facade for Arvectum Proxy Launcher.
 
-APL-IP-003 keeps the remaining historical implementation in
-``proxy_core_legacy.py`` while moving owned responsibilities into explicit
-canonical modules. Slice 1 extracted platform runtime composition; Slice 2
-extracted application filesystem/state paths and the Windows portable
-lifecycle; Slice 3 extracted governed configuration loading/validation, atomic
-persistence, credential protection, and configuration recovery; Slice 4
-extracted platform-neutral ``no_proxy`` routing policy, bypass evaluation, and
-PAC generation; Slice 5 extracted the local HTTP/SOCKS/PAC transport server and
-listener lifecycle; Slice 6 extracted process supervision and runtime-status
-ownership; Slice 7 extracted top-level application runtime / CLI orchestration;
-Slice 8 extracted Windows WinINET, user proxy-environment persistence and the
-Windows system-proxy implementation consumed by backend composition; Slice 9
-extracted strict Recovery Run/autostart ownership and classification; Slice 10
-extracts stale/orphan PAC diagnostics and fail-closed cleanup ownership.
-
-Existing callers still receive the established module object, so Windows 0.2.3
-behaviour and historical monkeypatch seams remain stable during the bounded
-migration.
+APL-IP-003 moves owned responsibilities out of ``proxy_core_legacy.py`` in
+bounded slices while preserving the sealed Windows 0.2.3 behaviour and mutable
+monkeypatch seam. Slices 1–9 own runtime composition, filesystem/portable
+lifecycle, configuration, routing, local transport, process supervision,
+application runtime, Windows system-proxy persistence, and Recovery Run
+ownership. Slice 10 extracts stale/orphan PAC diagnostics and cleanup.
 """
 
 import sys as _runtime_sys
@@ -36,9 +24,7 @@ import system_proxy_runtime as _system_proxy_runtime
 import windows_pac_recovery as _windows_pac_recovery
 import windows_system_proxy as _windows_system_proxy
 
-# Source-contract index retained for release guards that intentionally inspect
-# the canonical proxy_core.py text while executable definitions migrate out of
-# the historical implementation storage module.
+# Source-contract index retained for release guards that inspect this facade.
 # APP_VERSION = "0.2.3"
 # ENGINEERING_MILESTONE = "P0.2"
 # _LEGACY_INSTALL_OWNER_VALUES
@@ -48,16 +34,9 @@ import windows_system_proxy as _windows_system_proxy
 # leaving it untouched
 
 _FACADE_FILE = __file__
-
-# Functions retained in proxy_core_legacy can resolve ``__file__`` from their
-# module globals at call time. Preserve the canonical facade path for
-# portable/recovery behaviour exactly as before this refactor.
 _core.__file__ = _FACADE_FILE
 
-# Install lower-level application ownership before runtime composition.
-# Canonical modules deliberately resolve collaborators through ``_core``;
-# this preserves the proven monkeypatch seams while moving implementation
-# ownership out of the legacy storage module.
+# Lower-level owners preserve their established collaborators through ``_core``.
 _application_filesystem.configure(_core)
 _application_filesystem.install_into_core(_core)
 _portable_lifecycle.configure(_core)
@@ -73,40 +52,26 @@ _process_supervision.install_into_core(_core)
 _recovery_autostart.configure(_core)
 _recovery_autostart.install_into_core(_core)
 
-# Windows implementation ownership must be installed before system-proxy
-# composition captures its adapter. Recovery Run/autostart has already been
-# rewired above, so Windows rollback dynamically reaches the canonical Slice 9
-# owner.
+# Install the Windows implementation before composition captures its adapter.
 _windows_system_proxy.configure(_core)
 _windows_system_proxy.install_into_core(_core)
-
+_system_proxy_runtime = _system_proxy_runtime
 _system_proxy_runtime.configure(
     core=_core,
     runtime_platform=lambda: _runtime_sys.platform,
 )
 _system_proxy_runtime.install_into_core(_core)
 
-# Stale/orphan PAC diagnostics consume the final composed system-proxy status
-# while delegating registry primitives back to the canonical Slice 8 owner.
-# Install this recovery layer before application runtime so GUI/CLI paths reach
-# the canonical cleanup implementation through the mutable core seam.
+# PAC recovery consumes composed status and canonical WinINET primitives.
 _windows_pac_recovery.configure(_core)
 _windows_pac_recovery.install_into_core(_core)
 
-# Application runtime is the top-level composition owner. Install it only
-# after transport/process/recovery/Windows/system-proxy/PAC-recovery seams have
-# been rewired so every command dynamically reaches the canonical lower-level
-# implementation.
+# Application runtime is the top-level composition owner.
 _application_runtime.configure(_core)
 _application_runtime.install_into_core(_core)
 
-# Compatibility boundary: ``import proxy_core`` still returns the established
-# mutable module object until the legacy implementation is decomposed in later
-# APL-IP-003 slices. The boundary is isolated and explicit rather than mixed
-# with application filesystem, configuration storage, routing policy, local
-# transport, process supervision, recovery-autostart ownership, Windows proxy
-# persistence, stale/orphan PAC recovery, application orchestration, or backend
-# selection logic.
+# ``import proxy_core`` still returns the established mutable module object
+# until the remaining historical implementation is decomposed.
 _runtime_sys.modules[__name__] = _core
 
 
