@@ -1,14 +1,20 @@
 """Canonical application filesystem for Arvectum Proxy Launcher.
 
 APL-IP-003 Slice 2 centralizes executable, persistent-state and runtime paths,
-including the one-time legacy-state migration contract.  The module is wired
-into the established ``proxy_core`` module object so historical monkeypatch
-seams continue to work while implementation ownership moves out of
-``proxy_core_legacy.py``.
+including the one-time legacy-state migration contract. The module is wired
+into the established ``proxy_core`` module object so historical collaborator
+and state monkeypatch seams continue to work while ordinary standard-library
+dependencies are owned locally by this module.
 """
 
 from __future__ import annotations
 
+import io
+import json
+import os
+import shutil
+import sys
+import tempfile
 from types import ModuleType
 from typing import Any
 
@@ -31,9 +37,9 @@ def _core() -> ModuleType:
 def install_dir() -> str:
     """Directory containing this executable/source; never stores mutable state."""
     core = _core()
-    if getattr(core.sys, "frozen", False):
-        return core.os.path.dirname(core.os.path.realpath(core.sys.executable))
-    return core.os.path.dirname(core.os.path.abspath(core.__file__))
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.realpath(sys.executable))
+    return os.path.dirname(os.path.abspath(core.__file__))
 
 
 def app_dir() -> str:
@@ -42,20 +48,20 @@ def app_dir() -> str:
 
 
 def is_windows() -> bool:
-    return _core().os.name == "nt"
+    return os.name == "nt"
 
 
 def data_dir() -> str:
     """Canonical per-user persistent state, shared by every copy of the EXE."""
     core = _core()
     if core.is_windows():
-        base = core.os.environ.get("LOCALAPPDATA") or core.os.path.join(
-            core.os.path.expanduser("~"), "AppData", "Local"
+        base = os.environ.get("LOCALAPPDATA") or os.path.join(
+            os.path.expanduser("~"), "AppData", "Local"
         )
-        return core.os.path.join(base, "Arvectum", "ProxyLauncher")
-    if core.sys.platform == "darwin":
-        return core.os.path.join(
-            core.os.path.expanduser("~"),
+        return os.path.join(base, "Arvectum", "ProxyLauncher")
+    if sys.platform == "darwin":
+        return os.path.join(
+            os.path.expanduser("~"),
             "Library",
             "Application Support",
             "Arvectum",
@@ -70,46 +76,41 @@ def runtime_dir() -> str:
 
 def stable_app_dir() -> str:
     """Canonical user-writable executable location (never the state folder)."""
-    core = _core()
-    return core.os.path.join(
-        core.os.path.expanduser("~"), "Documents", "ArvectumProxyLauncher"
+    return os.path.join(
+        os.path.expanduser("~"), "Documents", "ArvectumProxyLauncher"
     )
 
 
 def stable_app_exe() -> str:
     core = _core()
-    return core.os.path.join(core.stable_app_dir(), core._LAUNCHER_EXE_NAME)
+    return os.path.join(core.stable_app_dir(), core._LAUNCHER_EXE_NAME)
 
 
 def _same_path(first: Any, second: Any) -> bool:
-    core = _core()
     try:
-        return core.os.path.normcase(core.os.path.realpath(first)) == core.os.path.normcase(
-            core.os.path.realpath(second)
+        return os.path.normcase(os.path.realpath(first)) == os.path.normcase(
+            os.path.realpath(second)
         )
     except Exception:
         return False
 
 
 def _temporary_roots() -> list[str]:
-    core = _core()
     roots = []
-    for value in (core.os.environ.get("TEMP"), core.os.environ.get("TMP")):
+    for value in (os.environ.get("TEMP"), os.environ.get("TMP")):
         if value:
             roots.append(value)
-    local = core.os.environ.get("LOCALAPPDATA")
+    local = os.environ.get("LOCALAPPDATA")
     if local:
-        roots.append(core.os.path.join(local, "Temp"))
+        roots.append(os.path.join(local, "Temp"))
     # tempfile avoids shell quoting and remains safe for Cyrillic user names.
     try:
-        import tempfile
-
         roots.append(tempfile.gettempdir())
     except Exception:
         pass
     unique = []
     for root in roots:
-        resolved = core.os.path.normcase(core.os.path.realpath(root))
+        resolved = os.path.normcase(os.path.realpath(root))
         if resolved and resolved not in unique:
             unique.append(resolved)
     return unique
@@ -119,10 +120,10 @@ def is_temporary_path(path: Any) -> bool:
     """True only when *path* is inside an OS-provided temporary root."""
     core = _core()
     try:
-        candidate = core.os.path.normcase(core.os.path.realpath(path))
+        candidate = os.path.normcase(os.path.realpath(path))
         for root in core._temporary_roots():
-            root = core.os.path.normcase(core.os.path.realpath(root))
-            if core.os.path.commonpath([candidate, root]) == root:
+            root = os.path.normcase(os.path.realpath(root))
+            if os.path.commonpath([candidate, root]) == root:
                 return True
     except (TypeError, ValueError):
         pass
@@ -131,19 +132,19 @@ def is_temporary_path(path: Any) -> bool:
 
 def _legacy_state_dirs() -> list[str]:
     core = _core()
-    home = core.os.path.expanduser("~")
-    local = core.os.environ.get("LOCALAPPDATA") or core.os.path.join(
+    home = os.path.expanduser("~")
+    local = os.environ.get("LOCALAPPDATA") or os.path.join(
         home, "AppData", "Local"
     )
     candidates = [
         core.install_dir(),
-        core.os.path.join(home, "Documents", "ArvectumProxyLauncher"),
-        core.os.path.join(local, "ArvectumProxyLauncher"),
+        os.path.join(home, "Documents", "ArvectumProxyLauncher"),
+        os.path.join(local, "ArvectumProxyLauncher"),
     ]
     seen = set()
     result = []
     for candidate in candidates:
-        resolved = core.os.path.normcase(core.os.path.realpath(candidate))
+        resolved = os.path.normcase(os.path.realpath(candidate))
         if resolved in seen:
             continue
         seen.add(resolved)
@@ -152,19 +153,15 @@ def _legacy_state_dirs() -> list[str]:
 
 
 def _copy_state_atomically(src: str, dst: str) -> None:
-    core = _core()
-    import shutil
-
     temporary = dst + ".migrate.tmp"
     shutil.copyfile(src, temporary)
     with open(temporary, "rb") as stream:
         stream.read(1)
-    core.os.replace(temporary, dst)
+    os.replace(temporary, dst)
 
 
 def _valid_state_file(name: str, path: str) -> bool:
-    core = _core()
-    if not core.os.path.isfile(path):
+    if not os.path.isfile(path):
         return False
     if name in (
         "proxy_settings.json",
@@ -173,8 +170,8 @@ def _valid_state_file(name: str, path: str) -> bool:
         "proxy_core.pid",
     ):
         try:
-            with core.io.open(path, "r", encoding="utf-8") as stream:
-                value = core.json.load(stream)
+            with io.open(path, "r", encoding="utf-8") as stream:
+                value = json.load(stream)
             return (
                 isinstance(value, dict)
                 if name != "proxy_core.pid"
@@ -186,19 +183,18 @@ def _valid_state_file(name: str, path: str) -> bool:
 
 
 def migration_error_path() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "state_migration_conflict.json")
+    return os.path.join(_core().data_dir(), "state_migration_conflict.json")
 
 
 def state_migration_blocked() -> bool:
     core = _core()
-    return core.os.path.exists(core.migration_error_path())
+    return os.path.exists(core.migration_error_path())
 
 
 def ensure_state_ready() -> bool:
     """Create stable storage and import validated legacy files once.
 
-    Legacy copies are retained because recovery backups are evidence.  When two
+    Legacy copies are retained because recovery backups are evidence. When two
     different recovery backups are present the migration fails closed instead
     of guessing which state is authoritative.
     """
@@ -207,31 +203,27 @@ def ensure_state_ready() -> bool:
         return not core.state_migration_blocked()
     target = core.data_dir()
     try:
-        core.os.makedirs(target, exist_ok=True)
+        os.makedirs(target, exist_ok=True)
         for name in core._STATE_FILES:
-            existing = core.os.path.join(target, name)
+            existing = os.path.join(target, name)
             sources = []
             for folder in core._legacy_state_dirs():
-                candidate = core.os.path.join(folder, name)
-                candidate_resolved = core.os.path.normcase(
-                    core.os.path.realpath(candidate)
-                )
-                existing_resolved = core.os.path.normcase(
-                    core.os.path.realpath(existing)
-                )
+                candidate = os.path.join(folder, name)
+                candidate_resolved = os.path.normcase(os.path.realpath(candidate))
+                existing_resolved = os.path.normcase(os.path.realpath(existing))
                 if candidate_resolved == existing_resolved:
                     continue
                 if core._valid_state_file(name, candidate):
                     sources.append(candidate)
-            if not sources or core.os.path.exists(existing):
+            if not sources or os.path.exists(existing):
                 continue
             if name in ("proxy_internet_backup.json", "proxy_env_backup.json"):
                 blobs = {open(path, "rb").read() for path in sources}
                 if len(blobs) > 1:
-                    with core.io.open(
+                    with io.open(
                         core.migration_error_path(), "w", encoding="utf-8"
                     ) as stream:
-                        core.json.dump(
+                        json.dump(
                             {"file": name, "sources": sources},
                             stream,
                             ensure_ascii=False,
@@ -246,38 +238,31 @@ def ensure_state_ready() -> bool:
 
 
 def settings_path() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "proxy_settings.json")
+    return os.path.join(_core().data_dir(), "proxy_settings.json")
 
 
 def settings_backup_path() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "proxy_settings.lastgood.json")
+    return os.path.join(_core().data_dir(), "proxy_settings.lastgood.json")
 
 
 def config_recovery_path() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "config_recovery.json")
+    return os.path.join(_core().data_dir(), "config_recovery.json")
 
 
 def config_quarantine_dir() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "quarantine")
+    return os.path.join(_core().data_dir(), "quarantine")
 
 
 def no_proxy_path() -> str:
-    core = _core()
-    return core.os.path.join(core.data_dir(), "no_proxy.txt")
+    return os.path.join(_core().data_dir(), "no_proxy.txt")
 
 
 def pid_path() -> str:
-    core = _core()
-    return core.os.path.join(core.runtime_dir(), "proxy_core.pid")
+    return os.path.join(_core().runtime_dir(), "proxy_core.pid")
 
 
 def log_path() -> str:
-    core = _core()
-    return core.os.path.join(core.runtime_dir(), "proxy_core.log")
+    return os.path.join(_core().runtime_dir(), "proxy_core.log")
 
 
 def install_into_core(core: ModuleType) -> ModuleType:
