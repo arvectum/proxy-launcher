@@ -257,15 +257,16 @@ class RecoveryAutostartOwnershipTests(unittest.TestCase):
         self.assertFalse(fake.set_calls)
         self.assertFalse(fake.delete_calls)
 
-    def test_legacy_process_inspection_is_fail_closed(self):
+    def test_legacy_process_inspection_is_fail_closed_and_uses_core_seam(self):
         with tempfile.TemporaryDirectory() as td:
             target = Path(td) / core._LAUNCHER_EXE_NAME
             target.write_bytes(b"x")
             command = '"%s" --start' % target
             with mock.patch.object(core, "is_windows", return_value=True), \
-                 mock.patch.object(recovery_autostart.subprocess, "run", side_effect=RuntimeError("blocked")), \
+                 mock.patch.object(core.subprocess, "run", side_effect=RuntimeError("blocked")) as inspect, \
                  mock.patch.object(core, "_log"):
                 self.assertTrue(recovery_autostart._recovery_legacy_process_active(command))
+            inspect.assert_called_once()
 
     def test_missing_legacy_target_is_not_active(self):
         with mock.patch.object(core, "is_windows", return_value=True):
