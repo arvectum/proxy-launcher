@@ -182,11 +182,11 @@ class WindowsPacRecoveryOwnershipTests(unittest.TestCase):
              mock.patch.object(core, "data_dir", return_value=td), \
              mock.patch.object(core, "load_settings", return_value=core.DEFAULT_SETTINGS):
             path = core._write_orphaned_pac_snapshot(values)
-        self.assertTrue(path)
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        self.assertEqual(payload["reason"], "orphaned_arvectum_pac")
-        self.assertEqual(payload["internet_settings"], values)
-        self.assertEqual(payload["expected_pac_url"], core.pac_url(core.DEFAULT_SETTINGS))
+            self.assertTrue(path and os.path.exists(path))
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.assertEqual(payload["reason"], "orphaned_arvectum_pac")
+            self.assertEqual(payload["internet_settings"], values)
+            self.assertEqual(payload["expected_pac_url"], core.pac_url(core.DEFAULT_SETTINGS))
 
 
 if __name__ == "__main__":
