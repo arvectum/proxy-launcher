@@ -1,0 +1,396 @@
+"""Canonical local proxy transport for Arvectum Proxy Launcher.
+
+APL-IP-003 Slice 5 centralizes the platform-neutral local enforcement plane:
+upstream preparation/failover, HTTP and CONNECT proxying, SOCKS5 tunnelling,
+PAC serving, relay/accept loops, and listener start/stop lifecycle.
+
+The class is installed into the established ``proxy_core`` module object.
+Collaborators that are part of the historical test/runtime contract are
+resolved through that mutable compatibility seam, so the sealed Windows 0.2.3
+transport behaviour and monkeypatch-based regression seams remain stable.
+Process/PID status, CLI orchestration, system-proxy mutation and recovery stay
+outside this module for later bounded ownership slices.
+"""
+
+from __future__ import annotations
+
+import socket as _socket
+from types import ModuleType
+
+
+# SOCKS5 reply BND.ADDR field per RFC 1928. ``0.0.0.0`` is serialized protocol
+# data here, not a socket bind to all interfaces; Bandit B104 does not apply.
+SOCKS5_REPLY_BIND_ADDR = _socket.inet_aton("0.0.0.0")  # nosec B104
+
+_CORE: ModuleType | None = None
+
+
+def configure(core: ModuleType) -> None:
+    """Bind the established core module used as the compatibility seam."""
+    global _CORE
+    _CORE = core
+
+
+def _core() -> ModuleType:
+    if _CORE is None:
+        raise RuntimeError("local proxy transport is not configured")
+    return _CORE
+
+
+class ProxyCore:
+    """Local HTTP/SOCKS/PAC transport preserving the 0.2.3 wire contract."""
+
+    def __init__(self, settings=None):
+        core = _core()
+        self.settings = settings if settings is not None else core.load_settings()
+        self._stop = core.threading.Event()
+        self._socks = []
+        self._threads = []
+        self._upstreams = self._build_upstreams()
+
+    def _build_upstreams(self):
+        core = _core()
+        out = []
+        for up in self.settings.get("upstream") or []:
+            host = (up.get("host") or "").strip()
+            if not host:
+                continue
+            raw = ("%s:%s" % (up.get("username") or "", up.get("password") or "")).encode("utf-8")
+            token = core.base64.b64encode(raw).decode("ascii")
+            try:
+                port = int(up.get("port", 8000))
+            except (TypeError, ValueError):
+                port = 8000
+            out.append((host, port, token))
+        return out
+
+    @staticmethod
+    def _send_error(client, code, text):
+        reason = {400: "Bad Request", 502: "Bad Gateway"}.get(code, "Error")
+        body = (text or reason).encode("utf-8")
+        try:
+            client.sendall(
+                b"HTTP/1.1 %d %s\r\nContent-Type: text/plain; charset=utf-8\r\n"
+                b"Content-Length: %d\r\nConnection: close\r\n\r\n%s"
+                % (code, reason.encode("ascii"), len(body), body)
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _relay(src, dst, stop):
+        core = _core()
+        try:
+            while not stop.is_set():
+                try:
+                    ready, _, _ = core.select.select([src, dst], [], [], 300)
+                except (OSError, ValueError):
+                    return
+                if not ready:
+                    continue
+                for stream in ready:
+                    try:
+                        data = stream.recv(65536)
+                    except OSError:
+                        return
+                    if not data:
+                        return
+                    (dst if stream is src else src).sendall(data)
+        except Exception:
+            pass
+        finally:
+            for stream in (src, dst):
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+
+    def _handle_http(self, client):
+        core = _core()
+        try:
+            client.settimeout(30)
+            data = client.recv(8192)
+            if not data:
+                return
+            first = data.split(b"\r\n", 1)[0]
+            is_connect = first.startswith(b"CONNECT")
+
+            if is_connect:
+                try:
+                    dest = first.split(b" ")[1].decode()
+                    host, port_s = dest.rsplit(":", 1)
+                    port = int(port_s)
+                except Exception:
+                    self._send_error(client, 400, "Bad CONNECT")
+                    return
+                method = None
+                path = None
+            else:
+                parts = first.split(b" ")
+                if len(parts) < 2:
+                    self._send_error(client, 400, "Bad request")
+                    return
+                method = parts[0]
+                url = parts[1].decode()
+                if url.startswith("http://"):
+                    url = url[7:]
+                elif url.startswith("https://"):
+                    url = url[8:]
+                slash = url.find("/")
+                hostport = url if slash == -1 else url[:slash]
+                path = "/" if slash == -1 else url[slash:]
+                if ":" in hostport:
+                    host, port_s = hostport.rsplit(":", 1)
+                    try:
+                        port = int(port_s)
+                    except ValueError:
+                        port = 80
+                else:
+                    host = hostport
+                    port = 80
+
+            host = core._normalize_host(host)
+            if core.host_bypasses_proxy(host):
+                try:
+                    direct = core.socket.create_connection((host, port), timeout=15)
+                except Exception:
+                    self._send_error(client, 502, "Localhost connection failed")
+                    return
+                direct.settimeout(300)
+                if is_connect:
+                    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                else:
+                    rest = data.split(b"\r\n", 1)[1]
+                    data = method + b" " + path.encode() + b" HTTP/1.1\r\n" + rest
+                    direct.sendall(data)
+                self._relay(direct, client, self._stop)
+            else:
+                upstream = None
+                for host_u, proxy_port, token in self._upstreams:
+                    try:
+                        stream = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
+                        stream.settimeout(15)
+                        stream.connect((host_u, proxy_port))
+                        if is_connect:
+                            target = ("%s:%d" % (host, port)).encode("idna")
+                            request = (
+                                b"CONNECT " + target + b" HTTP/1.1\r\n"
+                                b"Host: " + target + b"\r\n"
+                                b"Proxy-Authorization: Basic " + token.encode("ascii") +
+                                b"\r\n\r\n"
+                            )
+                        else:
+                            header = b"Proxy-Authorization: Basic " + token.encode("ascii") + b"\r\n"
+                            request = data.replace(b"\r\n", b"\r\n" + header, 1)
+                        stream.sendall(request)
+                        upstream = stream
+                        break
+                    except Exception:
+                        try:
+                            stream.close()
+                        except Exception:
+                            pass
+                        continue
+                if upstream is None:
+                    self._send_error(client, 502, "All external proxies unreachable")
+                    return
+                self._relay(upstream, client, self._stop)
+        except OSError:
+            try:
+                self._send_error(client, 502, "Proxy error")
+            except Exception:
+                pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    def _handle_socks(self, client):
+        core = _core()
+        try:
+            client.settimeout(15)
+            if client.recv(1) != b"\x05":
+                return
+            nmethods = client.recv(1)[0]
+            client.recv(nmethods)
+            client.sendall(b"\x05\x00")
+            data = client.recv(4)
+            if len(data) < 4 or data[0] != 5:
+                return
+            atype = data[3]
+            if atype == 1:
+                host = core.socket.inet_ntoa(client.recv(4))
+            elif atype == 3:
+                length = client.recv(1)[0]
+                host = client.recv(length).decode()
+            elif atype == 4:
+                host = core.socket.inet_ntop(core.socket.AF_INET6, client.recv(16))
+            else:
+                return
+            port = core.struct.unpack(">H", client.recv(2))[0]
+
+            upstream = None
+            host = core._normalize_host(host)
+            if core.host_bypasses_proxy(host):
+                try:
+                    upstream = core.socket.create_connection((host, port), timeout=15)
+                except Exception:
+                    upstream = None
+            else:
+                for host_u, proxy_port, token in self._upstreams:
+                    try:
+                        stream = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
+                        stream.settimeout(15)
+                        stream.connect((host_u, proxy_port))
+                        request = (
+                            "CONNECT %s:%d HTTP/1.1\r\n"
+                            "Proxy-Authorization: Basic %s\r\n"
+                            "Host: %s:%d\r\n\r\n" % (host, port, token, host, port)
+                        ).encode()
+                        stream.sendall(request)
+                        upstream = stream
+                        break
+                    except Exception:
+                        try:
+                            stream.close()
+                        except Exception:
+                            pass
+                        continue
+
+            bind_addr = core._SOCKS5_REPLY_BIND_ADDR
+            if upstream is None:
+                client.sendall(b"\x05\x03\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+                return
+            if not core.host_bypasses_proxy(host):
+                response = b""
+                while b"\r\n\r\n" not in response:
+                    chunk = upstream.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+                if b"200" not in response:
+                    upstream.close()
+                    client.sendall(b"\x05\x03\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+                    return
+            client.sendall(b"\x05\x00\x00\x01" + bind_addr + core.struct.pack(">H", 0))
+            self._relay(upstream, client, self._stop)
+        except Exception:
+            pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    def _handle_pac(self, client):
+        core = _core()
+        try:
+            data = client.recv(4096)
+            if not data:
+                return
+            match = core.re.search(rb"GET\s+(\S+)\s+HTTP", data)
+            if not match:
+                client.close()
+                return
+            path = match.group(1).decode()
+            if path != self.settings.get("pac_path", "/proxy.pac"):
+                response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            else:
+                pac = core.build_pac().encode("utf-8")
+                response = (
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: application/x-ns-proxy-autoconfig\r\n"
+                    b"Cache-Control: no-cache\r\n"
+                    b"Content-Length: " + str(len(pac)).encode() + b"\r\n"
+                    b"Connection: close\r\n\r\n" + pac
+                )
+            client.sendall(response)
+        except Exception:
+            pass
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+    def start(self):
+        core = _core()
+        if self._socks:
+            return False, "Уже запущено"
+        ports = (
+            ("HTTP", int(self.settings.get("local_http_port", 8080)), self._handle_http),
+            ("SOCKS5", int(self.settings.get("local_socks_port", 1080)), self._handle_socks),
+            ("PAC", int(self.settings.get("local_pac_port", 8082)), self._handle_pac),
+        )
+        bound = []
+        try:
+            for _name, port, _handler in ports:
+                listener = core.socket.socket(core.socket.AF_INET, core.socket.SOCK_STREAM)
+                listener.setsockopt(core.socket.SOL_SOCKET, core.socket.SO_REUSEADDR, 1)
+                listener.bind(("127.0.0.1", port))
+                listener.listen(200)
+                listener.settimeout(1.0)
+                bound.append(listener)
+        except OSError as error:
+            for listener in bound:
+                try:
+                    listener.close()
+                except Exception:
+                    pass
+            return False, "Не удалось занять порт: %s" % error
+        self._socks = bound
+        self._stop = core.threading.Event()
+        for listener, (_name, _port, handler) in zip(bound, ports):
+            thread = core.threading.Thread(
+                target=self._accept_loop,
+                args=(listener, handler),
+                daemon=True,
+            )
+            thread.start()
+            self._threads.append(thread)
+        core._log(
+            "proxy started (http=%d socks=%d pac=%d, upstreams=%d)"
+            % (ports[0][1], ports[1][1], ports[2][1], len(self._upstreams))
+        )
+        return True, "OK"
+
+    def _accept_loop(self, listener, handler):
+        core = _core()
+        while not self._stop.is_set():
+            try:
+                client, _ = listener.accept()
+            except core.socket.timeout:
+                continue
+            except OSError:
+                break
+            if self._stop.is_set():
+                try:
+                    client.close()
+                except Exception:
+                    pass
+                break
+            core.threading.Thread(target=handler, args=(client,), daemon=True).start()
+
+    def stop(self):
+        core = _core()
+        self._stop.set()
+        for listener in self._socks:
+            try:
+                listener.shutdown(core.socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
+                listener.close()
+            except Exception:
+                pass
+        self._socks = []
+        core._log("proxy stopped")
+        return True
+
+
+def install_into_core(core: ModuleType) -> ModuleType:
+    """Expose canonical transport ownership through the compatibility seam."""
+    core._SOCKS5_REPLY_BIND_ADDR = SOCKS5_REPLY_BIND_ADDR
+    core.ProxyCore = ProxyCore
+    return core
