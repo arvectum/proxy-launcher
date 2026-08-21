@@ -3,10 +3,11 @@
 
 APL-IP-003 moves owned responsibilities out of ``proxy_core_legacy.py`` in
 bounded slices while preserving the sealed Windows 0.2.3 behaviour and mutable
-monkeypatch seam. Slices 1–9 own runtime composition, filesystem/portable
+monkeypatch seam. Slices 1–10 own runtime composition, filesystem/portable
 lifecycle, configuration, routing, local transport, process supervision,
-application runtime, Windows system-proxy persistence, and Recovery Run
-ownership. Slice 10 extracts stale/orphan PAC diagnostics and cleanup.
+application runtime, Windows system-proxy persistence/recovery, Recovery Run
+ownership, and stale/orphan PAC cleanup. Slice 11 extracts the proxy-core
+structured logging bridge.
 """
 
 import sys as _runtime_sys
@@ -15,6 +16,7 @@ import application_filesystem as _application_filesystem
 import application_runtime as _application_runtime
 import configuration_storage as _configuration_storage
 import local_proxy_transport as _local_proxy_transport
+import logging_bridge as _logging_bridge
 import portable_lifecycle as _portable_lifecycle
 import process_supervision as _process_supervision
 import proxy_core_legacy as _core
@@ -36,9 +38,15 @@ import windows_system_proxy as _windows_system_proxy
 _FACADE_FILE = __file__
 _core.__file__ = _FACADE_FILE
 
-# Lower-level owners preserve their established collaborators through ``_core``.
+# Filesystem ownership supplies the canonical log path before the logging
+# singleton is replaced. The logging bridge itself resolves mutable seams
+# dynamically through ``_core`` to preserve historical monkeypatch behaviour.
 _application_filesystem.configure(_core)
 _application_filesystem.install_into_core(_core)
+_logging_bridge.configure(_core)
+_logging_bridge.install_into_core(_core)
+
+# Lower-level owners preserve their established collaborators through ``_core``.
 _portable_lifecycle.configure(_core)
 _portable_lifecycle.install_into_core(_core)
 _configuration_storage.configure(_core)
