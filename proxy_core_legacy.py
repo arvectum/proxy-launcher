@@ -11,22 +11,18 @@ onto it, and then exposes the same object as ``proxy_core``. Keeping that single
 mutable object preserves the sealed 0.2.3 monkeypatch/import contract while
 later slices progressively remove non-contractual dependency lookups.
 
-``socket`` remains exported intentionally as an established monkeypatch seam for
-network-change and transport regression tests. ``os``, ``subprocess`` and
-``sys`` remain temporarily exported only for explicitly inventoried legacy
-regression consumers; maintained canonical owners do not resolve them through
-core. APL-IP-003 Slice 16 retired the previously compatibility-only ``base64``,
-``hashlib``, ``io``, ``json``, ``threading`` and ``time`` aliases after their
-internal consumers were removed or proven absent.
+``socket`` remains exported intentionally as the sole established stdlib
+monkeypatch compatibility seam for network-change and transport regression
+tests. APL-IP-003 Slice 16 retired ``base64``, ``hashlib``, ``io``, ``json``,
+``threading`` and ``time``; Slice 17 retired the remaining regression-only
+``os``, ``subprocess`` and ``sys`` aliases after their tests moved to canonical
+owner seams.
 
 No runtime function or class is implemented here. Historical implementation
 remains available through Git history and provenance evidence.
 """
 
-import os
 import socket
-import subprocess
-import sys
 
 
 # Release identity consumed by the canonical logging bridge and release guards.
