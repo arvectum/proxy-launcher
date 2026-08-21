@@ -2,12 +2,19 @@
 
 APL-IP-003 Slice 2 owns the Windows portable self-heal/canonical-copy contract:
 copy-by-hash, owner marker creation, safe handoff, and canonical-install
-recognition.  Calls resolve through the established ``proxy_core`` module so
-existing regression monkeypatch seams remain behaviourally compatible.
+recognition. Behavior-sensitive collaborators still resolve through the
+established ``proxy_core`` module while ordinary standard-library dependencies
+are owned locally by this module.
 """
 
 from __future__ import annotations
 
+import hashlib
+import io
+import os
+import shutil
+import subprocess
+import sys
 from types import ModuleType
 from typing import Iterable
 
@@ -28,8 +35,7 @@ def _core() -> ModuleType:
 
 
 def _sha256_file(path: str) -> str:
-    core = _core()
-    digest = core.hashlib.sha256()
+    digest = hashlib.sha256()
     with open(path, "rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
@@ -45,40 +51,38 @@ def ensure_stable_app_copy() -> str | None:
     """Copy a frozen Windows portable launcher to the canonical Documents path.
 
     Copying is best-effort so a launcher opened from Downloads can still render
-    actionable UI.  An existing canonical copy is used only when its SHA-256
+    actionable UI. An existing canonical copy is used only when its SHA-256
     matches the running executable; otherwise it is atomically replaced.
     """
     core = _core()
-    if not (core.is_windows() and getattr(core.sys, "frozen", False)):
+    if not (core.is_windows() and getattr(sys, "frozen", False)):
         return None
     core._LAST_SELF_HEAL_ERROR = ""
-    source = core.os.path.realpath(core.sys.executable)
-    target = core.os.path.realpath(core.stable_app_exe())
+    source = os.path.realpath(sys.executable)
+    target = os.path.realpath(core.stable_app_exe())
     if core._same_path(source, target):
         return target
     try:
-        import shutil
-
-        core.os.makedirs(core.os.path.dirname(target), exist_ok=True)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
         if (
-            core.os.path.isfile(target)
+            os.path.isfile(target)
             and core._sha256_file(source) == core._sha256_file(target)
         ):
             return target
-        temporary = target + ".%s.tmp" % core.os.getpid()
+        temporary = target + ".%s.tmp" % os.getpid()
         try:
             shutil.copy2(source, temporary)
             if core._sha256_file(source) != core._sha256_file(temporary):
                 raise IOError("stable executable copy hash mismatch")
-            core.os.replace(temporary, target)
+            os.replace(temporary, target)
         finally:
-            if core.os.path.exists(temporary):
+            if os.path.exists(temporary):
                 try:
-                    core.os.remove(temporary)
+                    os.remove(temporary)
                 except OSError:
                     pass
-        with core.io.open(
-            core.os.path.join(core.os.path.dirname(target), core._INSTALL_OWNER_MARKER),
+        with io.open(
+            os.path.join(os.path.dirname(target), core._INSTALL_OWNER_MARKER),
             "w",
             encoding="ascii",
         ) as marker:
@@ -100,7 +104,7 @@ def self_heal_error() -> str:
 def managed_executable() -> str | None:
     """Return the only executable path allowed in Windows Run entries."""
     core = _core()
-    if not getattr(core.sys, "frozen", False):
+    if not getattr(sys, "frozen", False):
         return None
     return core.ensure_stable_app_copy()
 
@@ -108,17 +112,17 @@ def managed_executable() -> str | None:
 def handoff_to_stable_copy(arguments: Iterable[str] | None = None) -> bool:
     """Continue a portable launch only from the matching canonical copy."""
     core = _core()
-    if not (core.is_windows() and getattr(core.sys, "frozen", False)):
+    if not (core.is_windows() and getattr(sys, "frozen", False)):
         return False
-    source = core.os.path.realpath(core.sys.executable)
+    source = os.path.realpath(sys.executable)
     target = core.ensure_stable_app_copy()
     if not target or core._same_path(source, target):
         return False
     try:
-        core.subprocess.Popen(
+        subprocess.Popen(
             [target] + list(arguments or []),
-            cwd=core.os.path.dirname(target),
-            creationflags=getattr(core.subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            cwd=os.path.dirname(target),
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
         )
         core._log("portable launcher handed off to canonical Documents copy")
         return True
@@ -132,15 +136,15 @@ def handoff_to_stable_copy(arguments: Iterable[str] | None = None) -> bool:
 def canonical_install_exe() -> str | None:
     """Return the canonical Documents path only when it matches this executable."""
     core = _core()
-    if not getattr(core.sys, "frozen", False):
+    if not getattr(sys, "frozen", False):
         return None
-    target = core.os.path.realpath(core.stable_app_exe())
-    source = core.os.path.realpath(core.sys.executable)
+    target = os.path.realpath(core.stable_app_exe())
+    source = os.path.realpath(sys.executable)
     if core._same_path(source, target):
         return None
     try:
         if (
-            core.os.path.isfile(target)
+            os.path.isfile(target)
             and core._sha256_file(source) == core._sha256_file(target)
         ):
             return target

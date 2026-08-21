@@ -5,14 +5,20 @@ loading, Windows credential protection, atomic persistence, last-known-good
 snapshots, quarantine, and deterministic corruption recovery.
 
 The module is installed into the established ``proxy_core`` module object.
-Collaborators are deliberately resolved through that compatibility seam so the
-0.2.3 behavioural contract and its existing monkeypatch-based regression tests
-remain stable while implementation ownership moves out of
-``proxy_core_legacy.py``.
+Behavior-sensitive collaborators deliberately resolve through that compatibility
+seam so the 0.2.3 behavioural contract and monkeypatch regressions remain
+stable, while ordinary standard-library dependencies are owned locally.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
+import json
+import os
+import threading
+import time
 from types import ModuleType
 from typing import Any
 
@@ -65,8 +71,7 @@ def _core() -> ModuleType:
 
 
 def _json_clone(value: Any) -> Any:
-    core = _core()
-    return core.json.loads(core.json.dumps(value))
+    return json.loads(json.dumps(value))
 
 
 def _validate_port(value: Any, field: str) -> int:
@@ -207,46 +212,46 @@ def _fsync_parent_dir(path: str) -> None:
     if core.is_windows():
         return
     try:
-        descriptor = core.os.open(path or ".", core.os.O_RDONLY)
+        descriptor = os.open(path or ".", os.O_RDONLY)
     except OSError:
         return
     try:
-        core.os.fsync(descriptor)
+        os.fsync(descriptor)
     except OSError:
         pass
     finally:
-        core.os.close(descriptor)
+        os.close(descriptor)
 
 
 def _atomic_write_bytes(path: str, payload: bytes) -> None:
     """Durably replace *path* without exposing a partially written target."""
     core = _core()
-    parent = core.os.path.dirname(path) or "."
-    core.os.makedirs(parent, exist_ok=True)
-    temporary = "%s.tmp.%d.%d" % (path, core.os.getpid(), core.threading.get_ident())
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    temporary = "%s.tmp.%d.%d" % (path, os.getpid(), threading.get_ident())
     try:
         with open(temporary, "wb") as stream:
             try:
                 if not core.is_windows():
-                    core.os.chmod(temporary, 0o600)
+                    os.chmod(temporary, 0o600)
             except OSError:
                 pass
             stream.write(payload)
             stream.flush()
-            core.os.fsync(stream.fileno())
-        core.os.replace(temporary, path)
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
         core._fsync_parent_dir(parent)
     finally:
-        if core.os.path.exists(temporary):
+        if os.path.exists(temporary):
             try:
-                core.os.remove(temporary)
+                os.remove(temporary)
             except OSError:
                 pass
 
 
 def _atomic_write_json(path: str, value: Any) -> None:
     core = _core()
-    payload = (core.json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    payload = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     core._atomic_write_bytes(path, payload)
 
 
@@ -260,8 +265,8 @@ def _safe_recovery_reason(value: Any) -> str:
 
 def _load_serialized_settings(path: str) -> dict[str, Any]:
     core = _core()
-    with core.io.open(path, "r", encoding="utf-8") as stream:
-        return core._validate_serialized_settings(core.json.load(stream))
+    with io.open(path, "r", encoding="utf-8") as stream:
+        return core._validate_serialized_settings(json.load(stream))
 
 
 def _runtime_settings_from_disk(settings: Any) -> dict[str, Any]:
@@ -271,29 +276,29 @@ def _runtime_settings_from_disk(settings: Any) -> dict[str, Any]:
 
 def _quarantine_corrupt_file(path: str, reason: Any) -> str | None:
     core = _core()
-    if not core.os.path.isfile(path):
+    if not os.path.isfile(path):
         return None
     try:
         with open(path, "rb") as stream:
             raw = stream.read()
-        digest = core.hashlib.sha256(raw).hexdigest()
-        core.os.makedirs(core.config_quarantine_dir(), exist_ok=True)
-        stamp = core.time.strftime("%Y%m%dT%H%M%SZ", core.time.gmtime())
-        target = core.os.path.join(
+        digest = hashlib.sha256(raw).hexdigest()
+        os.makedirs(core.config_quarantine_dir(), exist_ok=True)
+        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        target = os.path.join(
             core.config_quarantine_dir(),
-            "%s.corrupt-%s-%s" % (core.os.path.basename(path), stamp, digest[:12]))
-        if core.os.path.exists(target):
-            target += "-%d-%d" % (core.os.getpid(), core.threading.get_ident())
-        core.os.replace(path, target)
-        core._fsync_parent_dir(core.os.path.dirname(path) or ".")
+            "%s.corrupt-%s-%s" % (os.path.basename(path), stamp, digest[:12]))
+        if os.path.exists(target):
+            target += "-%d-%d" % (os.getpid(), threading.get_ident())
+        os.replace(path, target)
+        core._fsync_parent_dir(os.path.dirname(path) or ".")
         core._fsync_parent_dir(core.config_quarantine_dir())
         try:
             core._atomic_write_json(target + ".meta.json", {
                 "schema": core.CONFIG_RECOVERY_SCHEMA,
                 "reason": core._safe_recovery_reason(reason),
                 "sha256": digest,
-                "source_name": core.os.path.basename(path),
-                "quarantined_utc": core.time.strftime("%Y-%m-%dT%H:%M:%SZ", core.time.gmtime()),
+                "source_name": os.path.basename(path),
+                "quarantined_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             })
         except Exception as meta_error:
             core._log("config quarantine metadata write error: %r" % meta_error)
@@ -310,9 +315,9 @@ def _record_configuration_recovery(reason: Any, quarantined: str | None,
     try:
         core._atomic_write_json(core.config_recovery_path(), {
             "schema": core.CONFIG_RECOVERY_SCHEMA,
-            "created_utc": core.time.strftime("%Y-%m-%dT%H:%M:%SZ", core.time.gmtime()),
+            "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "reason": core._safe_recovery_reason(reason),
-            "quarantined": core.os.path.basename(quarantined) if quarantined else None,
+            "quarantined": os.path.basename(quarantined) if quarantined else None,
             "recovered_from": recovered_from,
         })
     except Exception as error:
@@ -323,12 +328,12 @@ def _recover_corrupt_settings(error: Exception) -> dict[str, Any]:
     core = _core()
     primary = core.settings_path()
     quarantined = core._quarantine_corrupt_file(primary, error)
-    if quarantined is None and core.os.path.exists(primary):
+    if quarantined is None and os.path.exists(primary):
         core._record_configuration_recovery(error, None, "defaults_preserved_primary")
         return core._json_clone(core.DEFAULT_SETTINGS)
 
     backup = core.settings_backup_path()
-    if core.os.path.exists(backup):
+    if os.path.exists(backup):
         try:
             disk = core._load_serialized_settings(backup)
             runtime = core._runtime_settings_from_disk(disk)
@@ -340,7 +345,7 @@ def _recover_corrupt_settings(error: Exception) -> dict[str, Any]:
             core._record_configuration_recovery(error, quarantined, "lastgood")
             core._log("settings recovered from last-known-good configuration")
             return runtime
-        except (ValueError, TypeError, UnicodeError, core.json.JSONDecodeError) as backup_error:
+        except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as backup_error:
             core._quarantine_corrupt_file(backup, backup_error)
         except OSError as backup_error:
             core._log("last-known-good settings recovery I/O error: %r" % backup_error)
@@ -385,7 +390,7 @@ def _dpapi_protect_text(value: Any) -> str | None:
             raise ctypes.WinError(ctypes.get_last_error())
         try:
             encrypted = ctypes.string_at(destination.pbData, destination.cbData)
-            return core.base64.b64encode(encrypted).decode("ascii")
+            return base64.b64encode(encrypted).decode("ascii")
         finally:
             if destination.pbData:
                 kernel32.LocalFree(ctypes.cast(destination.pbData, ctypes.c_void_p))
@@ -418,7 +423,7 @@ def _dpapi_unprotect_text(value: Any) -> str | None:
         kernel32.LocalFree.argtypes = [ctypes.c_void_p]
         kernel32.LocalFree.restype = ctypes.c_void_p
 
-        raw = core.base64.b64decode(str(value).encode("ascii"), validate=True)
+        raw = base64.b64decode(str(value).encode("ascii"), validate=True)
         buffer = (ctypes.c_byte * len(raw)).from_buffer_copy(raw)
         source = DATA_BLOB(len(raw), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_byte)))
         destination = DATA_BLOB()
@@ -456,7 +461,7 @@ def _decode_upstream_secrets(settings: Any) -> dict[str, Any]:
                 upstream["password"] = ""
             else:
                 try:
-                    auth = core.json.loads(plain)
+                    auth = json.loads(plain)
                     upstream["username"] = str(auth.get("username") or "")
                     upstream["password"] = str(auth.get("password") or "")
                 except Exception as error:
@@ -487,7 +492,7 @@ def _encode_settings_for_disk(settings: Any) -> dict[str, Any]:
         upstream.pop("password_dpapi", None)
         if core.is_windows():
             if username or password:
-                payload = core.json.dumps(
+                payload = json.dumps(
                     {"username": username, "password": password},
                     ensure_ascii=False, separators=(",", ":"))
                 protected = core._dpapi_protect_text(payload)
@@ -512,12 +517,12 @@ def load_settings(migrate_legacy: bool = True,
         recover_corrupt = bool(migrate_legacy)
     data = core._json_clone(core.DEFAULT_SETTINGS)
     path = core.settings_path()
-    if not core.os.path.exists(path):
+    if not os.path.exists(path):
         return data
     try:
         loaded = core._load_serialized_settings(path)
         runtime = core._runtime_settings_from_disk(loaded)
-    except (ValueError, TypeError, UnicodeError, core.json.JSONDecodeError) as error:
+    except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as error:
         core._log("settings validation/read error: %r" % error)
         return core._recover_corrupt_settings(error) if recover_corrupt else data
     except OSError as error:
@@ -543,23 +548,23 @@ def save_settings(settings: Any) -> bool:
     path = core.settings_path()
     legacy_tmp = path + ".tmp"
     try:
-        if core.os.path.exists(legacy_tmp):
+        if os.path.exists(legacy_tmp):
             try:
-                core.os.remove(legacy_tmp)
+                os.remove(legacy_tmp)
             except OSError:
                 pass
 
         runtime = core._validate_runtime_settings(settings)
         disk_settings = core._validate_serialized_settings(
             core._encode_settings_for_disk(runtime))
-        core.os.makedirs(core.data_dir(), exist_ok=True)
+        os.makedirs(core.data_dir(), exist_ok=True)
 
-        if core.os.path.exists(path):
+        if os.path.exists(path):
             try:
                 previous = core._load_serialized_settings(path)
-            except (ValueError, TypeError, UnicodeError, core.json.JSONDecodeError) as error:
+            except (ValueError, TypeError, UnicodeError, json.JSONDecodeError) as error:
                 quarantined = core._quarantine_corrupt_file(path, error)
-                if quarantined is None and core.os.path.exists(path):
+                if quarantined is None and os.path.exists(path):
                     raise RuntimeError("existing corrupted settings could not be quarantined")
             except OSError:
                 raise
@@ -578,8 +583,8 @@ def save_settings(settings: Any) -> bool:
     except Exception as error:
         core._log("settings save error: %r" % error)
         try:
-            if core.os.path.exists(legacy_tmp):
-                core.os.remove(legacy_tmp)
+            if os.path.exists(legacy_tmp):
+                os.remove(legacy_tmp)
         except OSError:
             pass
         return False
