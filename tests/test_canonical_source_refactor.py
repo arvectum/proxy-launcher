@@ -24,10 +24,12 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         facade = (ROOT / "proxy_core.py").read_text(encoding="utf-8")
         runtime = (ROOT / "system_proxy_runtime.py").read_text(encoding="utf-8")
         filesystem = (ROOT / "application_filesystem.py").read_text(encoding="utf-8")
+        configuration = (ROOT / "configuration_storage.py").read_text(encoding="utf-8")
         portable = (ROOT / "portable_lifecycle.py").read_text(encoding="utf-8")
 
         for module_name in (
             "application_filesystem",
+            "configuration_storage",
             "portable_lifecycle",
             "system_proxy_runtime",
             "proxy_core_legacy",
@@ -41,11 +43,16 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def install_into_core", runtime)
         self.assertIn("fail-closed", runtime.lower())
 
-        for source in (filesystem, portable):
+        for source in (filesystem, configuration, portable):
             self.assertIn("def configure", source)
             self.assertIn("def install_into_core", source)
         self.assertIn("def ensure_state_ready", filesystem)
         self.assertIn("def migration_error_path", filesystem)
+        self.assertIn("def _validate_settings_model", configuration)
+        self.assertIn("def _atomic_write_bytes", configuration)
+        self.assertIn("def _recover_corrupt_settings", configuration)
+        self.assertIn("def load_settings", configuration)
+        self.assertIn("def save_settings", configuration)
         self.assertIn("def ensure_stable_app_copy", portable)
         self.assertIn("def handoff_to_stable_copy", portable)
 
@@ -67,6 +74,34 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
             "canonical_install_exe",
         ):
             self.assertEqual(getattr(core, name).__module__, "portable_lifecycle")
+
+    def test_slice3_configuration_functions_are_owned_by_canonical_module(self):
+        for name in (
+            "_validate_runtime_settings",
+            "_validate_serialized_settings",
+            "_disk_contains_plaintext_credentials",
+            "_atomic_write_bytes",
+            "_atomic_write_json",
+            "_atomic_write_text",
+            "_load_serialized_settings",
+            "_runtime_settings_from_disk",
+            "_quarantine_corrupt_file",
+            "_record_configuration_recovery",
+            "_recover_corrupt_settings",
+            "_decode_upstream_secrets",
+            "_encode_settings_for_disk",
+            "load_settings",
+            "save_settings",
+        ):
+            self.assertEqual(getattr(core, name).__module__, "configuration_storage")
+
+    def test_slice3_no_proxy_keeps_atomic_writer_compatibility_seam(self):
+        with mock.patch.object(core, "no_proxy_path", return_value="/tmp/apl-ip-003-no-proxy"), \
+             mock.patch.object(core, "_atomic_write_text") as writer:
+            self.assertTrue(core.save_no_proxy(["https://Example.COM/path", "example.com"]))
+        self.assertTrue(writer.called)
+        payload = writer.call_args.args[1]
+        self.assertEqual(payload.count("example.com"), 1)
 
     def test_slice2_state_migration_preserves_monkeypatch_seams(self):
         with tempfile.TemporaryDirectory() as td:
