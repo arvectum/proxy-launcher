@@ -9,6 +9,7 @@ on:
       - 'system_proxy_runtime.py'
       - 'windows_system_proxy.py'
       - 'windows_backend.py'
+      - 'recovery_autostart.py'
       - 'application_filesystem.py'
       - 'application_runtime.py'
       - 'configuration_storage.py'
@@ -21,6 +22,7 @@ on:
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
       - 'tests/test_windows_backend.py'
+      - 'tests/test_recovery_autostart.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
       - 'docs/evidence/APL_IP_003_*'
       - '.github/workflows/apl-ip-003-canonical-source.yml'
@@ -32,6 +34,7 @@ on:
       - 'system_proxy_runtime.py'
       - 'windows_system_proxy.py'
       - 'windows_backend.py'
+      - 'recovery_autostart.py'
       - 'application_filesystem.py'
       - 'application_runtime.py'
       - 'configuration_storage.py'
@@ -44,6 +47,7 @@ on:
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
       - 'tests/test_windows_backend.py'
+      - 'tests/test_recovery_autostart.py'
       - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
       - 'docs/evidence/APL_IP_003_*'
       - '.github/workflows/apl-ip-003-canonical-source.yml'
@@ -73,6 +77,7 @@ jobs:
           system_proxy_runtime.py
           windows_system_proxy.py
           windows_backend.py
+          recovery_autostart.py
           application_filesystem.py
           application_runtime.py
           configuration_storage.py
@@ -85,6 +90,7 @@ jobs:
           tests/test_application_runtime.py
           tests/test_windows_system_proxy.py
           tests/test_windows_backend.py
+          tests/test_recovery_autostart.py
       - name: Run canonical-source regression
         run: >-
           python -m unittest
@@ -93,4 +99,5 @@ jobs:
           tests.test_application_runtime
           tests.test_windows_system_proxy
           tests.test_windows_backend
+          tests.test_recovery_autostart
           -v
