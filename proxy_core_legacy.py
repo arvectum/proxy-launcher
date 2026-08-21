@@ -3,26 +3,22 @@
 
 APL-IP-003 Slices 1–12 moved maintained runtime implementation into explicit
 canonical owners and removed the duplicated legacy implementation body. Later
-namespace-decoupling slices reduced this module to release/state identity plus
-only compatibility aliases with still-proven consumers.
+namespace-decoupling slices retired every ordinary stdlib dependency lookup and
+compatibility-only stdlib export from this module.
 
 ``proxy_core.py`` imports this module object, installs every canonical owner
 onto it, and then exposes the same object as ``proxy_core``. Keeping that single
-mutable object preserves the sealed 0.2.3 monkeypatch/import contract while
-later slices progressively remove non-contractual dependency lookups.
+mutable object preserves the sealed 0.2.3 module/import identity contract while
+later slices progressively remove other compatibility boundaries independently.
 
-``socket`` remains exported intentionally as the sole established stdlib
-monkeypatch compatibility seam for network-change and transport regression
-tests. APL-IP-003 Slice 16 retired ``base64``, ``hashlib``, ``io``, ``json``,
-``threading`` and ``time``; Slice 17 retired the remaining regression-only
-``os``, ``subprocess`` and ``sys`` aliases after their tests moved to canonical
-owner seams.
+APL-IP-003 Slice 16 retired ``base64``, ``hashlib``, ``io``, ``json``,
+``threading`` and ``time``; Slice 17 retired ``os``, ``subprocess`` and ``sys``;
+Slice 18 retired the final ``socket`` alias after network-change regressions
+moved to the canonical transport and process-supervision owners.
 
 No runtime function or class is implemented here. Historical implementation
 remains available through Git history and provenance evidence.
 """
-
-import socket
 
 
 # Release identity consumed by the canonical logging bridge and release guards.
