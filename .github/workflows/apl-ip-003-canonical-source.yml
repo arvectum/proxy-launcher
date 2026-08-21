@@ -1,0 +1,56 @@
+name: APL-IP-003 canonical source
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'tests/test_canonical_source_refactor.py'
+      - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
+      - 'docs/evidence/APL_IP_003_*'
+      - '.github/workflows/apl-ip-003-canonical-source.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'tests/test_canonical_source_refactor.py'
+      - 'docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md'
+      - 'docs/evidence/APL_IP_003_*'
+      - '.github/workflows/apl-ip-003-canonical-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-source:
+    name: Canonical source (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Compile canonical source boundary
+        run: >-
+          python -m py_compile
+          proxy_core.py
+          proxy_core_legacy.py
+          system_proxy_runtime.py
+          application_filesystem.py
+          portable_lifecycle.py
+          tests/test_canonical_source_refactor.py
+      - name: Run canonical-source regression
+        run: python -m unittest tests.test_canonical_source_refactor -v

@@ -2,10 +2,34 @@ name: APL-LNX-008 AppImage
 on:
   pull_request:
     branches: [main]
-    paths: ['tools/*appimage*','tests/test_linux_appimage_packaging.py','docs/APL_LNX_008_APPIMAGE.md','.github/workflows/linux-appimage.yml','build_linux.sh','VERSION','assets/**']
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'tools/*appimage*'
+      - 'tests/test_linux_appimage_packaging.py'
+      - 'docs/APL_LNX_008_APPIMAGE.md'
+      - '.github/workflows/linux-appimage.yml'
+      - 'build_linux.sh'
+      - 'VERSION'
+      - 'assets/**'
   push:
     branches: [main]
-    paths: ['tools/*appimage*','tests/test_linux_appimage_packaging.py','docs/APL_LNX_008_APPIMAGE.md','.github/workflows/linux-appimage.yml','build_linux.sh','VERSION','assets/**']
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'tools/*appimage*'
+      - 'tests/test_linux_appimage_packaging.py'
+      - 'docs/APL_LNX_008_APPIMAGE.md'
+      - '.github/workflows/linux-appimage.yml'
+      - 'build_linux.sh'
+      - 'VERSION'
+      - 'assets/**'
   workflow_dispatch:
 permissions:
   contents: read

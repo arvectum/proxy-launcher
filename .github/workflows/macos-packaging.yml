@@ -2,10 +2,34 @@ name: macOS packaging
 on:
   pull_request:
     branches: [main]
-    paths: ['macos_*.py','tools/build_macos_*.sh','tests/test_macos*.py','docs/APL_MAC_*.md','.github/workflows/macos-packaging.yml','assets/**','VERSION']
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'macos_*.py'
+      - 'tools/build_macos_*.sh'
+      - 'tests/test_macos*.py'
+      - 'docs/APL_MAC_*.md'
+      - '.github/workflows/macos-packaging.yml'
+      - 'assets/**'
+      - 'VERSION'
   push:
     branches: [main]
-    paths: ['macos_*.py','tools/build_macos_*.sh','tests/test_macos*.py','docs/APL_MAC_*.md','.github/workflows/macos-packaging.yml','assets/**','VERSION']
+    paths:
+      - 'proxy_core.py'
+      - 'proxy_core_legacy.py'
+      - 'system_proxy_runtime.py'
+      - 'application_filesystem.py'
+      - 'portable_lifecycle.py'
+      - 'macos_*.py'
+      - 'tools/build_macos_*.sh'
+      - 'tests/test_macos*.py'
+      - 'docs/APL_MAC_*.md'
+      - '.github/workflows/macos-packaging.yml'
+      - 'assets/**'
+      - 'VERSION'
   workflow_dispatch:
 permissions:
   contents: read

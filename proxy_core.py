@@ -2,14 +2,19 @@
 """Canonical runtime facade for Arvectum Proxy Launcher.
 
 APL-IP-003 keeps the proven proxy engine/state implementation in
-``proxy_core_legacy.py`` while moving platform composition into the explicit
-``system_proxy_runtime`` module. Existing callers still receive the established
-module object, so Windows 0.2.3 behaviour and historical monkeypatch seams remain
-stable during the behaviour-preserving migration.
+``proxy_core_legacy.py`` while moving owned responsibilities into explicit
+canonical modules. Slice 1 extracted platform runtime composition; Slice 2
+extracts application filesystem/state paths and the Windows portable lifecycle.
+
+Existing callers still receive the established module object, so Windows 0.2.3
+behaviour and historical monkeypatch seams remain stable during the bounded
+migration.
 """
 
 import sys as _runtime_sys
 
+import application_filesystem as _application_filesystem
+import portable_lifecycle as _portable_lifecycle
 import proxy_core_legacy as _core
 import system_proxy_runtime as _system_proxy_runtime
 
@@ -26,10 +31,19 @@ import system_proxy_runtime as _system_proxy_runtime
 
 _FACADE_FILE = __file__
 
-# Functions defined in proxy_core_legacy resolve ``__file__`` from their module
-# globals at call time. Preserve the canonical facade path for portable/recovery
-# behaviour exactly as before this refactor.
+# Functions retained in proxy_core_legacy can resolve ``__file__`` from their
+# module globals at call time. Preserve the canonical facade path for
+# portable/recovery behaviour exactly as before this refactor.
 _core.__file__ = _FACADE_FILE
+
+# Install lower-level application ownership before runtime composition.
+# Both canonical modules deliberately resolve collaborators through ``_core``;
+# this preserves the proven monkeypatch seams while moving implementation
+# ownership out of the legacy storage module.
+_application_filesystem.configure(_core)
+_application_filesystem.install_into_core(_core)
+_portable_lifecycle.configure(_core)
+_portable_lifecycle.install_into_core(_core)
 
 _system_proxy_runtime.configure(
     core=_core,
@@ -39,8 +53,8 @@ _system_proxy_runtime.install_into_core(_core)
 
 # Compatibility boundary: ``import proxy_core`` still returns the established
 # mutable module object until the legacy implementation is decomposed in later
-# APL-IP-003 slices. The boundary is now isolated and explicit rather than mixed
-# with backend-selection logic.
+# APL-IP-003 slices. The boundary is isolated and explicit rather than mixed
+# with application filesystem or backend-selection logic.
 _runtime_sys.modules[__name__] = _core
 
 
