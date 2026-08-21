@@ -82,8 +82,16 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
     def test_removed_core_stdlib_names_are_unused_by_all_canonical_owners(self):
         for owner in CANONICAL_RUNTIME_OWNERS:
             source = (ROOT / (owner + ".py")).read_text(encoding="utf-8")
+            tree = ast.parse(source)
+            exact_core_attributes = {
+                node.attr
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "core"
+            }
             for name in DECOUPLED_CORE_STDLIB:
-                self.assertNotIn("core.%s" % name, source, "%s: core.%s" % (owner, name))
+                self.assertNotIn(name, exact_core_attributes, "%s: core.%s" % (owner, name))
 
     def test_decoupled_owners_do_not_use_core_as_stdlib_service_locator(self):
         for relative_path, forbidden in DECOUPLED_SOURCE_LOOKUPS.items():
