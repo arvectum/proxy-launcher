@@ -1,6 +1,6 @@
 # APL-IP-003 — Arvectum canonical source refactor
 
-Status: **ACTIVE — SLICES 1–2 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
+Status: **ACTIVE — SLICES 1–2 MERGED; SLICE 3 IN REVIEW; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
 
 ## Goal
 
@@ -20,7 +20,7 @@ The task is an engineering refactor, not an attempt to erase AI assistance, thir
 
 - **DONE — Slice 1:** system-proxy runtime composition extraction. Canonical merge baseline: `94e60fb51fe7d0b8f9d650025fce35bf69638bb6`.
 - **DONE — Slice 2:** application filesystem & portable lifecycle extraction. PR `#120`, merge commit `f2507cda77ded8e21e5e3a855853d94d79ef343f`.
-- **NEXT — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction from `proxy_core_legacy.py`, preserving the established config/security contract and `0.2.3` behaviour.
+- **IN REVIEW — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership are extracted from `proxy_core_legacy.py` into `configuration_storage.py`. The established mutable `proxy_core` compatibility seam is preserved so DPAPI credential handling, last-known-good recovery, quarantine/evidence semantics, read-only diagnostics, atomic writers and the `0.2.3` behaviour contract remain governed by the existing regression suite.
 - The human/legal rights-basis reference remains a parallel governance gate. Completing engineering slices does not waive it and does not authorize a clean-IP tag.
 
 ## Scope
