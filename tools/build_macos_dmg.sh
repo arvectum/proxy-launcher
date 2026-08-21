@@ -11,6 +11,8 @@ out_dir="${2:-dist/dmg}"
 mkdir -p "$out_dir"
 stage="$(mktemp -d)"; trap 'rm -rf "$stage"' EXIT
 cp -R "$app" "$stage/Arvectum Proxy Launcher.app"
+cp LICENSE "$stage/LICENSE.txt"
+cp THIRD_PARTY_NOTICES.txt "$stage/THIRD_PARTY_NOTICES.txt"
 ln -s /Applications "$stage/Applications"
 out="$out_dir/Arvectum_Proxy_Launcher-${version}-${arch}.dmg"
 rm -f "$out"

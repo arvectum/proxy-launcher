@@ -16,9 +16,12 @@ echo "$APPIMAGE_RUNTIME_SHA256  $runtime" | sha256sum -c -
 version="$(tr -d '[:space:]' < VERSION)"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 appdir="$work/ArvectumProxyLauncher.AppDir"
-mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps" "$out_dir"
+docdir="$appdir/usr/share/doc/arvectum-proxy-launcher"
+mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps" "$docdir" "$out_dir"
 install -m755 "$artifact" "$appdir/usr/bin/arvectum-proxy-launcher"
 install -m644 assets/arvectum-icon-0.2.2-transparent.png "$appdir/usr/share/icons/hicolor/256x256/apps/arvectum-proxy-launcher.png"
+install -m644 LICENSE "$docdir/LICENSE.txt"
+install -m644 THIRD_PARTY_NOTICES.txt "$docdir/THIRD_PARTY_NOTICES.txt"
 cat > "$appdir/AppRun" <<'EOF'
 #!/usr/bin/env sh
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"

@@ -4,7 +4,7 @@ Status: **AUTOMATED BASELINE + REVIEW PACK COMPLETE / HUMAN-LEGAL SIGN-OFF PENDI
 
 This record defines the repository provenance boundary for APL-IP-001. It does not claim that an automated scan can establish copyright authorship or legal ownership by itself.
 
-Human/legal review is now bounded by `docs/APL_IP_001_REVIEW_PACKET.md`; the approval record remains `docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`.
+Human factual provenance is recorded in `docs/evidence/APL_IP_001_HUMAN_FACT_CONFIRMATION_2026-08-21.md`. The bounded platform/license carry-forward reconciliation is `docs/evidence/APL_IP_001_PLATFORM_LICENSE_RECONCILIATION_2026-08-21.md`; the autonomous closure record is `docs/evidence/APL_IP_001_CARRY_FORWARD_CLOSURE_2026-08-21.md`; the approval record remains `docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`.
 
 ## Repository-authored source boundary
 
@@ -35,18 +35,21 @@ The manifest is CI evidence, not a copyright certificate. A zero-finding manifes
 - Inno Setup — Windows installer build-time dependency; not part of portable runtime.
 - Windows/macOS/Linux host system APIs and tools — platform dependencies, not Arvectum-authored code.
 
-The repository CI CycloneDX SBOM generated from `requirements-build.lock.txt` is a build-dependency SBOM. It must not be misrepresented as a complete cross-platform shipped-payload inventory; platform artifact evidence must be reconciled separately during sign-off.
+The repository CI CycloneDX SBOM generated from `requirements-build.lock.txt` is a build-dependency SBOM. It must not be misrepresented as a complete cross-platform shipped-payload inventory; platform artifact evidence is reconciled separately.
+
+Carry-forward packaging policy now requires product/third-party notices in the Linux `.deb`, Linux AppImage and macOS `.app`/DMG package contracts, while the Windows exact release ceremony stages the same notices beside the hash-bound release artifacts. AppImage remains an optional bounded commercial-distribution hold until the exact type-2 runtime's separately licensed statically linked components are reviewed/satisfied for a promoted AppImage release.
 
 ## Human-authorship / legal review boundary
 
-Before declaring a clean IP baseline/tag, an authorized human reviewer for ООО «Арвектум» must:
+The preserved historical pre-refactor candidate has completed bounded human factual provenance confirmation: contributor identity mapping, human creative control, base-logo authorship, no deliberate external-project copying, and human review/acceptance or correction of AI-assisted code are recorded in the evidence set.
 
-- review the bounded significant-source set in `docs/APL_IP_001_REVIEW_PACKET.md` and confirm intended source provenance/creative contribution;
-- investigate every provenance-review finding produced by the exact candidate CI manifest;
-- review source history for imported/copied fragments that tooling cannot reliably classify;
-- reconcile build SBOM, platform payload evidence, `THIRD_PARTY_NOTICES.txt` and applicable license texts;
-- verify that employee/contractor/founder/pre-company/commissioned-asset records support the chain of exclusive rights claimed by ООО «Арвектум»;
-- approve any deliberate third-party code inclusion and its license obligations;
+That factual confirmation is not the same thing as company chain-of-title or legal distribution approval. Before declaring the **post-refactor** clean IP baseline/tag, an authorized human reviewer for ООО «Арвектум» must:
+
+- verify the executed author→company rights basis and any other applicable founder/employee/commissioned-work basis;
+- investigate every provenance-review finding produced by the new exact post-refactor candidate CI manifest;
+- repeat the bounded significant-source review against that new candidate rather than relying on the historical tree;
+- reconcile build SBOM, exact promoted platform payload evidence, `THIRD_PARTY_NOTICES.txt` and applicable license texts;
+- approve any deliberate third-party code/runtime inclusion and its license obligations;
 - sign the clean-baseline record and only then create the legal/provenance baseline tag.
 
 Git history must not be rewritten or artificially removed to manufacture provenance. AI assistance, where used, is treated as a review/audit concern; meaningful modules require human review and identifiable human creative decisions rather than a false claim that tooling or an AI system proves legal authorship.
@@ -62,6 +65,8 @@ Engineering review should classify the actual rights basis under the applicable 
 - Third-party notices baseline: **implemented and cross-platform scoped**.
 - Automated suspicious provenance marker surfacing: **implemented and false-positive hardened**.
 - Bounded human/legal review packet: **implemented**.
-- Human review of significant modules: **PENDING — AUTHORIZED HUMAN ACTION**.
-- Legal chain-of-title review for ООО «Арвектум»: **PENDING — HUMAN/LEGAL ACTION**.
-- Clean IP baseline/tag: **BLOCKED until the two preceding reviews are APPROVED against one exact candidate commit**.
+- Historical-candidate human factual provenance confirmation: **COMPLETE**.
+- Repository/platform-license carry-forward closure: **AUTONOMOUS COMPLETE**, with AppImage promoted-distribution exception explicitly bounded.
+- Author→ООО rights-basis execution/reference: **PENDING — HUMAN/LEGAL ACTION**.
+- Final post-refactor legal/commercial-distribution approval: **PENDING — HUMAN/LEGAL ACTION**.
+- Clean IP baseline/tag: **BLOCKED** until APL-IP-003 is complete and the new exact candidate is explicitly APPROVED. No pre-refactor clean-IP tag is permitted.

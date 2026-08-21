@@ -20,4 +20,8 @@ rm -rf "dist/Arvectum Proxy Launcher.app" build/macos-app
 app="dist/Arvectum Proxy Launcher.app"
 [[ -d "$app/Contents/MacOS" && -f "$app/Contents/Info.plist" ]] || { echo "Invalid .app bundle" >&2; exit 3; }
 /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" | grep -qx 'ru.arvectum.proxylauncher'
+resources="$app/Contents/Resources"
+mkdir -p "$resources"
+install -m644 LICENSE "$resources/LICENSE.txt"
+install -m644 THIRD_PARTY_NOTICES.txt "$resources/THIRD_PARTY_NOTICES.txt"
 echo "$app"
