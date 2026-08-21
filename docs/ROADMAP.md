@@ -1,6 +1,6 @@
 # Arvectum Proxy Launcher — canonical roadmap
 
-Updated: 2026-08-20
+Updated: 2026-08-21
 Canonical branch: `main`
 Current product version: `0.2.3`
 
@@ -8,6 +8,7 @@ Status legend:
 
 - **DONE** — implementation and required acceptance are complete.
 - **ACTIVE** — current execution priority.
+- **PLANNED / NEXT** — deliberately queued immediately after the active prerequisite.
 - **PAUSED / EXTERNAL ENVIRONMENT** — work is deliberately paused until a suitable external/physical environment exists; do not keep retrying unavailable infrastructure.
 - **AUTONOMOUS COMPLETE / LOCAL ACCEPTANCE PENDING** — repository/CI work is complete; remaining evidence requires the target machine or privileged local execution.
 - **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI work is complete enough to stop local execution; the remaining gate requires a separate eligible physical host and must not be forced on the normal owner workstation.
@@ -17,88 +18,55 @@ Status legend:
 
 ## 0. Proven Windows/core baseline
 
-The customer-proven Windows `0.2.3` system-proxy path remains the protected production baseline. New routing or release work must not silently replace or destabilize it.
+The customer-proven Windows `0.2.3` system-proxy path remains the protected production baseline. New routing, refactor, or release work must not silently replace or destabilize it.
 
 - **DONE** — APL-CORE-007 — unified backend contract & regression matrix.
 - **DONE** — Windows portable/customer-confirmed `0.2.3` baseline and release/recovery safeguards are present in `main`.
 - **DONE** — Windows runtime/security/diagnostics/productization CI is present in `main`.
 - **DONE** — P0.1 controlled Windows build-input archive closure. Canonical evidence: `docs/evidence/P0_1_COMPLETION_EVIDENCE.json`.
 - **DONE** — exact governed CPython `3.12.10` x64 bootstrap and exact eight-wheel hash-locked Windows build set are archived and independently retained.
+- **CONSTRAINT** — the sealed `0.2.3` source/release evidence is an immutable comparison baseline for APL-IP-003; the refactor must not rewrite or relabel that historical release.
 - **CONSTRAINT** — per-application routing is a new enforcement plane and remains separated from the proven system-proxy baseline.
 
 ### P0.2 independent clean-machine offline rebuild drill
 
-- **DEFERRED / NOT RELEASE BLOCKER** — the full endpoint-denied clean-machine reproduction drill is retained as resilience/supply-chain hardening, but it no longer blocks the Windows production release.
-- The product already has a customer-proven sealed Windows `0.2.3` artifact and P0.1 preserves the governed CPython/wheelhouse inputs required for a future independent rebuild.
-- The attempted VirtualBox recovery path exposed host-specific virtualization/VBS/NEM incompatibilities and was stopped rather than weakening Windows security controls or bypassing Windows 11 requirements.
-- Existing P0.2 evidence and failed recovery-environment artifacts remain historical/forensic evidence; they must not be relabeled as a successful independent rebuild.
-- Future execution is hypervisor-independent: when a suitable clean Windows machine/environment is available, perform one bounded offline rebuild using the governed P0.1 archive, frozen source authority, endpoint denial, full tests/package contract/SBOM, and artifact comparison.
-- Future completion of this drill is useful for disaster recovery and supply-chain assurance, not a prerequisite for shipping the current Windows product.
+- **DEFERRED / NOT RELEASE BLOCKER** — the full endpoint-denied clean-machine reproduction drill remains resilience/supply-chain hardening, not a prerequisite for shipping the current Windows product.
+- The abandoned VM path remains historical/forensic evidence only and must not be revived to satisfy this drill or any other gate.
 
 ## 1. Windows production release contour
 
 ### Inno Setup 6.7.1 / production installer
 
 - **DONE** — exact Inno Setup `6.7.1` controlled acquisition and production installer closure.
-- **DONE** — exact upstream Inno Setup `6.7.1` controlled acquisition; exact installer size/SHA-256 verified against the repository lock (`10619024` bytes, `4d11e8050b6185e0d49bd9e8cc661a7a59f44959a621d31d11033124c4e8a7b0`).
-- **DONE** — Authenticode `Valid` / publisher `Pyrsys B.V.`; controlled copy retained under Arvectum control.
-- **DONE** — exact portable ISCC `6.7.1` installed and verified via compiler-preprocessor-ver `0x06070100`; ISCC SHA-256 `eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb`.
-- **DONE** — canonical Windows portable build PASS; `dependency_mode=offline-hash-locked`; 521 tests PASS; portable EXE SHA-256 `f8d98f987ce92dee7979b12b69a56d120ddb12244bebe2559bc51359a53f9c7a`; portable ZIP SHA-256 `62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801`.
-- **DONE** — canonical `0.2.3` installer build PASS; installer SHA-256 `5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414`.
-- The sealed installer input is intentionally Authenticode-unsigned. The Russian-first contour signs the exact final release manifest with the governed CryptoPro/Rutoken identity and does not mutate or misrepresent the installer as Microsoft-native signed code.
+- **DONE** — exact upstream installer size/SHA-256, Authenticode publisher, portable ISCC version/hash, canonical portable build and canonical `0.2.3` installer build are verified and evidenced.
+- **DONE** — portable EXE SHA-256 `f8d98f987ce92dee7979b12b69a56d120ddb12244bebe2559bc51359a53f9c7a`.
+- **DONE** — portable ZIP SHA-256 `62d313547b4d8c2c8e6951d6cd866bb954fdf199ad7650063c8ed3bfbc455801`.
+- **DONE** — installer SHA-256 `5808bde9d0ac45048d50bc256878519257f53bf0a9fa523a81ccb2eff0e21414`.
 - Canonical evidence: `docs/evidence/WINDOWS_INNO_6_7_1_PRODUCTION_BUILD_EVIDENCE.json`.
 
 ### Windows production signing / release package
 
 - **DONE** — `[Win] Russian-first production signing` repository implementation and physical owner-station acceptance.
 - **DONE** — one canonical fail-closed owner-operated entry point: `tools/windows_russian_production_signing.ps1`.
-- **DONE** — exact `0.2.3` portable ZIP and installer are bound to the production-build evidence by filename, SHA-256 and installer size before any signing step.
-- **DONE** — dual-commit provenance preserves the real artifact build commit separately from the later release-policy commit; runtime/build-input drift after the sealed build forces a rebuild instead of silently reusing stale binaries.
-- **DONE** — canonical staging includes portable + installer + build provenance + notices/license + end-user verification UX before manifest generation/signing.
-- **DONE** — APL-REL-011 detached CryptoPro/Rutoken manifest signing/verification and APL-REL-013 fail-closed publication gate are composed into the same ceremony.
-- **DONE** — Windows PowerShell 5.1 compatibility is covered across the orchestrator, UTF-8 child-script boundary, CryptoPro native stderr handling, signer and end-user verifier.
 - **DONE** — physical ceremony completed on 2026-08-20 with tag `v0.2.3-ru.2` at release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`.
-- **DONE** — APL-REL-011 detached signature verification PASS; APL-REL-012 exact signed release-set verification PASS; mandatory tampered-copy test PASS_EXPECTED_FAILURE; APL-REL-013 publication decision `PUBLISH`.
-- **DONE** — canonical signed release directory and external `.production-release-gate.json` publication decision were retained on the owner-operated Windows host.
-- **TRUST BOUNDARY** — the currently governed certificate remains `RELEASE-EVIDENCE-ONLY`; embedded Authenticode/SmartScreen/Smart App Control execution trust is not claimed.
-- **DISCOVERED DISTRIBUTION BOUNDARY** — a real Windows owner workstation with application-control enforcement blocked the unsigned legacy Arvectum EXE during APL-REL-014 restoration. Detached CryptoPro/Rutoken evidence therefore remains necessary for Russian release provenance but is insufficient by itself for Windows execution trust on application-control-enforced hosts.
-- Canonical repository evidence: `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`.
-- Runbook: `docs/WINDOWS_RUSSIAN_FIRST_PRODUCTION_SIGNING.md`.
+- **DONE** — detached CryptoPro/Rutoken manifest verification, exact signed release-set verification, tamper-negative test and publication gate all passed.
+- **TRUST BOUNDARY** — the governed Russian certificate proves release provenance/integrity; embedded Authenticode/SmartScreen/Smart App Control execution trust is not claimed.
+- Canonical evidence: `docs/evidence/WINDOWS_RUSSIAN_PRODUCTION_SIGNING_ACCEPTANCE_2026-08-20.json`.
 
 ### APL-WIN-014 — Windows application-control execution compatibility
 
-- **BLOCKED / EXTERNAL HOST REQUIRED** — autonomous compatibility tooling and owner-host diagnostics are complete; final App Control for Business PASS requires a separate eligible physical Windows acceptance host.
-- **DONE** — Russian release provenance and Windows execution trust are explicitly separated; detached CryptoPro/Rutoken evidence is never represented as Authenticode/Smart App Control trust.
-- **DONE** — read-only assessment: `tools/windows_app_control_assess.ps1`.
-- **DONE** — enterprise supplemental exact-hash trust-pack generator: `tools/windows_app_control_enterprise_trust_pack.ps1` with `BootstrapHash` and lifecycle-capable `ReferenceFullHash` modes.
-- **DONE** — customer Managed Installer deployment profile is documented as the preferred scalable enterprise path when supported; Arvectum tooling does not designate or deploy the customer's managed installer.
-- **DONE** — owner/developer safe source-mode profile: `tools/windows_owner_source_mode.ps1`; no Smart App Control/App Control mutation and no dependency on the blocked legacy EXE.
-- **DONE** — real local acceptance harness is present: `tools/windows_app_control_local_gate.ps1`, `tools/windows_app_control_upgrade_acceptance.ps1`, and `tools/windows_app_control_local_gate_complete.ps1`.
-- **DONE** — owner-host read-only preflight and policy diagnostic established that the current Windows 11 Home workstation has Smart App Control in Enforce state, no new network-stack Code Integrity blocks, historical Arvectum 3077 events only, and a live proxy stack that must not be disturbed.
-- **HOST ELIGIBILITY** — the current Windows 11 Home owner workstation is diagnostics-only and cannot close this enterprise App Control for Business acceptance gate. Consumer Smart App Control evidence is not a substitute for organization-managed ACB evidence.
-- **SAFETY BLOCK** — do not deploy/remove `.cip` policies, alter Smart App Control, replace the live owner-host Arvectum build, stop AmneziaVPN/NGate/proxy components, or run destructive lifecycle acceptance on the owner workstation.
-- **FINAL LOCAL GATE** — execute only on a separate physical Windows 11 Pro/Enterprise/Education acceptance host where App Control for Business can be managed deliberately and where loss of the test network stack cannot affect the owner's normal connectivity. The abandoned VM path remains out of scope.
-- Canonical owner-host eligibility decision: `docs/APL_WIN_014_HOST_ELIGIBILITY.md`.
-- Canonical local-gate runbook: `docs/APL_WIN_014_LOCAL_GATE.md`.
-- **PUBLIC UNMANAGED BOUNDARY** — deterministic Smart App Control admission for public unmanaged Windows remains unresolved until a supported trusted embedded code-signing path exists; international public code-signing remains a lower-priority fallback.
-- Canonical task definition: `docs/WINDOWS_APP_CONTROL_COMPATIBILITY.md`.
+- **BLOCKED / EXTERNAL HOST REQUIRED** — autonomous tooling and owner-host diagnostics are complete; final App Control for Business PASS requires a separate eligible physical Windows 11 Pro/Enterprise/Education host.
+- **SAFETY BLOCK** — the normal Windows 11 Home owner workstation is diagnostics-only. Do not deploy/remove `.cip` policies, alter Smart App Control, replace the live Arvectum build, stop AmneziaVPN/NGate/proxy components, or run destructive acceptance there.
+- Canonical runbook: `docs/APL_WIN_014_LOCAL_GATE.md`.
 
 ### APL-REL-014 — exact signed-set lifecycle acceptance
 
-- **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI lifecycle automation is complete, but destructive physical acceptance is prohibited on the normal owner workstation and remains pending until a separate eligible Windows acceptance host is available.
-- **DONE** — canonical script: `tools/windows_signed_set_lifecycle_acceptance.ps1`.
-- **DONE** — release identity is pinned to version `0.2.3`, tag `v0.2.3-ru.2`, release-policy commit `47823585c42da54ab51dc2246583dc24d74d4ba6`, governed signer thumbprint, and sealed portable/installer hashes.
-- **DONE** — exact Russian release verification runs before and after lifecycle execution; the signed release directory is never mutated by the acceptance script.
-- **DONE** — lifecycle phases are automated: fresh install → `--status` smoke → same-version repair → deliberate binary/stale-state corruption → cached repair recovery → uninstall.
-- **DONE** — cached repair installer must hash-identically match the signed production installer.
-- **DONE** — user configuration preservation and foreign-autostart ownership boundaries are tested.
-- **INCIDENT / OWNER-HOST PROHIBITION** — migration-style execution on the normal owner workstation on 2026-08-20 restored install/state trees but Windows application-control enforcement blocked restart of the legacy EXE. The run remained `BLOCK`; canonical lifecycle phases did not complete.
-- **RECOVERY DONE** — owner workstation was recovered from source without disabling Windows protection; proxy settings, PAC, core and GUI returned to a healthy state. Rescue evidence is retained.
-- **FINAL LOCAL GATE** — execute only on the same class of separate physical Windows acceptance host used for controlled Windows destructive acceptance. Do not run this gate on the normal owner workstation; do not revive the abandoned VM path merely to satisfy the gate.
+- **BLOCKED / EXTERNAL HOST REQUIRED** — repository/CI lifecycle automation is complete, but destructive physical acceptance is prohibited on the normal owner workstation.
+- **RECOVERY DONE** — the owner workstation was recovered after the 2026-08-20 incident without weakening Windows security controls; the live proxy stack must remain protected.
+- **FINAL LOCAL GATE** — use only the same class of separate physical Windows acceptance host required for APL-WIN-014. Do not return to the abandoned VM path.
 - Incident evidence: `docs/evidence/APL_REL_014_OWNER_HOST_INCIDENT_2026-08-20.md`.
-- Runbook: `docs/WINDOWS_SIGNED_SET_LIFECYCLE_ACCEPTANCE.md`.
 
-International Microsoft/GlobalSign-oriented distribution remains lower priority; it may be evaluated only as a fallback under APL-WIN-014 rather than silently replacing the Russian-first strategy.
+International Microsoft/GlobalSign-oriented distribution remains lower priority and must not silently replace the Russian-first strategy.
 
 ## 2. Linux / Astra Linux
 
@@ -107,8 +75,7 @@ International Microsoft/GlobalSign-oriented distribution remains lower priority;
 - **DONE** — APL-LNX-008 — AppImage packaging with hash-pinned build-only toolchain.
 - **DONE** — APL-LNX-009 — Ubuntu 22.04/24.04 CI acceptance.
 - **DONE** — APL-IP-002-LNX — Linux stack/dependency sovereignty audit (conditional pass).
-- **PAUSED / EXTERNAL ENVIRONMENT** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance; paused by owner until a suitable real Astra host is available.
-- **LOCAL GATE** — Gate R8 closes only from real Astra host evidence; do not substitute CI or another Linux distribution.
+- **PAUSED / EXTERNAL ENVIRONMENT** — APL-LNX-010 — real Astra Linux graphical/runtime/package acceptance. Resume only when a suitable real Astra host exists; CI/another distro is not a substitute.
 
 For controlled Astra deployments, `.deb` remains the preferred package; AppImage is optional.
 
@@ -127,16 +94,44 @@ Apple production identity signing/notarization remains a later distribution-poli
 - **DONE** — APL-IP-002-LNX.
 - **DONE** — APL-IP-002-MAC.
 - **DONE** — APL-IP-002-FINAL consolidated conditional verdict.
-- **ACTIVE / REVIEW READY — HUMAN/LEGAL PENDING** — APL-IP-001 — source provenance/human-authorship hardening.
-  - source/build/config inventory + SHA-256 manifest: done;
-  - third-party boundary/notices: done;
-  - CI evidence: done;
-  - provenance marker scanner false-positive hardening: done on review-ready branch;
-  - bounded human/legal review packet: done (`docs/APL_IP_001_REVIEW_PACKET.md`);
-  - strengthened exact-candidate sign-off record: done (`docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`);
-  - authorized human review of significant modules: pending;
-  - chain-of-title/legal review for ООО «Арвектум»: pending;
-  - clean IP baseline/tag: only after both reviews are APPROVED against one exact candidate commit.
+
+### APL-IP-001 — source provenance / human-authorship baseline
+
+- **ACTIVE — PRE-REFACTOR BASELINE PRESERVED / LEGAL-LICENSE CLOSURE PENDING**.
+- exact review candidate: `7c3bdbd005e6ff27db8f5a00071dc81c8595dd9b`;
+- candidate tree: `9c372b440919b3b9e69d78ab0a85dca3f387d5af`;
+- source/build/config inventory + SHA-256 manifest: done;
+- provenance scanner hardening: done;
+- automated provenance findings on the candidate: `0`;
+- significant-source pre-review: 34 files; build/release pre-review: 75 files;
+- public OSS similarity sample: no external matches found;
+- unknown dependencies: `0`;
+- exact sealed `0.2.3` product-source drift from artifact build to review candidate: `0` significant source files;
+- human factual confirmation: done and recorded in `docs/evidence/APL_IP_001_HUMAN_FACT_CONFIRMATION_2026-08-21.md`;
+- all `arvectum` / `arutyunoveth` human Git identities are confirmed as one human developer/project owner;
+- `OpenAI <noreply@openai.com>` is retained as AI/tool identity and GitHub Actions as automation; neither is relabeled as a human author;
+- base Arvectum logo is confirmed self-authored by the project owner;
+- conscious copying from Stack Overflow/GitHub/foreign projects was denied by the human author; AI-generated code was human-reviewed and accepted/corrected as part of development;
+- author-to-ООО rights instrument template: done (`docs/legal/APL_IP_001_RIGHTS_ASSIGNMENT_TEMPLATE.md`); execution/stable confidential evidence reference still pending;
+- final platform payload/license reconciliation remains pending, including Linux AppImage runtime and shipped-platform payload evidence;
+- current sign-off record: `docs/APL_IP_001_HUMAN_LEGAL_SIGNOFF.md`.
+
+**Sequencing decision:** preserve this exact pre-refactor evidence baseline, but do not spend the clean-IP tag on a source tree that is about to undergo the canonical refactor. Complete the factual/legal evidence needed to carry rights forward, execute APL-IP-003, then perform one new exact post-refactor IP review and create the clean-IP tag against that canonical source edition only after explicit APPROVED status.
+
+### APL-IP-003 — Arvectum canonical source refactor
+
+- **PLANNED / NEXT** — full behaviour-preserving canonical refactor before APL-ROUTE-003 production-path work.
+- Canonical task specification: `docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md`.
+- Goal: produce one coherent Arvectum source edition with unified architecture, terminology, code style, repository identity and ownership conventions while preserving truthful Git/provenance history.
+- Add a governed `.mailmap` to normalize the owner's historical `arvectum` / `arutyunoveth` identities without rewriting commits.
+- Normalize maintained repository references to `arvectum/proxy-launcher`; preserve required upstream dependency/license/provenance links.
+- Do not remap `OpenAI` or bot identities to the human author and do not rewrite Git history.
+- Normalize naming, typing, docstrings, logging, error boundaries, configuration/state handling and platform backend structure.
+- Reduce obsolete legacy/compatibility layers and duplicated scaffolding where tests prove removal is safe.
+- Explicit target principles: ownership, fail-closed mutation, deterministic recovery, capability-first platform abstraction, control-plane/enforcement-plane separation, immutable/verifiable evidence.
+- Refactor incrementally under full regression and packaging/build-contract checks; do not combine unrelated product features with structural cleanup.
+- The sealed Windows `0.2.3` release remains immutable and serves as the behavioural/release reference baseline.
+- After refactor: select a new exact candidate, regenerate provenance/SBOM evidence, repeat similarity/provenance review, perform bounded human/legal review, and create the clean-IP tag only after APPROVED.
 
 Controlled Linux/macOS build-input mirrors remain medium-priority sovereignty hardening after the primary Windows release contour.
 
@@ -160,13 +155,15 @@ Test-signing/developer modes are not accepted as a production workaround.
 
 ## 6. Immediate execution order
 
-1. **ACTIVE — APL-IP-001:** finish exact-candidate evidence binding, then authorized human source review + chain-of-title/legal sign-off; create the clean IP tag only after APPROVED.
-2. **APL-ROUTE-003:** product decision on the Windows per-app enforcement/signing path.
-3. **PAUSED — APL-LNX-010:** resume real Astra Linux acceptance only when a suitable real Astra host is available.
-4. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only after a separate physical Windows 11 Pro/Enterprise/Education acceptance host becomes available. Do not use the normal Windows 11 Home owner workstation and do not return to the abandoned VM path.
-5. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only after a separate physical Windows acceptance host becomes available; never again on the normal owner workstation.
-6. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill when a suitable environment is available; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
+1. **ACTIVE — APL-IP-001 closure for carry-forward:** preserve the current candidate/evidence; execute the author-to-ООО rights instrument and finish the bounded third-party/platform license reconciliation required to carry a clean chain of title into the refactor. Do not create the final clean-IP tag on the pre-refactor tree.
+2. **NEXT — APL-IP-003:** perform the full Arvectum canonical source refactor under protected `0.2.3` behavioural/release baselines.
+3. **POST-REFACTOR IP REVIEW:** select the new exact canonical candidate, regenerate provenance/SBOM evidence, repeat bounded source/license/human review, then create the clean-IP baseline/tag only after explicit APPROVED.
+4. **APL-ROUTE-003:** only after the canonical source/IP baseline, make the product decision on the Windows per-app enforcement/signing path.
+5. **PAUSED — APL-LNX-010:** resume real Astra Linux acceptance only when a suitable real Astra host is available.
+6. **BLOCKED — APL-WIN-014:** final App Control for Business acceptance only on a separate eligible physical Windows host; never on the normal owner workstation and never via the abandoned VM path.
+7. **BLOCKED — APL-REL-014:** exact signed-set destructive lifecycle acceptance only on the separate physical Windows acceptance host.
+8. **Deferred hardening:** independent clean-machine endpoint-denied Windows rebuild drill; controlled Linux/macOS build-input mirrors; later international signing/notarization paths.
 
 ## Completion rule
 
-Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Paused external-environment gates remain paused until the required real environment exists rather than being repeatedly retried. The normal owner Windows workstation is diagnostics-only for APL-WIN-014/APL-REL-014 and must not be used for destructive policy/lifecycle acceptance. The abandoned VM path remains out of scope. Deferred resilience work must not be allowed to re-enter the release critical path without an explicit product-risk decision.
+Real-host, signing, external-platform, infrastructure and legal/human gates stay visibly pending until their named evidence exists. CI simulations, mocks and documentation may reduce local work but do not replace those boundaries. Historical provenance must remain truthful: canonicalization may normalize current code, repository references and human identity presentation through `.mailmap`, but must not rewrite commits or relabel AI/bot identities as human authors. The normal owner Windows workstation remains diagnostics-only for APL-WIN-014/APL-REL-014. The abandoned VM path remains out of scope.
