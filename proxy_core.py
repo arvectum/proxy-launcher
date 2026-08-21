@@ -9,8 +9,8 @@ lifecycle; Slice 3 extracted governed configuration loading/validation, atomic
 persistence, credential protection, and configuration recovery; Slice 4
 extracted platform-neutral ``no_proxy`` routing policy, bypass evaluation, and
 PAC generation; Slice 5 extracted the local HTTP/SOCKS/PAC transport server and
-listener lifecycle; Slice 6 extracts process supervision and runtime-status
-ownership.
+listener lifecycle; Slice 6 extracted process supervision and runtime-status
+ownership; Slice 7 extracts top-level application runtime / CLI orchestration.
 
 Existing callers still receive the established module object, so Windows 0.2.3
 behaviour and historical monkeypatch seams remain stable during the bounded
@@ -20,6 +20,7 @@ migration.
 import sys as _runtime_sys
 
 import application_filesystem as _application_filesystem
+import application_runtime as _application_runtime
 import configuration_storage as _configuration_storage
 import local_proxy_transport as _local_proxy_transport
 import portable_lifecycle as _portable_lifecycle
@@ -69,11 +70,18 @@ _system_proxy_runtime.configure(
 )
 _system_proxy_runtime.install_into_core(_core)
 
+# Application runtime is the top-level composition owner. Install it only
+# after transport/process/system-proxy seams have been rewired so every command
+# dynamically reaches the canonical lower-level implementation.
+_application_runtime.configure(_core)
+_application_runtime.install_into_core(_core)
+
 # Compatibility boundary: ``import proxy_core`` still returns the established
 # mutable module object until the legacy implementation is decomposed in later
 # APL-IP-003 slices. The boundary is isolated and explicit rather than mixed
 # with application filesystem, configuration storage, routing policy, local
-# transport, process supervision, or backend-selection logic.
+# transport, process supervision, application orchestration, or backend
+# selection logic.
 _runtime_sys.modules[__name__] = _core
 
 
