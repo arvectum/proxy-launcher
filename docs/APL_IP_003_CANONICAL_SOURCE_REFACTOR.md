@@ -1,6 +1,6 @@
 # APL-IP-003 — Arvectum canonical source refactor
 
-Status: **ACTIVE — SLICES 1–4 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
+Status: **ACTIVE — SLICES 1–4 MERGED; SLICE 5 IN REVIEW; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**
 
 ## Goal
 
@@ -22,7 +22,7 @@ The task is an engineering refactor, not an attempt to erase AI assistance, thir
 - **DONE — Slice 2:** application filesystem & portable lifecycle extraction. PR `#120`, merge commit `f2507cda77ded8e21e5e3a855853d94d79ef343f`.
 - **DONE — Slice 3:** configuration loading/validation, atomic persistence and configuration-recovery ownership extraction. PR `#122`, merge commit `9a59d1dfe5687fb8fafa59811be8c2fff994c9b0`. Canonical owner: `configuration_storage.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_3_CONFIGURATION_STORAGE.md`.
 - **DONE — Slice 4:** platform-neutral routing-policy ownership extraction. PR `#124`, merge commit `0a4256d0f16bb0c798f96f9d4a618564f38b92c5`. Canonical owner: `routing_policy.py`. All 18 PR workflows completed successfully; closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_4_ROUTING_POLICY.md`.
-- **NEXT — Slice 5:** local proxy engine / transport-server ownership extraction from `proxy_core_legacy.py`: `ProxyCore` upstream preparation, HTTP/CONNECT handling, SOCKS5 handling, PAC serving, relay/listener lifecycle and start/stop ownership, while continuing to consume the canonical `routing_policy.py` bypass seam and preserving the sealed `0.2.3` transport behaviour.
+- **IN REVIEW — Slice 5:** local HTTP/SOCKS/PAC transport-server ownership is extracted into `local_proxy_transport.py`: `ProxyCore` upstream preparation/failover, HTTP/CONNECT handling, SOCKS5 handling, PAC serving, relay/accept loops and listener start/stop lifecycle. It consumes the canonical `routing_policy.py` seams dynamically through the established mutable `proxy_core` compatibility boundary. PID/process status, CLI orchestration, system-proxy mutation and recovery remain outside this bounded slice; product behaviour stays on the sealed `0.2.3` contract.
 - The human/legal rights-basis reference remains a parallel governance gate. Completing engineering slices does not waive it and does not authorize a clean-IP tag.
 
 ## Scope
