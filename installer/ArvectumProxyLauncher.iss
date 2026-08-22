@@ -96,8 +96,11 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var ErrorText: String;
 begin
   Result := '';
+  if not RunEmbeddedHelper('upgrade_helper.ps1', '-PayloadRoot "' + ExpandConstant('{tmp}') + '" -InstallRoot "' + ExpandConstant('{app}') + '" -PreflightOnly', ErrorText) then
+    Result := ErrorText;
 end;
 
 procedure InstallVerifiedPayload();
