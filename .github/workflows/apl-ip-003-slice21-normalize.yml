@@ -1,0 +1,104 @@
+name: APL-IP-003 Slice 21 test repository normalization
+
+on:
+  push:
+    branches:
+      - apl-ip-003-slice-21-test-repository-hygiene
+    paths:
+      - .github/workflows/apl-ip-003-slice21-normalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: apl-ip-003-slice-21-test-repository-hygiene
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - name: Normalize regression names and current repository references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          import pathlib
+          import re
+          import subprocess
+
+          root = pathlib.Path('.')
+          renamed = 0
+          for path in sorted((root / 'tests').glob('test_*.py')):
+              source = path.read_text(encoding='utf-8-sig')
+              updated, count = re.subn(
+                  r'(?m)^(\s*)def test_slice\d+_',
+                  r'\1def test_',
+                  source,
+              )
+              if count:
+                  tree = ast.parse(updated)
+                  for node in ast.walk(tree):
+                      if not isinstance(node, ast.ClassDef):
+                          continue
+                      names = [
+                          child.name
+                          for child in node.body
+                          if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                          and child.name.startswith('test_')
+                      ]
+                      if len(names) != len(set(names)):
+                          raise SystemExit(f'{path}: test-name collision after normalization')
+                  path.write_text(updated, encoding='utf-8')
+                  renamed += count
+
+          if renamed == 0:
+              raise SystemExit('expected at least one historical slice-numbered test name')
+          print(f'renamed slice-numbered tests: {renamed}')
+
+          exclusions = (
+              'docs/evidence/',
+              'release/baselines/',
+              '.mailmap',
+          )
+          old = 'arutyunoveth/proxy-launcher'
+          new = 'arvectum/proxy-launcher'
+          changed_refs = []
+          tracked = subprocess.check_output(['git', 'ls-files'], text=True).splitlines()
+          for relative in tracked:
+              if relative == '.mailmap' or relative.startswith(exclusions[:2]):
+                  continue
+              path = root / relative
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  continue
+              if old in text:
+                  path.write_text(text.replace(old, new), encoding='utf-8')
+                  changed_refs.append(relative)
+          print('canonicalized current repository references:', changed_refs)
+
+          for path in sorted((root / 'tests').glob('test_*.py')):
+              ast.parse(path.read_text(encoding='utf-8-sig'))
+          PY
+
+          python -m compileall -q tests
+          git diff --check
+          git diff --stat
+
+      - name: Commit normalized tests and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Arvectum Automation"
+          git config user.email "automation@arvectum.com"
+          git add -u
+          git add tests
+          git rm .github/workflows/apl-ip-003-slice21-normalize.yml
+          git diff --cached --check
+          git commit -m "APL-IP-003 Slice 21: normalize regression and repository hygiene"
+          git push origin HEAD:apl-ip-003-slice-21-test-repository-hygiene
