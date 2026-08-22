@@ -64,6 +64,14 @@ class PromotedArtifactContractTests(unittest.TestCase):
         workflow = (REPO / ".github" / "workflows" / "windows-p0.yml").read_text(encoding="utf-8")
         self.assertIn("windows_promoted_license_compliance.ps1", workflow)
 
+    def test_windows_gate_r6_requires_manifest_and_hash_bound_bundle(self):
+        acceptance = (REPO / "tools" / "windows_rc_acceptance.ps1").read_text(encoding="utf-8")
+        self.assertIn("THIRD_PARTY_LICENSES", acceptance)
+        self.assertIn("arvectum.third-party-license-bundle.v1", acceptance)
+        self.assertIn("Get-FileHash -LiteralPath $fullPath -Algorithm SHA256", acceptance)
+        self.assertIn("$manifestAllowed", acceptance)
+        self.assertIn("portable.contents", acceptance)
+
     def test_windows_installer_embeds_product_and_third_party_licenses(self):
         iss = (REPO / "installer" / "ArvectumProxyLauncher.iss").read_text(encoding="utf-8")
         self.assertIn('Source: "{#PayloadDir}\\LICENSE.txt"', iss)
