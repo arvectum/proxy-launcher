@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 """Automatic operating-system backend selection for Arvectum Proxy Launcher.
 
-central backend selection keeps platform detection in one small composition layer. Concrete
-backends remain independently testable and are imported only for the selected
-platform.
+Platform detection and backend construction live in this small composition
+layer. Concrete backends remain independently testable and are imported only
+for the selected platform.
 
-the capability model binds the selected backend to one explicit capability model so UI
-and callers do not infer feature support independently from ``sys.platform``.
+The selected backend is bound to one explicit capability model so UI and other
+callers do not infer feature support independently from ``sys.platform``.
+Product support and host readiness are deliberately separate: a platform may
+be supported while the current host is not safe to mutate.
 
-the Linux operational gate adds a runtime operational gate for Linux/Astra. Static product
-support and host readiness are deliberately separate concepts: Linux can be a
-supported product platform while a particular host is not currently safe to
-mutate through NetworkManager.
+Linux readiness is determined by the NetworkManager preflight. An interactive
+``nmcli`` runner can be injected only for an explicitly user-authorized
+PolicyKit operation; the default remains fully non-interactive.
 
-the interactive PolicyKit path allows the composition layer to inject an interactive nmcli runner
-for one explicitly user-authorized Linux operation. The default remains fully
-non-interactive.
-
-the macOS networksetup preflight/002 extend the same separation to macOS: a darwin build is a
-supported product platform, while a particular host must still expose a
-readable ``networksetup`` control surface before new proxy mutation is allowed.
+macOS follows the same model through the ``networksetup`` preflight: a Darwin
+build is a supported product platform, while the current host must expose a
+readable control surface before new proxy mutation is allowed.
 """
 
 from dataclasses import dataclass
@@ -125,8 +122,9 @@ def operational_status_for_platform(platform=None, linux_preflight=None, macos_p
     """Return host-specific readiness without mutating network state.
 
     Windows keeps its customer-proven backend validation path. Linux/Astra
-    delegates to the Linux NetworkManager preflight and macOS delegates to the macOS networksetup preflight. Injectable
-    preflight results keep the composition layer deterministic in tests.
+    delegates to the NetworkManager preflight and macOS delegates to the
+    ``networksetup`` preflight. Injectable preflight results keep the
+    composition layer deterministic in tests.
     """
     backend_id = backend_id_for_platform(platform)
     if backend_id == "windows":
@@ -222,14 +220,14 @@ def create_backend(platform=None, runtime_core=None, logger=None, linux_runner=N
     This separation is intentional: recovery/disable must remain reachable even
     when a later host preflight is degraded.
 
-    Windows deliberately receives the captured Windows implementation from the
-    runtime facade. This prevents the Windows adapter from recursively calling
-    the new public dispatch functions while preserving the customer-proven
-    Windows 0.2.3 mutation path byte-for-byte.
+    Windows receives the captured canonical implementation adapter from the
+    system-proxy runtime. This prevents the Windows backend from recursively
+    calling the public dispatch functions while preserving the customer-proven
+    Windows 0.2.3 mutation path.
 
     ``linux_runner`` is intentionally optional. When absent, LinuxBackend keeps
-    its normal non-interactive subprocess runner. the interactive PolicyKit path supplies it only
-    inside the child process launched after explicit GUI authorization consent.
+    its normal non-interactive subprocess runner. The interactive PolicyKit path
+    supplies it only inside a child process launched after explicit user consent.
     """
     backend_id = backend_id_for_platform(platform)
     capabilities_for_backend(backend_id)
