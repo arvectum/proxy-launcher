@@ -1,6 +1,6 @@
 # APL-IP-001 — post-refactor rights instrument for execution
 
-> Status: **EXECUTION-READY DRAFT / NOT SIGNED / NOT LEGAL APPROVAL**
+> Status: **EXECUTION-READY DRAFT / POST-APL-IP-004 CANDIDATE BOUND / NOT SIGNED / NOT LEGAL APPROVAL**
 >
 > This repository document is a controlled draft. It does not transfer rights until validly executed and, where applicable, the transfer is registered as required by law.
 
@@ -21,17 +21,22 @@
 
 - repository: `arvectum/proxy-launcher`;
 - product version: `0.2.3`;
-- post-refactor reviewed candidate commit: `8ad54018e6d6251c906a06d09fd464c8931c14b2`;
-- candidate source tree: `eac5db739e7bd3fda595b09b2ec869ad06a87ba3`;
-- source-provenance manifest SHA-256: `5e33393b0864a7804d4303ee2d5bf64daea36a69f5a40e2c3741d3ed3172815d`;
+- immutable APL-IP-003/source-review anchor commit: `8ad54018e6d6251c906a06d09fd464c8931c14b2`;
+- immutable source-review anchor tree: `eac5db739e7bd3fda595b09b2ec869ad06a87ba3`;
+- selected post-APL-IP-004 candidate commit: `ef9846e151a2e4e7046169e0787603969018cc97`;
+- selected candidate tree: `98a09d821470a597715696e5ff3c7f376e5893a8`;
+- source-provenance manifest SHA-256: `baf27272def4c03c7f44852ff11aa1c2fdb32710f92ac0e322f94b557158a87b`;
 - build SBOM SHA-256: `fccd5d2d94a4c2f8ebbc9fdde709db5b0fd1ae13f962f9046d706086a345ac4a`;
-- post-refactor review record: `docs/evidence/APL_IP_001_POST_REFACTOR_REVIEW_2026-08-22.md`.
+- source-review record: `docs/evidence/APL_IP_001_POST_REFACTOR_REVIEW_2026-08-22.md`;
+- exact post-APL-IP-004 reconciliation record: `docs/evidence/APL_IP_001_POST_IP_004_CANDIDATE_RECONCILIATION_2026-08-22.md`.
+
+The post-APL-IP-004 reconciliation records that the 45-file significant product-source set reviewed at the APL-IP-003 anchor did not change before the selected candidate; the intervening changes are governance/documentation, CI, packaging/release tooling, installer definition, third-party license material and compliance tests.
 
 1.3. В предмет отчуждения входят оригинальные исходные тексты программы, скрипты, конфигурационные материалы, оригинальная структура/компоновка исходного кода, оригинальная документация и иные созданные Автором охраноспособные материалы, входящие в указанное дерево исходного кода, если и поскольку исключительное право на них принадлежит Автору.
 
 1.4. В предмет также включаются созданные Автором оригинальные визуальные материалы Arvectum Proxy Launcher / Arvectum, включая базовый логотип/монограмму Arvectum, если и поскольку исключительное право на соответствующий материал принадлежит Автору.
 
-1.5. **Не входят** в предмет отчуждения права на сторонние компоненты, библиотеки, runtime/build tooling, шрифты, системные компоненты, иные объекты третьих лиц и их модификации, права на которые не принадлежат Автору. Они используются исключительно на условиях соответствующих лицензий и notices.
+1.5. **Не входят** в предмет отчуждения права на сторонние компоненты, библиотеки, runtime/build tooling, шрифты, системные компоненты, сторонние тексты лицензий/copyright notices, иные объекты третьих лиц и их модификации, права на которые не принадлежат Автору. Они используются исключительно на условиях соответствующих лицензий и notices.
 
 ## 2. Авторство, человеческий вклад и происхождение
 
@@ -75,17 +80,17 @@
 
 ## 6. Заверения и ограничение предмета
 
-6.1. Автор заверяет, что, насколько ему известно на дату подписания и с учетом проведенного APL-IP-001 review:
+6.1. Автор заверяет, что, насколько ему известно на дату подписания и с учетом проведенного APL-IP-001 review/reconciliation:
 
 - сознательное копирование стороннего кода из Stack Overflow, GitHub или иных внешних проектов в reviewed candidate не осуществлялось;
 - material source был подвергнут человеческому review и сознательно принят и/или скорректирован;
-- автоматизированный post-refactor provenance manifest не содержит неразрешенных provenance-marker findings;
-- bounded public-similarity review не выявил идентифицируемого внешнего exact-source match по проверенным высокоинформативным фрагментам;
+- автоматизированный candidate-bound provenance manifest не содержит неразрешенных provenance-marker findings;
+- bounded public-similarity review неизменившегося significant product-source set не выявил идентифицируемого внешнего exact-source match по проверенным высокоинформативным фрагментам;
 - ему не известны права третьих лиц, препятствующие отчуждению принадлежащего ему исключительного права на оригинальные объекты, указанные в разделе 1.
 
 6.2. Заверения пункта 6.1 **не распространяются** на права третьих лиц на Python/stdlib, Tcl/Tk, PyInstaller, AppImage runtime и иные сторонние компоненты. Их использование и распространение регулируются соответствующими лицензиями, независимо от настоящего Соглашения.
 
-6.3. Настоящее Соглашение само по себе не является подтверждением выполнения всех third-party distribution-license obligations для конкретного бинарного релиза; такая проверка ведется отдельно в release/compliance evidence.
+6.3. Настоящее Соглашение само по себе не является подтверждением выполнения всех third-party distribution-license obligations для конкретного бинарного релиза; такая проверка ведется отдельно в release/compliance evidence. APL-IP-004 engineering evidence закрывает соответствующий L-1 engineering gap для перечисленных там новых promoted artifact lanes, но не заменяет настоящий chain-of-title документ и финальный authorized sign-off.
 
 ## 7. Корпоративная заинтересованность / одобрение со стороны Общества
 
@@ -105,11 +110,12 @@
 
 - настоящий подписанный документ;
 - `docs/evidence/APL_IP_001_POST_REFACTOR_REVIEW_2026-08-22.md`;
+- `docs/evidence/APL_IP_001_POST_IP_004_CANDIDATE_RECONCILIATION_2026-08-22.md`;
 - `docs/APL_IP_001_POST_REFACTOR_SIGNOFF.md`;
 - exact source provenance manifest и его checksum;
 - exact build SBOM и checksum;
-- `THIRD_PARTY_NOTICES.txt` и final third-party license bundle;
-- applicable platform artifact/license evidence;
+- `THIRD_PARTY_NOTICES.txt` и applicable generated third-party license bundles/manifests;
+- applicable platform artifact/license evidence, including APL-IP-004 accepted Windows portable/installer, Debian and macOS evidence;
 - при наличии регистрации программы — документы по регистрации перехода исключительного права;
 - корпоративное решение/согласие/обоснование исключения, если применимо.
 
@@ -148,8 +154,9 @@
 ## Execution control notes
 
 - Документ должен подписываться только после проверки фактических полномочий и корпоративного статуса сторон.
+- Перед подписанием необходимо сверить, что поля candidate commit/tree/provenance manifest выше по-прежнему соответствуют каноническому `docs/APL_IP_001_POST_REFACTOR_SIGNOFF.md`; если candidate изменился, этот draft должен быть перебинден до исполнения.
 - Поле о регистрации программы в Роспатенте является обязательным factual gate: repository silence не считается подтверждением отсутствия регистрации.
 - Если программа зарегистрирована, переход исключительного права на зарегистрированную программу по договору подлежит государственной регистрации.
 - Безвозмездность прямо согласована. Запрет безвозмездного отчуждения по ГК РФ касается отношений между коммерческими организациями; этот шаблон предназначен для сделки физическое лицо-автор -> ООО, но налоговые/бухгалтерские последствия и фактическую структуру сделки следует проверить отдельно.
 - Если Автор одновременно подписывает/контролирует сделку со стороны Общества, следует проверить актуальную ст. 45 Закона об ООО и устав/структуру участников и записать применимое основание, не предполагая исключение автоматически.
-- Подписание этого договора закрывает только chain-of-title в охватываемом объеме. Clean-IP `APPROVED` дополнительно требует закрытия third-party distribution-license findings и заполненного post-refactor sign-off.
+- Подписание этого договора закрывает только chain-of-title в охватываемом объеме. Clean-IP `APPROVED` дополнительно требует заполненного post-refactor sign-off; AppImage остаётся отдельным L-2 hold до явного clearance.
