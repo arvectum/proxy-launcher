@@ -1,6 +1,6 @@
 # APL-IP-004 — third-party license bundle & promoted artifact compliance
 
-Status: **IMPLEMENTED / CI AND ARTIFACT ACCEPTANCE REQUIRED BEFORE MERGE**  
+Status: **ENGINEERING COMPLETE / MERGED / PROMOTED-ARTIFACT ACCEPTANCE RECORDED**  
 Date: 2026-08-22
 
 ## Purpose
@@ -113,18 +113,34 @@ Promotion/build must fail when any of the following is true:
 
 Platform packaging workflows remain the authoritative integration acceptance because they exercise the real build environments.
 
+## Acceptance evidence
+
+The final APL-IP-004 implementation was merged as PR #167. The final PR head, PR test-merge and merge candidate resolve to the identical file tree `98a09d821470a597715696e5ff3c7f376e5893a8`.
+
+Accepted candidate-equivalent packaging lanes:
+
+- Windows portable: workflow `32556717827` — **SUCCESS**, including explicit `APL-IP-004 promoted portable license gate`;
+- Windows installer: workflow `32556717718` — **SUCCESS after explicit rerun of the concurrency-cancelled job**, including installer compile, fresh/upgrade/repair/uninstall lifecycle and Gate R6 acceptance;
+- Debian `.deb`: workflow `32556717706` — **SUCCESS** on Ubuntu 22.04 and 24.04, with generated/verified license bundle present in package payload;
+- macOS `.app`/DMG: workflow `32556717755` — **SUCCESS** on Apple Silicon and Intel, with generated/verified bundle and DMG integrity inspection;
+- AppImage: engineering packaging remains available, but commercial promotion remains **EXCLUDED / HOLD** under L-2.
+
+Canonical exact candidate/evidence reconciliation:
+
+`docs/evidence/APL_IP_001_POST_IP_004_CANDIDATE_RECONCILIATION_2026-08-22.md`
+
 ## Acceptance criteria
 
-APL-IP-004 may be marked engineering-complete only when:
+APL-IP-004 is engineering-complete because:
 
-1. the unit/contract test is green;
+1. the unit/contract control is present and green in the accepted implementation matrix;
 2. Windows portable build is green with the post-build promotion gate;
 3. Windows installer lifecycle/packaging CI is green with embedded licensing payload;
 4. Debian packaging CI is green with the generated bundle;
 5. macOS `.app`/DMG packaging CI is green on supported runner architectures;
-6. AppImage tests continue to state and enforce the L-2 promotion exclusion;
-7. no existing release/provenance evidence is rewritten to claim that historical artifacts contained controls introduced later by APL-IP-004.
+6. AppImage continues to state and enforce the L-2 promotion exclusion;
+7. no historical release/provenance evidence was rewritten to claim that historical artifacts contained controls introduced later by APL-IP-004.
 
 ## Resulting disposition
 
-After the above acceptance passes, Finding L-1 is **ENGINEERING-REMEDIATED for newly built promoted Windows, Debian and macOS artifacts**. Historical artifacts remain historical evidence and are not retroactively relabeled. Final clean-IP/commercial approval remains subject to the separate human/legal/chain-of-title gates recorded by APL-IP-001.
+Finding L-1 is **ENGINEERING-REMEDIATED for newly built promoted Windows portable, Windows installer, Debian `.deb`, and macOS `.app`/DMG artifacts**. Historical artifacts remain historical evidence and are not retroactively relabeled. Final clean-IP/commercial approval remains subject to the separate human/legal/chain-of-title gates recorded by APL-IP-001.
