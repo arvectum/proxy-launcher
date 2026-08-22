@@ -9,7 +9,7 @@ from structured_logging import SCHEMA, StructuredLogger
 
 
 class LoggingBridgeOwnershipTests(unittest.TestCase):
-    def test_slice11_functions_are_owned_by_canonical_module(self):
+    def test_functions_are_owned_by_canonical_module(self):
         self.assertEqual(core.structured_log.__module__, "logging_bridge")
         self.assertEqual(core._log.__module__, "logging_bridge")
 
