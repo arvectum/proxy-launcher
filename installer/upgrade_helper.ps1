@@ -117,10 +117,11 @@ function Invoke-PreviousRollback([string]$ExistingExe) {
     if (-not (Test-Path -LiteralPath $ExistingExe -PathType Leaf)) {
       throw 'recovery backups remain but the installed Launcher executable is missing; repair is blocked until network recovery can be proven'
     }
-    $global:LASTEXITCODE = 0
-    & $ExistingExe --stop
-    if ($LASTEXITCODE -ne 0) { throw 'previous version did not complete network rollback' }
+    Write-InstallLog 'waiting for previous-version network rollback'
+    $rollback = Start-Process -FilePath $ExistingExe -ArgumentList '--stop' -Wait -PassThru
+    if ($rollback.ExitCode -ne 0) { throw 'previous version did not complete network rollback' }
     if (@(Get-RecoveryBackups).Count -gt 0) { throw 'recovery backups remain after previous-version rollback' }
+    Write-InstallLog 'previous-version network rollback completed'
   }
   Stop-OwnedProcess $ExistingExe
 }

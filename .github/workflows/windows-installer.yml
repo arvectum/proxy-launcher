@@ -46,6 +46,7 @@ jobs:
             'tools/prepare_windows_inno_setup_base.ps1',
             'tools/install_verified_windows_inno_setup.ps1',
             'tools/windows_rc_acceptance.ps1',
+            'qa/windows_installer_171_e2e.ps1',
             'qa/windows_rc_e2e.ps1',
             'installer/upgrade_helper.ps1',
             'installer/uninstall_helper.ps1'
@@ -97,6 +98,21 @@ jobs:
             throw
           }
 
+      - name: Windows installer #171 portable transition / preflight fail-closed
+        shell: pwsh
+        run: |
+          try {
+            ./qa/windows_installer_171_e2e.ps1 `
+              -CurrentSetup '${{ steps.installer.outputs.setup_path }}' `
+              -CurrentPortableExe 'dist\Arvectum Proxy Launcher.exe' `
+              -CurrentVersion '${{ steps.version.outputs.version }}' `
+              -EvidencePath 'out\windows-installer-171-e2e.json'
+          } catch {
+            $message = ($_.Exception.Message -replace "`r|`n", ' ')
+            Write-Host "::error title=Installer blocker 171 regression failed::$message"
+            throw
+          }
+
       # Lifecycle harness contract for legacy safety tests: qa/windows_rc_e2e.ps1
       # launches Setup/EXE/Uninstall through Start-Process with -PassThru -Wait
       # and rejects every non-zero $p.ExitCode. Direct invocation is forbidden.
@@ -137,7 +153,9 @@ jobs:
           name: windows-rc-failure-${{ github.run_id }}
           if-no-files-found: ignore
           path: |
+            windows-installer-171-*.log
             windows-rc-*.log
+            out/windows-installer-171-e2e.json
             out/windows-rc-*.json
             out/windows-rc-SHA256SUMS.txt
             ${{ runner.temp }}/apl-*.log
@@ -148,6 +166,7 @@ jobs:
           name: ${{ steps.installer.outputs.setup_name }}
           path: |
             ${{ steps.installer.outputs.setup_path }}
+            out/windows-installer-171-e2e.json
             out/windows-rc-e2e.json
             out/windows-rc-acceptance.json
             out/windows-rc-SHA256SUMS.txt

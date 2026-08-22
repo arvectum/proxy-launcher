@@ -23,13 +23,37 @@ class WindowsMaintenanceFlowTests(unittest.TestCase):
         rollback = helper[helper.index("function Invoke-PreviousRollback"):helper.index("try {\n  Write-InstallLog")]
         self.assertIn("$backups = @(Get-RecoveryBackups)", rollback)
         self.assertIn("if ($backups.Count -gt 0)", rollback)
-        self.assertIn("& $ExistingExe --stop", rollback)
+        self.assertIn("Start-Process -FilePath $ExistingExe -ArgumentList '--stop' -Wait -PassThru", rollback)
+        self.assertNotIn("& $ExistingExe --stop", rollback)
+        self.assertIn("$rollback.ExitCode", rollback)
         self.assertIn("Stop-OwnedProcess $ExistingExe", rollback)
 
     def test_repair_fails_closed_if_backups_exist_without_recovery_executable(self):
         helper = self.read("installer/upgrade_helper.ps1")
         self.assertIn("recovery backups remain but the installed Launcher executable is missing", helper)
         self.assertIn("repair is blocked until network recovery can be proven", helper)
+
+    def test_installer_runs_maintenance_preflight_before_install_phase(self):
+        iss = self.read("installer/ArvectumProxyLauncher.iss")
+        start = iss.index("function PrepareToInstall")
+        end = iss.index("procedure InstallVerifiedPayload")
+        prepare = iss[start:end]
+        self.assertIn("RunEmbeddedHelper('upgrade_helper.ps1'", prepare)
+        self.assertIn("-PreflightOnly", prepare)
+        self.assertIn("Result := ErrorText", prepare)
+        self.assertNotEqual("function PrepareToInstall(var NeedsRestart: Boolean): String;\nbegin\n  Result := '';\nend;", prepare.strip())
+
+    def test_issue_171_has_dedicated_portable_transition_and_partial_install_regression(self):
+        workflow = self.read(".github/workflows/windows-installer.yml")
+        regression = self.read("qa/windows_installer_171_e2e.ps1")
+        self.assertIn("./qa/windows_installer_171_e2e.ps1", workflow)
+        self.assertIn("out\\windows-installer-171-e2e.json", workflow)
+        self.assertIn("active_portable_to_installer", regression)
+        self.assertIn("preflight_partial_install_prevention", regression)
+        self.assertIn("final EXE SHA256 does not match build manifest", regression)
+        self.assertIn("uninstall registration was committed before preflight completed", regression)
+        self.assertIn("recovery evidence was unexpectedly deleted", regression)
+        self.assertIn("PASS \\(preflight REPAIR\\)", regression)
 
     def test_repair_cleans_only_operational_stale_state(self):
         helper = self.read("installer/upgrade_helper.ps1")

@@ -251,11 +251,13 @@ class ReleaseScriptTests(unittest.TestCase):
         self.assertNotIn("Get-FileHash", text)
 
     @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
-    def test_upgrade_helper_initializes_gui_exit_code_under_strict_mode(self):
+    def test_upgrade_helper_waits_for_gui_rollback_under_strict_mode(self):
         text = self.read("installer/upgrade_helper.ps1")
         rollback = text[text.index("function Invoke-PreviousRollback"):text.index("try {\n  Write-InstallLog")]
-        self.assertIn("$global:LASTEXITCODE = 0", rollback)
-        self.assertLess(rollback.index("$global:LASTEXITCODE = 0"), rollback.index("& $ExistingExe --stop"))
+        self.assertIn("Start-Process -FilePath $ExistingExe -ArgumentList '--stop' -Wait -PassThru", rollback)
+        self.assertIn("$rollback.ExitCode", rollback)
+        self.assertNotIn("$global:LASTEXITCODE", rollback)
+        self.assertNotIn("& $ExistingExe --stop", rollback)
 
     @unittest.skipUnless(HAS_INSTALLER_TRACK, "installer track is not present in portable P0 branch")
     def test_uninstall_helper_waits_for_gui_rollback_under_strict_mode(self):
