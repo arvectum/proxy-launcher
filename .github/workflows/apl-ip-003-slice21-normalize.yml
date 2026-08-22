@@ -35,11 +35,15 @@ jobs:
           renamed = 0
           for path in sorted((root / 'tests').glob('test_*.py')):
               source = path.read_text(encoding='utf-8-sig')
-              updated, count = re.subn(
-                  r'(?m)^(\s*)def test_slice\d+_',
-                  r'\1def test_',
-                  source,
-              )
+              lines = source.splitlines(keepends=True)
+              updated_lines = []
+              count = 0
+              for line in lines:
+                  if re.match(r'^\s*def test_', line):
+                      line, line_count = re.subn(r'slice\d+_', '', line)
+                      count += line_count
+                  updated_lines.append(line)
+              updated = ''.join(updated_lines)
               if count:
                   tree = ast.parse(updated)
                   for node in ast.walk(tree):
@@ -58,19 +62,18 @@ jobs:
 
           if renamed == 0:
               raise SystemExit('expected at least one historical slice-numbered test name')
-          print(f'renamed slice-numbered tests: {renamed}')
+          print(f'renamed slice-numbered test fragments: {renamed}')
 
           exclusions = (
               'docs/evidence/',
               'release/baselines/',
-              '.mailmap',
           )
           old = 'arutyunoveth/proxy-launcher'
           new = 'arvectum/proxy-launcher'
           changed_refs = []
           tracked = subprocess.check_output(['git', 'ls-files'], text=True).splitlines()
           for relative in tracked:
-              if relative == '.mailmap' or relative.startswith(exclusions[:2]):
+              if relative == '.mailmap' or relative.startswith(exclusions):
                   continue
               path = root / relative
               try:
@@ -83,7 +86,11 @@ jobs:
           print('canonicalized current repository references:', changed_refs)
 
           for path in sorted((root / 'tests').glob('test_*.py')):
-              ast.parse(path.read_text(encoding='utf-8-sig'))
+              tree = ast.parse(path.read_text(encoding='utf-8-sig'))
+              for node in ast.walk(tree):
+                  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith('test_'):
+                      if re.search(r'slice\d+', node.name):
+                          raise SystemExit(f'{path}: stale slice-number test name: {node.name}')
           PY
 
           python -m compileall -q tests
