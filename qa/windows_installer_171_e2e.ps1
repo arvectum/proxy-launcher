@@ -99,7 +99,7 @@ function Invoke-SetupSuccess([string]$Label) {
     if ($p.ExitCode -ne 0) {
         if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log }
         if (Test-Path -LiteralPath $installLog) { Get-Content -LiteralPath $installLog }
-        throw "$Label: Setup failed with exit code $($p.ExitCode)"
+        throw "${Label}: Setup failed with exit code $($p.ExitCode)"
     }
     return $log
 }
@@ -108,7 +108,7 @@ function Invoke-SetupExpectedFailure([string]$Label) {
     $log = Join-Path $PWD "windows-installer-171-$Label.log"
     $p = Start-Process -FilePath $CurrentSetup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/LOG=$log") -PassThru -Wait
     if ($p.ExitCode -eq 0) {
-        throw "$Label: Setup unexpectedly succeeded; preflight did not fail closed"
+        throw "${Label}: Setup unexpectedly succeeded; preflight did not fail closed"
     }
     return $log
 }
