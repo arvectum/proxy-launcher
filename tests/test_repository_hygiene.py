@@ -36,7 +36,8 @@ class RepositoryHygieneTests(unittest.TestCase):
             ]
             if names:
                 violations[path.relative_to(ROOT).as_posix()] = names
-        self.assertEqual(violations, {})
+        if violations:
+            self.fail(repr(violations))
 
     def test_current_tree_uses_canonical_repository_identity(self):
         violations = []
@@ -50,7 +51,8 @@ class RepositoryHygieneTests(unittest.TestCase):
                 continue
             if OLD_REPOSITORY_SLUG in text:
                 violations.append(relative)
-        self.assertEqual(violations, [])
+        if violations:
+            self.fail(repr(violations))
 
     def test_historical_identity_mapping_is_preserved_without_history_rewrite(self):
         mailmap = (ROOT / ".mailmap").read_text(encoding="utf-8")
