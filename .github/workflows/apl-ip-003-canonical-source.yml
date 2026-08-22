@@ -24,6 +24,7 @@ on:
       - 'tests/test_source_hygiene.py'
       - 'tests/test_repository_hygiene.py'
       - 'tests/test_application_boundary_hygiene.py'
+      - 'tests/test_engineering_completion_contract.py'
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
@@ -58,6 +59,7 @@ on:
       - 'tests/test_source_hygiene.py'
       - 'tests/test_repository_hygiene.py'
       - 'tests/test_application_boundary_hygiene.py'
+      - 'tests/test_engineering_completion_contract.py'
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
@@ -110,6 +112,7 @@ jobs:
           tests/test_source_hygiene.py
           tests/test_repository_hygiene.py
           tests/test_application_boundary_hygiene.py
+          tests/test_engineering_completion_contract.py
           tests/test_process_supervision.py
           tests/test_application_runtime.py
           tests/test_windows_system_proxy.py
@@ -126,6 +129,7 @@ jobs:
           tests.test_source_hygiene
           tests.test_repository_hygiene
           tests.test_application_boundary_hygiene
+          tests.test_engineering_completion_contract
           tests.test_process_supervision
           tests.test_application_runtime
           tests.test_windows_system_proxy
