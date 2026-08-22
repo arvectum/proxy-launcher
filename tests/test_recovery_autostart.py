@@ -51,7 +51,7 @@ class _FakeWinreg:
 
 
 class RecoveryAutostartOwnershipTests(unittest.TestCase):
-    def test_slice9_functions_are_owned_by_canonical_module(self):
+    def test_functions_are_owned_by_canonical_module(self):
         for name in (
             "_self_start_command",
             "_normalize_command",

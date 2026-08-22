@@ -28,7 +28,7 @@ class WindowsSystemProxyOwnershipTests(unittest.TestCase):
             "NO_PROXY": {"exists": True, "value": "corp.local,localhost"},
         }
 
-    def test_slice8_persistence_helpers_are_owned_by_canonical_module(self):
+    def test_persistence_helpers_are_owned_by_canonical_module(self):
         for name in (
             "_env_backup_path",
             "_internet_backup_path",
@@ -237,7 +237,7 @@ class WindowsSystemProxyOwnershipTests(unittest.TestCase):
             self.assertFalse(windows_system_proxy.disable_system_proxy())
         recovery_disable.assert_not_called()
 
-    def test_network_restore_pending_tracks_only_slice8_backup_evidence(self):
+    def test_network_restore_pending_tracks_only_backup_evidence(self):
         with mock.patch.object(core, "is_windows", return_value=True), \
              mock.patch.object(core, "_internet_backup_path", return_value="internet.json"), \
              mock.patch.object(core, "_env_backup_path", return_value="env.json"), \

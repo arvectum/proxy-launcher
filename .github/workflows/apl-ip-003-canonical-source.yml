@@ -22,6 +22,7 @@ on:
       - 'tests/test_canonical_source_refactor.py'
       - 'tests/test_canonical_core_composition.py'
       - 'tests/test_source_hygiene.py'
+      - 'tests/test_repository_hygiene.py'
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
@@ -54,6 +55,7 @@ on:
       - 'tests/test_canonical_source_refactor.py'
       - 'tests/test_canonical_core_composition.py'
       - 'tests/test_source_hygiene.py'
+      - 'tests/test_repository_hygiene.py'
       - 'tests/test_process_supervision.py'
       - 'tests/test_application_runtime.py'
       - 'tests/test_windows_system_proxy.py'
@@ -104,6 +106,7 @@ jobs:
           tests/test_canonical_source_refactor.py
           tests/test_canonical_core_composition.py
           tests/test_source_hygiene.py
+          tests/test_repository_hygiene.py
           tests/test_process_supervision.py
           tests/test_application_runtime.py
           tests/test_windows_system_proxy.py
@@ -118,6 +121,7 @@ jobs:
           tests.test_canonical_source_refactor
           tests.test_canonical_core_composition
           tests.test_source_hygiene
+          tests.test_repository_hygiene
           tests.test_process_supervision
           tests.test_application_runtime
           tests.test_windows_system_proxy
