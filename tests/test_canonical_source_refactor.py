@@ -85,7 +85,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         self.assertIn("def is_running", supervision)
         self.assertIn("def _kill_pid", supervision)
 
-    def test_slice2_runtime_functions_are_owned_by_canonical_modules(self):
+    def test_runtime_functions_are_owned_by_canonical_modules(self):
         for name in (
             "install_dir",
             "data_dir",
@@ -104,7 +104,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         ):
             self.assertEqual(getattr(core, name).__module__, "portable_lifecycle")
 
-    def test_slice3_configuration_functions_are_owned_by_canonical_module(self):
+    def test_configuration_functions_are_owned_by_canonical_module(self):
         for name in (
             "_validate_runtime_settings",
             "_validate_serialized_settings",
@@ -124,7 +124,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         ):
             self.assertEqual(getattr(core, name).__module__, "configuration_storage")
 
-    def test_slice4_routing_policy_functions_are_owned_by_canonical_module(self):
+    def test_routing_policy_functions_are_owned_by_canonical_module(self):
         for name in (
             "load_no_proxy",
             "save_no_proxy",
@@ -135,7 +135,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         ):
             self.assertEqual(getattr(core, name).__module__, "routing_policy")
 
-    def test_slice5_local_transport_is_owned_by_canonical_module(self):
+    def test_local_transport_is_owned_by_canonical_module(self):
         self.assertEqual(core.ProxyCore.__module__, "local_proxy_transport")
         for name in (
             "_build_upstreams",
@@ -153,7 +153,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                 "local_proxy_transport",
             )
 
-    def test_slice6_process_supervision_is_owned_by_canonical_module(self):
+    def test_process_supervision_is_owned_by_canonical_module(self):
         for name in (
             "_pac_healthy",
             "proxy_listener_active",
@@ -167,7 +167,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         ):
             self.assertEqual(getattr(core, name).__module__, "process_supervision")
 
-    def test_slice4_no_proxy_keeps_atomic_writer_compatibility_seam(self):
+    def test_no_proxy_keeps_atomic_writer_compatibility_seam(self):
         with mock.patch.object(core, "no_proxy_path", return_value="/tmp/apl-ip-003-no-proxy"), \
              mock.patch.object(core, "_atomic_write_text") as writer:
             self.assertTrue(core.save_no_proxy(["https://Example.COM/path", "example.com"]))
@@ -175,7 +175,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         payload = writer.call_args.args[1]
         self.assertEqual(payload.count("example.com"), 1)
 
-    def test_slice2_state_migration_preserves_monkeypatch_seams(self):
+    def test_state_migration_preserves_monkeypatch_seams(self):
         with tempfile.TemporaryDirectory() as td:
             legacy = pathlib.Path(td) / "legacy"
             stable = pathlib.Path(td) / "stable"
@@ -196,7 +196,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                 "example.invalid\n",
             )
 
-    def test_slice2_state_migration_path_resolution_is_fail_closed(self):
+    def test_state_migration_path_resolution_is_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
             stable = pathlib.Path(td) / "stable"
             legacy = pathlib.Path(td) / "legacy"
@@ -210,7 +210,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
                  ):
                 self.assertFalse(core.ensure_state_ready())
 
-    def test_slice2_portable_self_heal_preserves_hash_guard(self):
+    def test_portable_self_heal_preserves_hash_guard(self):
         with tempfile.TemporaryDirectory() as td:
             source = pathlib.Path(td) / "Downloads" / "Arvectum Proxy Launcher.exe"
             target = (
