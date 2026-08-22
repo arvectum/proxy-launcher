@@ -17,11 +17,16 @@ version="$(tr -d '[:space:]' < VERSION)"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 appdir="$work/ArvectumProxyLauncher.AppDir"
 docdir="$appdir/usr/share/doc/arvectum-proxy-launcher"
+license_bundle="$work/THIRD_PARTY_LICENSES"
 mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps" "$docdir" "$out_dir"
+python3 tools/third_party_license_bundle.py --build --output "$license_bundle"
+python3 tools/third_party_license_bundle.py --verify --output "$license_bundle"
 install -m755 "$artifact" "$appdir/usr/bin/arvectum-proxy-launcher"
 install -m644 assets/arvectum-icon-0.2.2-transparent.png "$appdir/usr/share/icons/hicolor/256x256/apps/arvectum-proxy-launcher.png"
 install -m644 LICENSE "$docdir/LICENSE.txt"
 install -m644 THIRD_PARTY_NOTICES.txt "$docdir/THIRD_PARTY_NOTICES.txt"
+mkdir -p "$docdir/THIRD_PARTY_LICENSES"
+cp -a "$license_bundle/." "$docdir/THIRD_PARTY_LICENSES/"
 cat > "$appdir/AppRun" <<'EOF'
 #!/usr/bin/env sh
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
@@ -46,4 +51,5 @@ out="$out_dir/Arvectum_Proxy_Launcher-${version}-x86_64.AppImage"
 rm -f "$out"
 ARCH=x86_64 VERSION="$version" APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --runtime-file "$runtime" "$appdir" "$out"
 chmod 0755 "$out"
+echo "APL-IP-004: base desktop bundle embedded; AppImage remains EXCLUDED from promoted commercial scope pending dedicated type-2 runtime/transitive LGPL compliance clearance." >&2
 echo "$out"
