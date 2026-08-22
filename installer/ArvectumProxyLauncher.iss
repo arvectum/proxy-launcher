@@ -59,6 +59,9 @@ Source: "{#PayloadDir}\build_manifest.json"; Flags: dontcopy
 Source: "{#PayloadDir}\upgrade_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\uninstall_helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\upgrade_helper.ps1"; Flags: dontcopy
+Source: "{#PayloadDir}\LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PayloadDir}\THIRD_PARTY_NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PayloadDir}\THIRD_PARTY_LICENSES\*"; DestDir: "{app}\THIRD_PARTY_LICENSES"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallDelete]

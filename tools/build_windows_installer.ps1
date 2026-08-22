@@ -35,11 +35,15 @@ if ($SyntheticPredecessor) {
 $versionCore = ($version -split '[-+]')[0]
 $versionInfoVersion = "$versionCore.0"
 $exe = Join-Path $root 'dist\Arvectum Proxy Launcher.exe'
-if (-not (Test-Path -LiteralPath $exe)) {
+$portableZip = Join-Path $root "out\Arvectum-Proxy-Launcher-$canonicalVersion-windows-x64-portable.zip"
+if (-not (Test-Path -LiteralPath $exe) -or -not (Test-Path -LiteralPath $portableZip)) {
     & (Join-Path $root 'tools\clean_build_windows.ps1') -PythonExecutable $PythonExecutable
     if ($LASTEXITCODE) { throw 'portable build failed' }
+    & (Join-Path $root 'tools\windows_promoted_license_compliance.ps1') -PortableZip $portableZip
+    if ($LASTEXITCODE) { throw 'APL-IP-004 portable license compliance failed' }
 }
 if (-not (Test-Path -LiteralPath $exe)) { throw 'dist\\Arvectum Proxy Launcher.exe is required' }
+if (-not (Test-Path -LiteralPath $portableZip)) { throw 'APL-IP-004 compliant portable ZIP is required' }
 
 $payload = Join-Path $root 'out\installer-payload'
 Remove-Item -LiteralPath $payload -Recurse -Force -ErrorAction SilentlyContinue
@@ -47,6 +51,23 @@ New-Item -ItemType Directory -Path $payload -Force | Out-Null
 Copy-Item -LiteralPath $exe -Destination (Join-Path $payload 'Arvectum Proxy Launcher.exe')
 Copy-Item -LiteralPath (Join-Path $root 'installer\upgrade_helper.ps1') -Destination $payload
 Copy-Item -LiteralPath (Join-Path $root 'installer\uninstall_helper.ps1') -Destination $payload
+Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $payload 'LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $root 'THIRD_PARTY_NOTICES.txt') -Destination (Join-Path $payload 'THIRD_PARTY_NOTICES.txt')
+
+$licenseExtract = Join-Path $root 'out\installer-license-source'
+Remove-Item -LiteralPath $licenseExtract -Recurse -Force -ErrorAction SilentlyContinue
+Expand-Archive -LiteralPath $portableZip -DestinationPath $licenseExtract -Force
+$portableBundle = Join-Path $licenseExtract 'THIRD_PARTY_LICENSES'
+if (-not (Test-Path -LiteralPath (Join-Path $portableBundle 'manifest.json'))) {
+    throw 'APL-IP-004: portable ZIP does not contain a verified third-party license bundle.'
+}
+Copy-Item -LiteralPath $portableBundle -Destination (Join-Path $payload 'THIRD_PARTY_LICENSES') -Recurse
+$bundlePython = Join-Path $root '.build-venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $bundlePython)) { throw 'APL-IP-004: canonical build Python is unavailable for installer bundle verification.' }
+& $bundlePython (Join-Path $root 'tools\third_party_license_bundle.py') --verify --output (Join-Path $payload 'THIRD_PARTY_LICENSES')
+if ($LASTEXITCODE -ne 0) { throw 'APL-IP-004: installer third-party license bundle verification failed.' }
+Remove-Item -LiteralPath $licenseExtract -Recurse -Force
+
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 function NormalizedVersionInfoValue($Value) {
     # Inno Setup may space-pad string-table fields in the PE resource. Windows
@@ -82,6 +103,7 @@ $manifest = [ordered]@{
     application_sha256=(Hash (Join-Path $payload 'Arvectum Proxy Launcher.exe'))
     upgrade_helper_sha256=(Hash (Join-Path $payload 'upgrade_helper.ps1'))
     uninstall_helper_sha256=(Hash (Join-Path $payload 'uninstall_helper.ps1'))
+    third_party_license_manifest_sha256=(Hash (Join-Path $payload 'THIRD_PARTY_LICENSES\manifest.json'))
     inno_setup_version=$requiredInnoSetupVersion
     inno_setup_version_verification='compiler-preprocessor-ver-0x06070100'
     iscc_sha256=$isccHash

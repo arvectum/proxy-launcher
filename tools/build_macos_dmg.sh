@@ -13,6 +13,9 @@ stage="$(mktemp -d)"; trap 'rm -rf "$stage"' EXIT
 cp -R "$app" "$stage/Arvectum Proxy Launcher.app"
 cp LICENSE "$stage/LICENSE.txt"
 cp THIRD_PARTY_NOTICES.txt "$stage/THIRD_PARTY_NOTICES.txt"
+[[ -d "$app/Contents/Resources/THIRD_PARTY_LICENSES" ]] || { echo "APL-IP-004: .app license bundle missing" >&2; exit 3; }
+cp -R "$app/Contents/Resources/THIRD_PARTY_LICENSES" "$stage/THIRD_PARTY_LICENSES"
+python3 tools/third_party_license_bundle.py --verify --output "$stage/THIRD_PARTY_LICENSES"
 ln -s /Applications "$stage/Applications"
 out="$out_dir/Arvectum_Proxy_Launcher-${version}-${arch}.dmg"
 rm -f "$out"

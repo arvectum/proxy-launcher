@@ -11,7 +11,7 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   echo "APL-LNX-007: .deb packaging is Linux-only" >&2
   exit 2
 fi
-for cmd in dpkg dpkg-deb install; do
+for cmd in dpkg dpkg-deb install python3; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required tool: $cmd" >&2; exit 2; }
 done
 [[ -f "$artifact" ]] || { echo "Missing Linux application artifact: $artifact" >&2; exit 2; }
@@ -26,13 +26,19 @@ package="arvectum-proxy-launcher"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 root="$work/${package}_${version}_${arch}"
+license_bundle="$work/THIRD_PARTY_LICENSES"
 mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/share/applications" "$out_dir"
+
+python3 tools/third_party_license_bundle.py --build --output "$license_bundle"
+python3 tools/third_party_license_bundle.py --verify --output "$license_bundle"
 
 install -Dm755 "$artifact" "$root/opt/arvectum-proxy-launcher/Arvectum Proxy Launcher"
 install -Dm644 assets/arvectum-icon-0.2.2-transparent.png \
   "$root/usr/share/icons/hicolor/256x256/apps/arvectum-proxy-launcher.png"
 install -Dm644 LICENSE "$root/usr/share/doc/$package/copyright"
 install -Dm644 THIRD_PARTY_NOTICES.txt "$root/usr/share/doc/$package/THIRD_PARTY_NOTICES.txt"
+mkdir -p "$root/usr/share/doc/$package/THIRD_PARTY_LICENSES"
+cp -a "$license_bundle/." "$root/usr/share/doc/$package/THIRD_PARTY_LICENSES/"
 
 cat > "$root/usr/bin/arvectum-proxy-launcher" <<'EOF'
 #!/usr/bin/env sh
