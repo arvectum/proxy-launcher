@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Windows implementation of the ProxyBackend contract.
+"""Windows implementation of the ``ProxyBackend`` contract.
 
-the Windows backend adapter introduced this compatibility backend around the proven Windows
-0.2.3 behaviour. WinINET, per-user proxy-environment persistence and Windows system-proxy mutation
-are owned by ``windows_system_proxy``;
-``system_proxy_runtime`` injects the captured canonical implementation here
-through the established compatibility adapter.
+This adapter preserves the customer-proven Windows 0.2.3 behavior while
+keeping operating-system mutation ownership explicit. WinINET, per-user proxy
+environment persistence, and Windows system-proxy mutation are owned by
+``windows_system_proxy``. ``system_proxy_runtime`` injects the captured
+canonical implementation through the runtime adapter.
 """
 
 from typing import Any, Iterable, Tuple
