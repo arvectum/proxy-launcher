@@ -2,13 +2,13 @@
 """Build and verify the third-party license bundle for promoted desktop artifacts.
 
 APL-IP-004 treats license delivery as an artifact property, not merely repository
-metadata.  The collector copies complete license/copyright texts from the exact
+metadata. The collector copies complete license/copyright texts from the exact
 Python/Tcl/Tk/PyInstaller environment used to freeze the application, records
 SHA-256 hashes, and fails closed when an expected license family cannot be found.
 
-The generated directory is safe to embed into platform packages.  It contains no
+The generated directory is safe to embed into platform packages. It contains no
 secrets and no downloaded material: every collected text must already exist in
-the selected build environment.
+the selected build environment or its operating-system package documentation.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -62,7 +61,12 @@ def _existing(paths: Iterable[Path]) -> list[Path]:
 
 
 def python_license_candidates() -> list[Path]:
-    roots = [Path(sys.base_prefix), Path(sys.exec_prefix)]
+    major_minor = f"{sys.version_info.major}.{sys.version_info.minor}"
+    roots = {
+        Path(sys.base_prefix),
+        Path(sys.exec_prefix),
+        Path(sys.executable).resolve().parent,
+    }
     candidates: list[Path] = []
     for root in roots:
         candidates.extend(
@@ -70,8 +74,36 @@ def python_license_candidates() -> list[Path]:
                 root / "LICENSE.txt",
                 root / "LICENSE",
                 root / "Doc" / "license.rst",
+                root / "Resources" / "License.rtf",
+                root / "Resources" / "LICENSE.txt",
+                root / "Resources" / "LICENSE",
             ]
         )
+
+    # python.org macOS framework installations keep the distributable license in
+    # the companion /Applications/Python X.Y directory rather than next to the
+    # framework binary. This is still part of the exact selected Python install.
+    mac_install = Path("/Applications") / f"Python {major_minor}"
+    candidates.extend(
+        [
+            mac_install / "License.rtf",
+            mac_install / "LICENSE.txt",
+            mac_install / "LICENSE",
+        ]
+    )
+
+    # Debian-family Python packages place complete license/copyright material in
+    # /usr/share/doc instead of the interpreter prefix. Prefer version-specific
+    # package records and retain python3 as a bounded distro fallback.
+    candidates.extend(
+        [
+            Path(f"/usr/share/doc/python{major_minor}/copyright"),
+            Path(f"/usr/share/doc/python{major_minor}-minimal/copyright"),
+            Path(f"/usr/share/doc/libpython{major_minor}-stdlib/copyright"),
+            Path(f"/usr/share/doc/libpython{major_minor}-minimal/copyright"),
+            Path("/usr/share/doc/python3/copyright"),
+        ]
+    )
     return _existing(candidates)
 
 
@@ -85,9 +117,17 @@ def tcl_tk_license_candidates() -> tuple[list[Path], list[Path]]:
         raise RuntimeError(f"Tkinter/Tcl runtime is unavailable: {exc}") from exc
 
     parent = tcl_library.parent
-    tcl = _existing([tcl_library / "license.terms", parent / "tcl8.6" / "license.terms"])
+    tcl_candidates = [
+        tcl_library / "license.terms",
+        parent / "tcl8.6" / "license.terms",
+        Path("/usr/share/doc/tcl8.6/copyright"),
+        Path("/usr/share/doc/tcl/copyright"),
+    ]
 
-    tk_candidates: list[Path] = []
+    tk_candidates: list[Path] = [
+        Path("/usr/share/doc/tk8.6/copyright"),
+        Path("/usr/share/doc/tk/copyright"),
+    ]
     for pattern in ("tk*/license.terms", "Tk*/license.terms"):
         try:
             tk_candidates.extend(parent.glob(pattern))
@@ -96,10 +136,20 @@ def tcl_tk_license_candidates() -> tuple[list[Path], list[Path]]:
     # Windows python.org layouts commonly keep Tcl/Tk below <base>/tcl.
     base_tcl = Path(sys.base_prefix) / "tcl"
     if base_tcl.exists():
+        for pattern in ("tcl*/license.terms", "Tcl*/license.terms"):
+            tcl_candidates.extend(base_tcl.glob(pattern))
         for pattern in ("tk*/license.terms", "Tk*/license.terms"):
             tk_candidates.extend(base_tcl.glob(pattern))
-    tk = _existing(tk_candidates)
-    return tcl, tk
+
+    # macOS framework builds may place Tcl/Tk frameworks beside Python.
+    framework_roots = [
+        Path("/Library/Frameworks/Tcl.framework/Versions/Current/Resources"),
+        Path("/Library/Frameworks/Tk.framework/Versions/Current/Resources"),
+    ]
+    tcl_candidates.extend([framework_roots[0] / "license.terms", framework_roots[0] / "License.txt"])
+    tk_candidates.extend([framework_roots[1] / "license.terms", framework_roots[1] / "License.txt"])
+
+    return _existing(tcl_candidates), _existing(tk_candidates)
 
 
 def pyinstaller_license_candidates() -> list[Path]:
