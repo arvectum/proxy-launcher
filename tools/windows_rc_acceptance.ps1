@@ -125,9 +125,11 @@ try {
 
     # Gate R6 remains an exact-content gate: bundle children are not broadly
     # allowlisted. Only files enumerated and hash-bound by manifest.json are valid.
+    # Path.GetRelativePath handles the Windows 8.3 short-path alias that hosted
+    # runners can expose for %TEMP% (for example RUNNER~1 vs runneradmin).
     $expectedEntries = @($baseExpectedFiles | ForEach-Object { $_ }) + @('THIRD_PARTY_LICENSES/manifest.json') + @($manifestAllowed)
     $actualEntries = @(Get-ChildItem -LiteralPath $temp -File -Recurse | ForEach-Object {
-        $_.FullName.Substring($temp.Length).TrimStart('\','/') -replace '\\','/'
+        ([System.IO.Path]::GetRelativePath($temp, $_.FullName)) -replace '\\','/'
     } | Sort-Object)
     $expectedSorted = @($expectedEntries | Sort-Object)
     Add-Check 'portable.contents' (($actualEntries -join '|') -ceq ($expectedSorted -join '|')) ($actualEntries -join ', ')
