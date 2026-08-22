@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Per-user LaunchAgent ownership for APL-MAC-006."""
+"""Per-user LaunchAgent ownership for macOS autostart ownership."""
 import os
 import plistlib
 import posixpath

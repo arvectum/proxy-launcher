@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Platform capability model and fail-closed feature gating.
 
-APL-CORE-006 makes product capabilities explicit instead of letting UI or
+the capability model makes product capabilities explicit instead of letting UI or
 callers infer them from ``sys.platform`` or backend implementation details.
 """
 

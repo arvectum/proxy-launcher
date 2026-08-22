@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read-only NetworkManager operational capability detection for Linux/Astra.
 
-APL-LNX-002 turns APL-LNX-001 runtime facts into an explicit readiness verdict
+the Linux NetworkManager preflight turns Linux platform detection runtime facts into an explicit readiness verdict
 for the NetworkManager backend. The preflight never modifies connections,
 starts services, reloads NetworkManager, or requests elevated privileges.
 """

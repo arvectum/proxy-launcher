@@ -124,7 +124,7 @@ def get_proxy_backend():
             linux_runner = linux_policykit_ux.run_nmcli_with_policykit
         _SELECTED_BACKEND = backend_runtime.create_backend(
             platform=_effective_runtime_platform(),
-            legacy_core=_WINDOWS_CORE,
+            runtime_core=_WINDOWS_CORE,
             logger=_core()._log,
             linux_runner=linux_runner,
         )

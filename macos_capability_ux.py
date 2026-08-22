@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Stable macOS capability/failure UX mapping for APL-MAC-002."""
+"""Stable macOS capability/failure UX mapping for the macOS capability UX."""
 from typing import Any, Mapping
 
 from macos_networksetup_preflight import MacOSPreflightStatus

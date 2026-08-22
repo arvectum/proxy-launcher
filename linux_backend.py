@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """NetworkManager implementation of the ProxyBackend contract for Linux/Astra.
 
-APL-CORE-004 targets Linux desktops whose active network connections are
+the Linux backend adapter targets Linux desktops whose active network connections are
 managed by NetworkManager. The backend mutates per-connection WWW proxy state
 through ``nmcli`` and reapplies changed active profiles without restarting
 NetworkManager or cycling network interfaces.

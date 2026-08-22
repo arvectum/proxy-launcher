@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Dependency-free structured JSONL logging for Arvectum Proxy Launcher.
 
-APL-DIAG-001 keeps the historical ``proxy_core.log`` location, but every new
+structured logging keeps the historical ``proxy_core.log`` location, but every new
 record is a single JSON object.  Logging is deliberately best-effort: a disk,
 encoding, or rotation failure must never break proxy/network recovery logic.
 """
@@ -53,7 +53,7 @@ def _sanitize_message(value, limit=4096):
 
 
 def _sensitive_key(key):
-    """Compatibility wrapper retained for APL-DIAG-001 callers/tests."""
+    """Compatibility wrapper retained for structured logging callers/tests."""
     return is_sensitive_key(key)
 
 

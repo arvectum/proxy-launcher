@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Linux/Astra PolicyKit authorization UX primitives.
 
-APL-LNX-004 keeps authorization opt-in and narrow. Read-only capability probes
+the interactive PolicyKit path keeps authorization opt-in and narrow. Read-only capability probes
 never request credentials. Only a mutation explicitly started by the user from
 the Linux GUI may mark its child process as interactive, and only NetworkManager
 mutation commands receive ``nmcli --ask``.

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Privacy-bounded macOS diagnostics/support bundle for APL-MAC-003."""
+"""Privacy-bounded macOS diagnostics/support bundle for macOS diagnostics."""
 import json
 import os
 import platform

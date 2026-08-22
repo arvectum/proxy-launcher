@@ -591,7 +591,7 @@ LEGACY_ORPHANED_PAC_DIAGNOSTIC = "ОБНАРУЖЕН СТАРЫЙ PAC ARVECTUM"
 def _final_status_view(running, enabled, pending, orphaned_pac, stale_proxy):
     """Return the user-facing final state for the Windows launcher.
 
-    APL-WIN-001 keeps low-level engine/PAC details out of the primary status
+    Windows single-instance activation keeps low-level engine/PAC details out of the primary status
     label and makes every stable state answer two questions: what is happening
     now, and what (if anything) the user should do next.
     """
@@ -1117,7 +1117,7 @@ class Launcher:
             messagebox.showinfo(APP_NAME, "Журнал пока пуст.")
 
     def doctor(self):
-        """Run read-only APL-DIAG-004 checks without blocking the Tk event loop."""
+        """Run read-only support-bundle diagnostics checks without blocking the Tk event loop."""
         self._set_busy("Диагностика…", MINT_LIGHT)
         threading.Thread(target=self._do_doctor, daemon=True).start()
 

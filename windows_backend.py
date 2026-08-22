@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Windows implementation of the ProxyBackend contract.
+"""Windows implementation of the ``ProxyBackend`` contract.
 
-APL-CORE-002 introduced this compatibility backend around the proven Windows
-0.2.3 behaviour. APL-IP-003 Slice 8 moves WinINET, per-user proxy-environment
-persistence and Windows system-proxy mutation into ``windows_system_proxy``;
-``system_proxy_runtime`` injects the captured canonical implementation here
-through the established compatibility adapter.
+This adapter preserves the customer-proven Windows 0.2.3 behavior while
+keeping operating-system mutation ownership explicit. WinINET, per-user proxy
+environment persistence, and Windows system-proxy mutation are owned by
+``windows_system_proxy``. ``system_proxy_runtime`` injects the captured
+canonical implementation through the runtime adapter.
 """
 
 from typing import Any, Iterable, Tuple
@@ -39,20 +39,20 @@ class WindowsBackend(ProxyBackend):
     the backend from reporting success for a configuration the canonical
     implementation would silently ignore.
 
-    Private method names containing ``legacy`` are retained as compatibility
-    seams only; they no longer describe implementation ownership after Slice 8.
+    Private helper names describe the current runtime adapter and configuration
+    comparison boundary directly.
     """
 
-    def __init__(self, legacy_core=None):
-        if legacy_core is None:
-            import proxy_core as legacy_core  # local import avoids module coupling
-        self._core = legacy_core
+    def __init__(self, runtime_core=None):
+        if runtime_core is None:
+            import proxy_core as runtime_core  # local import avoids module coupling
+        self._core = runtime_core
 
     @property
     def backend_id(self) -> str:
         return "windows"
 
-    def _resolved_legacy_config(self) -> ProxyBackendConfig:
+    def _resolved_runtime_config(self) -> ProxyBackendConfig:
         settings = self._core.load_settings()
         port = int(settings.get("local_http_port", 8080))
         no_proxy = _normalize_no_proxy(
@@ -65,10 +65,10 @@ class WindowsBackend(ProxyBackend):
             no_proxy=no_proxy,
         )
 
-    def _config_matches_legacy_runtime(self, config: ProxyBackendConfig) -> bool:
+    def _config_matches_runtime(self, config: ProxyBackendConfig) -> bool:
         if not isinstance(config, ProxyBackendConfig):
             return False
-        expected = self._resolved_legacy_config()
+        expected = self._resolved_runtime_config()
         actual = ProxyBackendConfig(
             pac_url=str(config.pac_url),
             http_proxy_url=str(config.http_proxy_url),
@@ -81,11 +81,11 @@ class WindowsBackend(ProxyBackend):
         if callable(logger):
             logger(
                 "WindowsBackend %s aborted: supplied config does not match "
-                "the legacy Windows runtime configuration" % operation
+                "the current Windows runtime configuration" % operation
             )
 
     def enable(self, config: ProxyBackendConfig) -> bool:
-        if not self._config_matches_legacy_runtime(config):
+        if not self._config_matches_runtime(config):
             self._log_config_mismatch("enable")
             return False
         return bool(self._core.enable_system_proxy())
@@ -94,7 +94,7 @@ class WindowsBackend(ProxyBackend):
         return bool(self._core.disable_system_proxy())
 
     def is_enabled(self, config: ProxyBackendConfig) -> bool:
-        if not self._config_matches_legacy_runtime(config):
+        if not self._config_matches_runtime(config):
             return False
         return bool(self._core.system_proxy_enabled())
 
@@ -102,7 +102,7 @@ class WindowsBackend(ProxyBackend):
         return bool(self._core.network_restore_pending())
 
     def sync_no_proxy(self, config: ProxyBackendConfig) -> bool:
-        if not self._config_matches_legacy_runtime(config):
+        if not self._config_matches_runtime(config):
             self._log_config_mismatch("sync_no_proxy")
             return False
         return bool(self._core.sync_client_no_proxy())

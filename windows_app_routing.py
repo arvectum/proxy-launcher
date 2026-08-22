@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read-only Windows WFP application identity and filter-plan prototype.
 
-APL-ROUTE-003 deliberately stops before live WFP filter/callout installation.
+the Windows application-routing gate deliberately stops before live WFP filter/callout installation.
 Live WFP redirection requires a separately reviewed native privileged component.
 """
 from dataclasses import dataclass
@@ -86,7 +86,7 @@ def compile_windows_filter_plan(
     *,
     app_id_resolver: Callable[[str], bytes] = get_wfp_app_id,
 ) -> Tuple[WfpFilterPlan, ...]:
-    """Compile APL-ROUTE-001 rules into a non-mutating WFP plan.
+    """Compile routing-rule ownership rules into a non-mutating WFP plan.
 
     Domain selectors are intentionally not enforcement-ready because WFP ALE
     destination conditions are address-based and a production DNS strategy is

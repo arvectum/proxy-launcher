@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read-only automated self-diagnostics for Arvectum Proxy Launcher.
 
-APL-DIAG-004 evaluates the redacted APL-DIAG-003 snapshot and turns it into a
+support-bundle diagnostics evaluates the redacted platform diagnostics snapshot and turns it into a
 stable PASS/WARN/FAIL health report. The Doctor never changes proxy, WinINET,
 environment, recovery, autostart, or network state. It performs no external
 network requests; localhost listener observations come from the diagnostics
@@ -81,7 +81,7 @@ def _collector_integrity(snapshot):
         return _check(
             "collector.integrity", FAIL, "Diagnostics snapshot schema is unsupported",
             {"expected_schema": diagnostics.SCHEMA, "source_schema": source_schema},
-            "Run Doctor with the matching APL-DIAG-003 collector version.",
+            "Run Doctor with the matching platform diagnostics collector version.",
         )
     sections = _safe_dict(_safe_dict(snapshot).get("sections", {}))
     failed = []
@@ -97,7 +97,7 @@ def _collector_integrity(snapshot):
         FAIL if essential_failed else WARN,
         "Diagnostics snapshot is incomplete",
         {"failed_sections": sorted(set(failed)), "essential_failed": essential_failed},
-        "Run Doctor again; if the same section fails, create an APL-DIAG-003 support bundle for support.",
+        "Run Doctor again; if the same section fails, create an platform diagnostics support bundle for support.",
     )
 
 
@@ -351,7 +351,7 @@ def _recovery_autostart_check(snapshot):
 
 
 def evaluate_snapshot(snapshot):
-    """Evaluate one APL-DIAG-003 snapshot without accessing OS/network state."""
+    """Evaluate one platform diagnostics snapshot without accessing OS/network state."""
     checks = [
         _collector_integrity(snapshot),
         _redaction_self_test(),
@@ -388,8 +388,8 @@ def evaluate_snapshot(snapshot):
         "checks": checks,
         "recommended_actions": actions,
     }
-    # Defense in depth: the APL-DIAG-003 snapshot is already redacted, but all
-    # Doctor output passes the same centralized APL-DIAG-002 layer again.
+    # Defense in depth: the platform diagnostics snapshot is already redacted, but all
+    # Doctor output passes the same centralized diagnostic secret redaction layer again.
     return redact_value(report, max_depth=16, max_items=500, string_limit=8192)
 
 

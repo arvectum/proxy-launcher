@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Linux/Astra support-bundle collector for Arvectum Proxy Launcher.
 
-APL-LNX-006 collects read-only runtime, NetworkManager, application and recovery
+Linux diagnostics collects read-only runtime, NetworkManager, application and recovery
 state into one redacted ZIP. Collection is deliberately best-effort: a failed
 source is represented as a failed section and never authorizes a network change.
 Raw configuration, rollback evidence and XDG autostart files are never copied
@@ -387,7 +387,7 @@ _SECTION_COLLECTORS = (
 def collect_snapshot():
     """Collect one redacted in-memory Linux diagnostics snapshot."""
     if not _is_linux():
-        raise RuntimeError("APL-LNX-006 diagnostics require a Linux host")
+        raise RuntimeError("Linux diagnostics diagnostics require a Linux host")
     sections = {name: _safe_section(collector) for name, collector in _SECTION_COLLECTORS}
     return _sanitize({
         "schema": SCHEMA,
@@ -444,7 +444,7 @@ def _default_output_path():
 def create_support_bundle(output_path=None):
     """Create an atomic redacted Linux/Astra diagnostics ZIP and return its path."""
     if not _is_linux():
-        raise RuntimeError("APL-LNX-006 support bundle is available on Linux only")
+        raise RuntimeError("Linux diagnostics support bundle is available on Linux only")
 
     target = os.path.abspath(os.path.expanduser(os.fspath(output_path or _default_output_path())))
     if not target.lower().endswith(".zip"):

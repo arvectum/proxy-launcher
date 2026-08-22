@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Formal network recovery state machine for Arvectum Proxy Launcher.
 
-APL-REC-001 defines one canonical lifecycle for network mutation:
+recovery-state ownership defines one canonical lifecycle for network mutation:
 
     OFF -> SAVE_ORIGINAL -> APPLY -> VERIFY -> ACTIVE
         -> RESTORE -> VERIFY -> OFF
@@ -12,7 +12,7 @@ accidentally accept the wrong verification result.
 
 This module is deliberately platform-independent and side-effect free.  It is
 the contract used by Windows recovery code and by later platform adapters.
-Ownership/evidence admission rules are layered on top in APL-REC-002.
+Ownership/evidence admission rules are layered on top in recovery mutation ownership.
 """
 
 from __future__ import annotations
@@ -192,7 +192,7 @@ class RecoveryStateMachine:
 
 
 def canonical_recovery_sequence() -> Tuple[RecoveryState, ...]:
-    """Return the normative APL-REC-001 happy-path sequence."""
+    """Return the normative recovery-state ownership happy-path sequence."""
     return (
         RecoveryState.OFF,
         RecoveryState.SAVE_ORIGINAL,

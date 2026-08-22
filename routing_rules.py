@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Cross-platform routing rule domain model (APL-ROUTE-001).
+"""Cross-platform routing rule domain model (routing-rule ownership).
 
 This module deliberately contains no OS/network mutation code. It is the stable
 control-plane schema consumed by later platform-specific routing adapters.

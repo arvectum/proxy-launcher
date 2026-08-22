@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Executable unified backend contract and regression matrix (APL-CORE-007).
+"""Executable unified backend contract and regression matrix (the unified backend contract).
 
 This module is intentionally declarative. It does not mutate operating-system
 proxy state. Instead it defines the stable public backend surface, validates
