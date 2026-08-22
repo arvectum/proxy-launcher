@@ -1,16 +1,38 @@
 # -*- coding: utf-8 -*-
-"""Canonical runtime facade for Arvectum Proxy Launcher.
+"""Canonical runtime composition root for Arvectum Proxy Launcher.
 
-APL-IP-003 moves owned responsibilities out of ``proxy_core_legacy.py`` in
-bounded slices while preserving the sealed Windows 0.2.3 behaviour and mutable
-monkeypatch seam. Slices 1–11 own runtime composition, filesystem/portable
-lifecycle, configuration, routing, local transport, process supervision,
-application runtime, Windows system-proxy persistence/recovery, Recovery Run,
-stale/orphan PAC cleanup, and the structured logging bridge. Slice 12 reduces
-``proxy_core_legacy.py`` to the shared compatibility/state shell only.
+APL-IP-003 extracted maintained runtime responsibilities into explicit owner
+modules while preserving the sealed Windows 0.2.3 behavior contract. This
+module now owns the small release/state bootstrap contract directly and
+installs every canonical owner onto its own module object. No compatibility
+module replacement is required.
 """
 
 import sys as _runtime_sys
+
+# Release identity consumed by logging and release guards.
+APP_VERSION = "0.2.3"
+ENGINEERING_MILESTONE = "P0.2"
+
+# State/bootstrap values required before all canonical owners are installed.
+_STATE_FILES = (
+    "proxy_settings.json",
+    "no_proxy.txt",
+    "proxy_core.pid",
+    "proxy_core.log",
+    "proxy_internet_backup.json",
+    "proxy_env_backup.json",
+)
+_STATE_READY = False
+
+# Portable/install identity used by filesystem, lifecycle and Recovery Run
+# ownership. Historical values remain classification evidence only.
+_INSTALL_OWNER_MARKER = ".arvectum-install-owner"
+_INSTALL_OWNER_VALUE = "ARVECTUM_PROXY_LAUNCHER_INSTALL_OWNER"
+_LEGACY_INSTALL_OWNER_VALUES = {"ARVECTUM_PROXY_LAUNCHER_WINDOWS_RC2_1"}
+_LAUNCHER_EXE_NAME = "Arvectum Proxy Launcher.exe"
+_USER_AUTOSTART_RUN_VALUE = "ArvectumProxyLauncher"
+_LAST_SELF_HEAL_ERROR = ""
 
 import application_filesystem as _application_filesystem
 import application_runtime as _application_runtime
@@ -19,7 +41,6 @@ import local_proxy_transport as _local_proxy_transport
 import logging_bridge as _logging_bridge
 import portable_lifecycle as _portable_lifecycle
 import process_supervision as _process_supervision
-import proxy_core_legacy as _core
 import recovery_autostart as _recovery_autostart
 import routing_policy as _routing_policy
 import system_proxy_runtime as _system_proxy_runtime
@@ -35,18 +56,17 @@ import windows_system_proxy as _windows_system_proxy
 # conflicts with a foreign command
 # leaving it untouched
 
-_FACADE_FILE = __file__
-_core.__file__ = _FACADE_FILE
+_core = _runtime_sys.modules[__name__]
 
 # Filesystem ownership supplies the canonical log path before the logging
-# singleton is replaced. The logging bridge itself resolves mutable seams
-# dynamically through ``_core`` to preserve historical monkeypatch behaviour.
+# singleton is replaced. The logging bridge resolves mutable behavior seams
+# dynamically through the canonical core object.
 _application_filesystem.configure(_core)
 _application_filesystem.install_into_core(_core)
 _logging_bridge.configure(_core)
 _logging_bridge.install_into_core(_core)
 
-# Lower-level owners preserve their established collaborators through ``_core``.
+# Lower-level owners preserve their established collaborators through core.
 _portable_lifecycle.configure(_core)
 _portable_lifecycle.install_into_core(_core)
 _configuration_storage.configure(_core)
@@ -76,11 +96,6 @@ _windows_pac_recovery.install_into_core(_core)
 # Application runtime is the top-level composition owner.
 _application_runtime.configure(_core)
 _application_runtime.install_into_core(_core)
-
-# ``import proxy_core`` intentionally returns this one established mutable
-# module object. Slice 12 removes duplicate implementation from the shell but
-# does not remove the compatibility identity itself.
-_runtime_sys.modules[__name__] = _core
 
 
 if __name__ == "__main__":
