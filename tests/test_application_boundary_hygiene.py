@@ -8,6 +8,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TASK_ID_RE = re.compile(r"\bAPL-[A-Z0-9]+(?:-[A-Z0-9]+)*-\d+\b")
+SLICE_HISTORY_RE = re.compile(r"\bSlice\s+\d+\b", re.IGNORECASE)
 GUI_ENTRY_POINTS = (
     ROOT / "proxy_gui.py",
     ROOT / "linux_gui.py",
@@ -36,20 +37,24 @@ def _production_python_files():
     return sorted(paths)
 
 
-def _narrative_task_ids(path):
+def _narrative_history_markers(path):
     source = path.read_text(encoding="utf-8-sig")
     tree = ast.parse(source)
     hits = set()
+
+    def collect(text):
+        hits.update(TASK_ID_RE.findall(text))
+        hits.update(SLICE_HISTORY_RE.findall(text))
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             docstring = ast.get_docstring(node, clean=False)
             if docstring:
-                hits.update(TASK_ID_RE.findall(docstring))
+                collect(docstring)
 
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
         if token.type == tokenize.COMMENT:
-            hits.update(TASK_ID_RE.findall(token.string))
+            collect(token.string)
 
     return sorted(hits)
 
@@ -93,10 +98,10 @@ def _stale_identifier_consumers():
 
 
 class ApplicationBoundaryHygieneTests(unittest.TestCase):
-    def test_production_narrative_does_not_encode_engineering_task_ids(self):
+    def test_production_narrative_does_not_encode_engineering_task_history(self):
         violations = {}
         for path in _production_python_files():
-            hits = _narrative_task_ids(path)
+            hits = _narrative_history_markers(path)
             if hits:
                 violations[path.relative_to(ROOT).as_posix()] = hits
         if violations:
