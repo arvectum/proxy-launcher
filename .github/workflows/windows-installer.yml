@@ -64,7 +64,9 @@ jobs:
         run: |
           try {
             ./tools/clean_build_windows.ps1 -PythonExecutable python
-            ./tools/windows_promoted_license_compliance.ps1 -PortableZip '${{ steps.portable.outputs.zip_path }}'
+            $zip = (Get-ChildItem -LiteralPath out -Filter '*-windows-x64-portable.zip' -File | Select-Object -First 1).FullName
+            if (-not $zip) { throw 'Canonical portable ZIP was not produced.' }
+            ./tools/windows_promoted_license_compliance.ps1 -PortableZip $zip
           } catch {
             $message = ($_.Exception.Message -replace "`r|`n", ' ')
             Write-Host "::error title=Canonical Windows build failed::$message"
