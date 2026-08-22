@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 """Canonical runtime composition root for Arvectum Proxy Launcher.
 
-APL-IP-003 extracted maintained runtime responsibilities into explicit owner
-modules while preserving the sealed Windows 0.2.3 behavior contract. This
-module now owns the small release/state bootstrap contract directly and
-installs every canonical owner onto its own module object. No compatibility
-module replacement is required.
+Owns release/state bootstrap and installs explicit runtime owners onto the canonical ``proxy_core`` module. Ordinary dependencies remain with their owners, while behavior-sensitive collaborators resolve through this composition object.
 """
 
 import sys as _runtime_sys

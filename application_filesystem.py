@@ -1,10 +1,6 @@
 """Canonical application filesystem for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 2 centralizes executable, persistent-state and runtime paths,
-including the one-time legacy-state migration contract. The module is wired
-into the established ``proxy_core`` module object so historical collaborator
-and state monkeypatch seams continue to work while ordinary standard-library
-dependencies are owned locally by this module.
+Owns executable, persistent-state and runtime paths, including migration from known historical state locations. Runtime collaborators resolve through the canonical composition module; standard-library dependencies remain local.
 """
 
 from __future__ import annotations
@@ -23,7 +19,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

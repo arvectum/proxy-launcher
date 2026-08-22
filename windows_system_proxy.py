@@ -1,15 +1,6 @@
 """Canonical Windows system-proxy persistence for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 8 owns the Windows WinINET and per-user proxy-environment
-implementation used by the platform backend.  The module preserves the sealed
-Windows 0.2.3 fail-closed contract: original user state is captured before any
-mutation, ambiguous or invalid rollback evidence is never overwritten, and
-backup evidence is removed only after a successful restore.
-
-Recovery Run/autostart ownership and stale/orphan PAC diagnostics deliberately
-remain outside this slice.  Those collaborators are resolved dynamically
-through the established mutable ``proxy_core`` compatibility seam so their
-ownership-sensitive semantics can be extracted independently later.
+Owns WinINET and per-user proxy-environment persistence and mutation. Original user state is captured before mutation, ambiguous rollback evidence is never overwritten, and backup evidence is removed only after successful restore. Recovery Run and orphan-PAC recovery remain explicit separate owners.
 """
 
 from __future__ import annotations
@@ -35,7 +26,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

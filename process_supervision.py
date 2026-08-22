@@ -1,15 +1,6 @@
 """Canonical process supervision for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 6 centralizes runtime-status and process-ownership supervision:
-PAC health probing, listener diagnostics, Windows process identity checks, PID
-record persistence, ownership-aware running-state evaluation, and safe process
-termination.
-
-Behavior-sensitive collaborators remain resolved through the established
-mutable ``proxy_core`` seam, while ordinary standard-library dependencies are
-module-local. This preserves the sealed Windows 0.2.3 ownership/termination
-contract without using the core module as a generic dependency service locator.
-CLI orchestration and network recovery stay outside this module.
+Owns PAC health probing, listener diagnostics, process identity checks, PID persistence, running-state evaluation and ownership-safe termination. Application orchestration and network recovery remain separate owners.
 """
 
 from __future__ import annotations
@@ -26,7 +17,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

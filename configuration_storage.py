@@ -1,13 +1,6 @@
 """Canonical configuration storage for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 3 centralizes the governed settings model, configuration
-loading, Windows credential protection, atomic persistence, last-known-good
-snapshots, quarantine, and deterministic corruption recovery.
-
-The module is installed into the established ``proxy_core`` module object.
-Behavior-sensitive collaborators deliberately resolve through that compatibility
-seam so the 0.2.3 behavioural contract and monkeypatch regressions remain
-stable, while ordinary standard-library dependencies are owned locally.
+Owns the settings schema, validation, Windows credential protection, atomic persistence, last-known-good snapshots, quarantine and deterministic corruption recovery. Runtime collaborators resolve through the canonical composition module.
 """
 
 from __future__ import annotations
@@ -59,7 +52,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

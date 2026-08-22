@@ -1,14 +1,6 @@
 """Canonical Windows Recovery Run ownership for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 9 owns strict recovery/autostart command classification and
-HKCU Run-entry mutation. The implementation preserves the sealed Windows
-0.2.3 safety contract: ownership is proven by exact command/path structure,
-foreign same-named Run values are never overwritten or deleted, and process
-inspection failures are treated fail-closed. Ordinary standard-library
-process/runtime dependencies are owned locally rather than resolved through
-``proxy_core``.
-
-Stale/orphan PAC diagnosis and cleanup deliberately remain outside this slice.
+Owns strict recovery/autostart command classification and HKCU Run-entry mutation. Ownership is proven by exact command/path structure, foreign same-named values are preserved, and process-inspection failures are fail-closed.
 """
 
 from __future__ import annotations
@@ -30,7 +22,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established mutable core compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

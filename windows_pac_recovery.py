@@ -1,17 +1,6 @@
 """Canonical stale/orphan Windows PAC recovery for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 10 owns the narrowly bounded diagnostic and cleanup path for
-an Arvectum localhost PAC that remains configured after its owning runtime and
-rollback evidence are gone.  The implementation preserves the sealed Windows
-0.2.3 fail-closed contract: exact PAC ownership alone is insufficient for
-cleanup, any backup/migration/listener/process/canonical-instance evidence
-blocks mutation, a durable snapshot is required before registry deletion, and
-the exact registry value is revalidated immediately before mutation.
-
-WinINET persistence/mutation primitives remain owned by ``windows_system_proxy``;
-process/listener ownership remains in ``process_supervision`` and
-``local_proxy_transport``; canonical-install detection remains in the
-filesystem/portable lifecycle layers.
+Owns the narrowly bounded diagnostic and cleanup path for an Arvectum localhost PAC left configured after its runtime and rollback evidence are gone. Destructive cleanup requires exact ownership, absence of conflicting evidence, a durable snapshot and immediate pre-mutation revalidation.
 """
 
 from __future__ import annotations
@@ -27,7 +16,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established mutable core compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

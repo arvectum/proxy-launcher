@@ -1,15 +1,6 @@
 """Canonical application runtime orchestration for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 7 owns the top-level local-state bootstrap and CLI lifecycle
-orchestration while preserving the sealed Windows 0.2.3 command contract.
-Lower-level collaborators remain owned by their canonical modules and are
-resolved dynamically through the established mutable ``proxy_core`` seam so
-historical monkeypatch-based regression tests continue to exercise the same
-public boundary. Ordinary standard-library dependencies are owned locally by
-this module rather than resolved through ``proxy_core``.
-
-Windows registry/environment backup and recovery implementation deliberately
-remains outside this module for a later bounded ownership slice.
+Owns top-level state bootstrap and CLI lifecycle orchestration. Filesystem, transport, process supervision, system-proxy mutation and recovery remain explicit owners and are resolved through the canonical composition module.
 """
 
 from __future__ import annotations
@@ -23,7 +14,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

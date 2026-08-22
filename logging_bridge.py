@@ -1,14 +1,6 @@
 """Canonical proxy-core structured logging bridge for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 11 owns construction of the proxy-core ``StructuredLogger``
-singleton plus the established ``structured_log`` and ``_log`` compatibility
-surfaces.  The lower-level JSONL/redaction/rotation implementation remains in
-``structured_logging.py`` under its existing diagnostics contract.
-
-The bridge deliberately resolves the logger and compatibility function through
-the mutable core module at call time.  This preserves the sealed 0.2.3
-monkeypatch seams while moving implementation ownership out of
-``proxy_core_legacy.py``.
+Owns construction of the proxy-core ``StructuredLogger`` singleton and the public ``structured_log`` and ``_log`` surfaces. JSONL persistence, redaction and rotation remain owned by ``structured_logging.py``; logger resolution stays dynamic for supported runtime patchability.
 """
 
 from __future__ import annotations
@@ -22,7 +14,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established mutable proxy-core compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 
