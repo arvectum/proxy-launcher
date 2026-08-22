@@ -7,8 +7,9 @@ Python/Tcl/Tk/PyInstaller environment used to freeze the application, records
 SHA-256 hashes, and fails closed when an expected license family cannot be found.
 
 The generated directory is safe to embed into platform packages. It contains no
-secrets and no downloaded material: every collected text must already exist in
-the selected build environment or its operating-system package documentation.
+secrets and performs no downloads. Runtime/system package license material is
+preferred; governed repository-pinned upstream text is used only where a supported
+platform distributes the runtime without its license text beside the runtime.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from typing import Iterable
 
 SCHEMA = "arvectum.third-party-license-bundle.v1"
 REQUIRED_COMPONENTS = ("python", "tcl", "tk", "pyinstaller")
+REPO_ROOT = Path(__file__).resolve().parents[1]
 LICENSE_BASENAMES = {
     "license",
     "license.txt",
@@ -148,6 +150,12 @@ def tcl_tk_license_candidates() -> tuple[list[Path], list[Path]]:
     ]
     tcl_candidates.extend([framework_roots[0] / "license.terms", framework_roots[0] / "License.txt"])
     tk_candidates.extend([framework_roots[1] / "license.terms", framework_roots[1] / "License.txt"])
+
+    # GitHub-hosted python.org macOS runners expose Tcl/Tk 8.6 to _tkinter but
+    # do not expose license.terms beside that runtime. Keep an audited, pinned
+    # upstream copy in-repo so packaging stays offline and deterministic.
+    tcl_candidates.append(REPO_ROOT / "third_party_licenses" / "tcl" / "8.6" / "license.terms")
+    tk_candidates.append(REPO_ROOT / "third_party_licenses" / "tk" / "8.6" / "license.terms")
 
     return _existing(tcl_candidates), _existing(tk_candidates)
 
