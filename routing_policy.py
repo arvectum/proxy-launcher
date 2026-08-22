@@ -1,15 +1,6 @@
 """Canonical no-proxy routing policy for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 4 centralizes the platform-neutral exclusion policy used by
-PAC clients and by the local HTTP/SOCKS proxy engine: default bypass entries,
-``no_proxy.txt`` loading/persistence, user-input normalization, host bypass
-evaluation, and PAC generation.
-
-The module is installed into the established ``proxy_core`` module object.
-Behavior-sensitive collaborators continue to resolve through that mutable seam,
-while ordinary standard-library dependencies are module-local so the core
-namespace is no longer a generic service locator for routing internals.
-Platform-specific system-proxy mutation remains outside this module.
+Owns platform-neutral exclusion policy for PAC clients and the local HTTP/SOCKS engine: persistence, input normalization, host matching and PAC generation. Platform-specific system-proxy mutation remains outside this module.
 """
 
 from __future__ import annotations
@@ -37,7 +28,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

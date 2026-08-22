@@ -1,10 +1,6 @@
 """Canonical portable-executable lifecycle for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 2 owns the Windows portable self-heal/canonical-copy contract:
-copy-by-hash, owner marker creation, safe handoff, and canonical-install
-recognition. Behavior-sensitive collaborators still resolve through the
-established ``proxy_core`` module while ordinary standard-library dependencies
-are owned locally by this module.
+Owns the Windows portable stable-copy lifecycle: hash-verified replacement, install-owner marking, safe handoff and canonical-install recognition. Runtime collaborators resolve through the canonical composition module.
 """
 
 from __future__ import annotations
@@ -23,7 +19,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 

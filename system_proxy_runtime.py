@@ -1,15 +1,6 @@
 """Canonical system-proxy runtime composition for Arvectum Proxy Launcher.
 
-This module owns platform backend selection, capability gates and fail-closed
-public system-proxy seams. APL-IP-003 Slice 8 installs ``windows_system_proxy``
-before this module is configured, so the captured Windows adapter delegates to
-the canonical WinINET/proxy-environment implementation rather than to the
-historical storage definitions in ``proxy_core_legacy``.
-
-Recovery Run/autostart and stale/orphan PAC ownership remain separate bounded
-migration concerns. Historical monkeypatch seams are kept as module-level
-functions until their dependent regression tests can be migrated deliberately
-rather than silently broken.
+Owns platform backend selection, capability gates and fail-closed public system-proxy operations. The Windows adapter captures the canonical WinINET implementation, while recovery/autostart and orphan-PAC handling remain explicit separate owners.
 """
 
 from __future__ import annotations
@@ -60,7 +51,7 @@ _SELECTED_BACKEND = None
 
 
 def configure(core: ModuleType, runtime_platform: Callable[[], str]) -> None:
-    """Bind the established core once before public seams are rewired."""
+    """Bind the canonical composition module and runtime-platform resolver."""
     global _CORE, _RUNTIME_PLATFORM, _WINDOWS_CORE, _SELECTED_BACKEND
     _CORE = core
     _RUNTIME_PLATFORM = runtime_platform

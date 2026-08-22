@@ -1,15 +1,6 @@
 """Canonical local proxy transport for Arvectum Proxy Launcher.
 
-APL-IP-003 Slice 5 centralizes the platform-neutral local enforcement plane:
-upstream preparation/failover, HTTP and CONNECT proxying, SOCKS5 tunnelling,
-PAC serving, relay/accept loops, and listener start/stop lifecycle.
-
-Behavior-sensitive collaborators remain resolved through the mutable
-``proxy_core`` compatibility seam, while ordinary standard-library dependencies
-are module-local. This preserves the sealed Windows 0.2.3 transport contract
-without using the core module as a generic dependency service locator.
-Process/PID status, CLI orchestration, system-proxy mutation and recovery stay
-outside this module.
+Owns the platform-neutral local enforcement plane: upstream preparation and failover, HTTP/CONNECT proxying, SOCKS5 tunnelling, PAC serving, relay loops and listener lifecycle. Process supervision, application orchestration and system-proxy mutation remain separate owners.
 """
 
 from __future__ import annotations
@@ -31,7 +22,7 @@ _CORE: ModuleType | None = None
 
 
 def configure(core: ModuleType) -> None:
-    """Bind the established core module used as the compatibility seam."""
+    """Bind the canonical composition module used for runtime collaborators."""
     global _CORE
     _CORE = core
 
