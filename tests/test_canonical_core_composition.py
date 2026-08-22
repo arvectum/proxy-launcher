@@ -4,11 +4,10 @@ import pathlib
 import unittest
 
 import proxy_core as core
-import proxy_core_legacy as legacy
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-LEGACY_PATH = ROOT / "proxy_core_legacy.py"
+CORE_PATH = ROOT / "proxy_core.py"
 THIS_TEST = pathlib.Path(__file__).resolve()
 
 CANONICAL_RUNTIME_OWNERS = {
@@ -41,8 +40,6 @@ HISTORICAL_CORE_STDLIB_ALIASES = {
     "threading",
     "time",
 }
-RETIRED_CORE_STDLIB_ALIASES = set(HISTORICAL_CORE_STDLIB_ALIASES)
-RETAINED_COMPATIBILITY_ALIASES = set()
 
 DECOUPLED_OWNER_ATTRIBUTES = {
     "routing_policy.py": {"os", "io", "re"},
@@ -100,11 +97,10 @@ def _proxy_core_import_names(tree: ast.AST) -> set[str]:
     return names
 
 
-def _compatibility_alias_consumers() -> dict[str, set[str]]:
+def _historical_alias_consumers() -> dict[str, set[str]]:
     consumers = {name: set() for name in HISTORICAL_CORE_STDLIB_ALIASES}
     for path in ROOT.rglob("*.py"):
-        resolved = path.resolve()
-        if resolved in {LEGACY_PATH.resolve(), THIS_TEST}:
+        if path.resolve() == THIS_TEST:
             continue
         source = path.read_text(encoding="utf-8-sig")
         tree = ast.parse(source)
@@ -127,23 +123,33 @@ def _plain_imports(path: pathlib.Path) -> set[str]:
     }
 
 
-class LegacyCompatibilityShellTests(unittest.TestCase):
-    def test_proxy_core_and_legacy_name_share_one_mutable_module_object(self):
-        self.assertIs(core, legacy)
+def _legacy_module_import_consumers() -> set[str]:
+    consumers = set()
+    for path in ROOT.rglob("*.py"):
+        if path.resolve() == THIS_TEST:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) and any(
+                imported.name == "proxy_core_legacy" for imported in node.names
+            ):
+                consumers.add(path.relative_to(ROOT).as_posix())
+            if isinstance(node, ast.ImportFrom) and node.module == "proxy_core_legacy":
+                consumers.add(path.relative_to(ROOT).as_posix())
+    return consumers
+
+
+class CanonicalCoreCompositionTests(unittest.TestCase):
+    def test_proxy_core_is_the_single_canonical_mutable_module_object(self):
+        self.assertEqual(core.__name__, "proxy_core")
         self.assertTrue(str(core.__file__).endswith("proxy_core.py"))
+        self.assertFalse((ROOT / "proxy_core_legacy.py").exists())
+        source = CORE_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("import proxy_core_legacy", source)
+        self.assertNotIn("_runtime_sys.modules[__name__] =", source)
+        self.assertEqual(_legacy_module_import_consumers(), set())
 
-    def test_legacy_source_contains_no_runtime_function_or_class_implementation(self):
-        source = LEGACY_PATH.read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        implementation_nodes = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda))
-        ]
-        self.assertEqual(implementation_nodes, [])
-        self.assertLess(len(source.splitlines()), 90)
-
-    def test_legacy_shell_retains_only_precomposition_identity_and_state_contract(self):
+    def test_core_retains_exact_precomposition_state_contract(self):
         self.assertEqual(core.APP_VERSION, "0.2.3")
         self.assertEqual(core.ENGINEERING_MILESTONE, "P0.2")
         self.assertEqual(core._INSTALL_OWNER_MARKER, ".arvectum-install-owner")
@@ -154,19 +160,13 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
         self.assertIsInstance(core._STATE_READY, bool)
         self.assertIn("proxy_core.log", core._STATE_FILES)
 
-    def test_all_historical_stdlib_aliases_are_absent_from_core_namespace(self):
-        self.assertEqual(RETIRED_CORE_STDLIB_ALIASES, HISTORICAL_CORE_STDLIB_ALIASES)
+    def test_all_historical_stdlib_aliases_remain_absent_from_core_namespace(self):
         for name in HISTORICAL_CORE_STDLIB_ALIASES:
             self.assertFalse(hasattr(core, name), name)
-
-    def test_legacy_shell_has_zero_stdlib_compatibility_imports(self):
-        imported = _plain_imports(LEGACY_PATH)
-        self.assertEqual(RETAINED_COMPATIBILITY_ALIASES, set())
-        self.assertEqual(imported & HISTORICAL_CORE_STDLIB_ALIASES, set())
-        self.assertEqual(imported, set())
+        self.assertTrue(hasattr(core, "_runtime_sys"))
 
     def test_historical_aliases_have_no_live_project_consumers(self):
-        self.assertEqual(_compatibility_alias_consumers(), {})
+        self.assertEqual(_historical_alias_consumers(), {})
 
     def test_socket_dependency_is_owned_only_by_canonical_network_modules(self):
         self.assertFalse(hasattr(core, "socket"))
@@ -194,13 +194,13 @@ class LegacyCompatibilityShellTests(unittest.TestCase):
                     "%s: core.%s" % (relative_path, name),
                 )
 
-    def test_no_live_runtime_callable_is_owned_by_proxy_core_legacy(self):
-        legacy_owned = sorted(
+    def test_no_live_runtime_callable_is_implemented_by_composition_root(self):
+        core_owned = sorted(
             name
             for name, value in vars(core).items()
-            if callable(value) and getattr(value, "__module__", None) == "proxy_core_legacy"
+            if callable(value) and getattr(value, "__module__", None) == "proxy_core"
         )
-        self.assertEqual(legacy_owned, [])
+        self.assertEqual(core_owned, [])
 
     def test_every_live_project_runtime_callable_has_an_explicit_canonical_owner(self):
         unexpected = {}

@@ -22,7 +22,7 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
         for forbidden in ("OpenAI", "GitHub Actions", "noreply@openai.com"):
             self.assertNotIn(forbidden, text)
 
-    def test_proxy_core_is_thin_composition_boundary(self):
+    def test_proxy_core_is_thin_canonical_composition_boundary(self):
         facade = (ROOT / "proxy_core.py").read_text(encoding="utf-8")
         runtime = (ROOT / "system_proxy_runtime.py").read_text(encoding="utf-8")
         filesystem = (ROOT / "application_filesystem.py").read_text(encoding="utf-8")
@@ -40,10 +40,11 @@ class CanonicalSourceRefactorTests(unittest.TestCase):
             "process_supervision",
             "routing_policy",
             "system_proxy_runtime",
-            "proxy_core_legacy",
         ):
             self.assertIn(module_name, facade)
-        self.assertIn("sys.modules", facade.replace("_runtime_sys.modules", "sys.modules"))
+        self.assertNotIn("proxy_core_legacy", facade)
+        self.assertNotIn("_runtime_sys.modules[__name__] =", facade)
+        self.assertFalse((ROOT / "proxy_core_legacy.py").exists())
         self.assertLess(len(facade), 5000)
 
         self.assertIn("class WindowsCoreAdapter", runtime)
