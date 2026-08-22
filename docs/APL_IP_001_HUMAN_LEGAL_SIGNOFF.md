@@ -1,8 +1,10 @@
 # APL-IP-001 — human/legal sign-off record
 
+> **HISTORICAL PRE-REFACTOR RECORD.** This file preserves the pre-refactor review/carry-forward evidence and must not be used as the current approval form. The canonical post-refactor decision record is `docs/APL_IP_001_POST_REFACTOR_SIGNOFF.md`; the current review evidence is `docs/evidence/APL_IP_001_POST_REFACTOR_REVIEW_2026-08-22.md`.
+
 Status: **AUTONOMOUS CARRY-FORWARD CLOSURE COMPLETE / HUMAN-LEGAL RIGHTS EXECUTION PENDING / FINAL CLEAN-IP REVIEW DEFERRED POST-REFACTOR**. A pre-refactor clean-IP baseline/tag must not be created.
 
-Use `docs/APL_IP_001_REVIEW_PACKET.md` as the bounded review guide, `docs/evidence/APL_IP_001_REVIEW_CANDIDATE_2026-08-20.md` as the automated evidence binding, `docs/evidence/APL_IP_001_HUMAN_FACT_CONFIRMATION_2026-08-21.md` as the human factual confirmation, `docs/evidence/APL_IP_001_PLATFORM_LICENSE_RECONCILIATION_2026-08-21.md` as the platform/license carry-forward reconciliation, and `docs/evidence/APL_IP_001_CARRY_FORWARD_CLOSURE_2026-08-21.md` as the closure record. Do not treat CI, hashes, Git authorship, commit metadata or AI tooling as legal proof of authorship or ownership by themselves.
+Use `docs/APL_IP_001_REVIEW_PACKET.md` as the bounded historical review guide, `docs/evidence/APL_IP_001_REVIEW_CANDIDATE_2026-08-20.md` as the historical automated evidence binding, `docs/evidence/APL_IP_001_HUMAN_FACT_CONFIRMATION_2026-08-21.md` as the human factual confirmation, `docs/evidence/APL_IP_001_PLATFORM_LICENSE_RECONCILIATION_2026-08-21.md` as the platform/license carry-forward reconciliation, and `docs/evidence/APL_IP_001_CARRY_FORWARD_CLOSURE_2026-08-21.md` as the closure record. Do not treat CI, hashes, Git authorship, commit metadata or AI tooling as legal proof of authorship or ownership by themselves.
 
 ## Candidate identity
 
