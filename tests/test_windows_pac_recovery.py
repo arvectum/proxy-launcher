@@ -28,7 +28,7 @@ class WindowsPacRecoveryOwnershipTests(unittest.TestCase):
             mock.patch.object(core, "canonical_install_exe", return_value=None),
         )
 
-    def test_slice10_functions_are_owned_by_canonical_module(self):
+    def test_functions_are_owned_by_canonical_module(self):
         for name in (
             "_any_known_internet_backup_exists",
             "stale_system_proxy",
