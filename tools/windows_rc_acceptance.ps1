@@ -70,10 +70,68 @@ if (Test-Path -LiteralPath $buildResultPath -PathType Leaf) {
 $temp = Join-Path $env:TEMP ("apl-win-011-" + [guid]::NewGuid().ToString('N'))
 try {
     Expand-Archive -LiteralPath $PortableZip -DestinationPath $temp -Force
-    $expectedFiles = @('Arvectum Proxy Launcher.exe','README.txt','diagnose_app_control.ps1','run_p01_native_qa_v2.ps1','SHA256SUMS.txt')
-    $actualFiles = @(Get-ChildItem -LiteralPath $temp -File | Select-Object -ExpandProperty Name | Sort-Object)
-    $expectedSorted = @($expectedFiles | Sort-Object)
-    Add-Check 'portable.contents' (($actualFiles -join '|') -ceq ($expectedSorted -join '|')) ($actualFiles -join ', ')
+
+    $baseExpectedFiles = @(
+        'Arvectum Proxy Launcher.exe',
+        'README.txt',
+        'diagnose_app_control.ps1',
+        'run_p01_native_qa_v2.ps1',
+        'SHA256SUMS.txt',
+        'LICENSE.txt',
+        'THIRD_PARTY_NOTICES.txt'
+    )
+    foreach ($required in $baseExpectedFiles) {
+        $requiredPath = Join-Path $temp $required
+        Add-Check "portable.required.$required" ((Test-Path -LiteralPath $requiredPath -PathType Leaf) -and ((Get-Item -LiteralPath $requiredPath -ErrorAction SilentlyContinue).Length -gt 0)) $required
+    }
+
+    $bundleRoot = Join-Path $temp 'THIRD_PARTY_LICENSES'
+    $bundleManifestPath = Join-Path $bundleRoot 'manifest.json'
+    $manifestExists = Test-Path -LiteralPath $bundleManifestPath -PathType Leaf
+    Add-Check 'portable.licenses.manifest.exists' $manifestExists $bundleManifestPath
+
+    $manifestAllowed = @()
+    if ($manifestExists) {
+        try {
+            $licenseManifest = Get-Content -LiteralPath $bundleManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Add-Check 'portable.licenses.manifest.schema' ([string]$licenseManifest.schema -ceq 'arvectum.third-party-license-bundle.v1') ([string]$licenseManifest.schema)
+            $requiredComponents = @('python','tcl','tk','pyinstaller')
+            $manifestComponents = @($licenseManifest.components | ForEach-Object { [string]$_ })
+            $componentsPass = @($requiredComponents | Where-Object { $_ -notin $manifestComponents }).Count -eq 0
+            Add-Check 'portable.licenses.components' $componentsPass ($manifestComponents -join ', ')
+
+            $licenseRecords = @($licenseManifest.files)
+            Add-Check 'portable.licenses.records' ($licenseRecords.Count -gt 0) ([string]$licenseRecords.Count)
+            foreach ($record in $licenseRecords) {
+                $relative = [string]$record.bundle_path
+                $component = [string]$record.component
+                $expectedHash = ([string]$record.sha256).ToLowerInvariant()
+                $safeRelative = ($relative -replace '/', '\')
+                $fullPath = Join-Path $bundleRoot $safeRelative
+                $pathSafe = $relative -and (-not [System.IO.Path]::IsPathRooted($relative)) -and ($relative -notmatch '(^|/|\\)\.\.($|/|\\)')
+                $recordPass = $pathSafe -and ($component -in $requiredComponents) -and ($expectedHash -match '^[0-9a-f]{64}$') -and (Test-Path -LiteralPath $fullPath -PathType Leaf)
+                if ($recordPass) {
+                    $item = Get-Item -LiteralPath $fullPath
+                    $actualHash = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash.ToLowerInvariant()
+                    $recordPass = ($item.Length -gt 0) -and ($actualHash -ceq $expectedHash)
+                }
+                Add-Check "portable.licenses.file.$component.$relative" $recordPass $relative
+                if ($pathSafe) { $manifestAllowed += "THIRD_PARTY_LICENSES/$($relative -replace '\\','/')" }
+            }
+        } catch {
+            Add-Check 'portable.licenses.manifest.parse' $false $_.Exception.Message
+        }
+    }
+
+    # Gate R6 remains an exact-content gate: bundle children are not broadly
+    # allowlisted. Only files enumerated and hash-bound by manifest.json are valid.
+    $expectedEntries = @($baseExpectedFiles | ForEach-Object { $_ }) + @('THIRD_PARTY_LICENSES/manifest.json') + @($manifestAllowed)
+    $actualEntries = @(Get-ChildItem -LiteralPath $temp -File -Recurse | ForEach-Object {
+        $_.FullName.Substring($temp.Length).TrimStart('\','/') -replace '\\','/'
+    } | Sort-Object)
+    $expectedSorted = @($expectedEntries | Sort-Object)
+    Add-Check 'portable.contents' (($actualEntries -join '|') -ceq ($expectedSorted -join '|')) ($actualEntries -join ', ')
+
     $packageExe = Join-Path $temp 'Arvectum Proxy Launcher.exe'
     if (Test-Path -LiteralPath $packageExe) {
         $packageExeHash = (Get-FileHash -LiteralPath $packageExe -Algorithm SHA256).Hash.ToLowerInvariant()
