@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Windows support-bundle collector for Arvectum Proxy Launcher.
 
-APL-DIAG-003 collects read-only operating-system/application/network state into
+platform diagnostics collects read-only operating-system/application/network state into
 one redacted ZIP.  Collection is deliberately best-effort: one broken data
 source is recorded as a failed section and never prevents the remaining bundle
 from being produced.
@@ -353,7 +353,7 @@ def _default_output_path():
 def create_support_bundle(output_path=None):
     """Create an atomic redacted Windows diagnostics ZIP and return its path."""
     if not core.is_windows():
-        raise RuntimeError("APL-DIAG-003 support bundle is available on Windows only")
+        raise RuntimeError("platform diagnostics support bundle is available on Windows only")
 
     target = os.path.abspath(os.fspath(output_path or _default_output_path()))
     if not target.lower().endswith(".zip"):

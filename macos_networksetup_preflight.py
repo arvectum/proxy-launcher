@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Read-only networksetup readiness detection for APL-MAC-001."""
+"""Read-only networksetup readiness detection for the macOS networksetup preflight."""
 from dataclasses import dataclass
 from enum import Enum
 import subprocess

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Side-effect-free macOS runtime detection for APL-MAC-001."""
+"""Side-effect-free macOS runtime detection for the macOS networksetup preflight."""
 from dataclasses import dataclass
 import os
 import platform as platform_module

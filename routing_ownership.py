@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Durable ownership/recovery journal for future per-application enforcement.
 
-APL-ROUTE-004 contains no driver/firewall mutation. Platform adapters must
+routing ownership persistence contains no driver/firewall mutation. Platform adapters must
 persist this journal before creating any owned enforcement resource.
 """
 from dataclasses import dataclass

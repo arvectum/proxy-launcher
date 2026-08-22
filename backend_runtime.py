@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*-
 """Automatic operating-system backend selection for Arvectum Proxy Launcher.
 
-APL-CORE-005 keeps platform detection in one small composition layer. Concrete
+central backend selection keeps platform detection in one small composition layer. Concrete
 backends remain independently testable and are imported only for the selected
 platform.
 
-APL-CORE-006 binds the selected backend to one explicit capability model so UI
+the capability model binds the selected backend to one explicit capability model so UI
 and callers do not infer feature support independently from ``sys.platform``.
 
-APL-LNX-003 adds a runtime operational gate for Linux/Astra. Static product
+the Linux operational gate adds a runtime operational gate for Linux/Astra. Static product
 support and host readiness are deliberately separate concepts: Linux can be a
 supported product platform while a particular host is not currently safe to
 mutate through NetworkManager.
 
-APL-LNX-004 allows the composition layer to inject an interactive nmcli runner
+the interactive PolicyKit path allows the composition layer to inject an interactive nmcli runner
 for one explicitly user-authorized Linux operation. The default remains fully
 non-interactive.
 
-APL-MAC-001/002 extend the same separation to macOS: a darwin build is a
+the macOS networksetup preflight/002 extend the same separation to macOS: a darwin build is a
 supported product platform, while a particular host must still expose a
 readable ``networksetup`` control surface before new proxy mutation is allowed.
 """
@@ -125,7 +125,7 @@ def operational_status_for_platform(platform=None, linux_preflight=None, macos_p
     """Return host-specific readiness without mutating network state.
 
     Windows keeps its customer-proven backend validation path. Linux/Astra
-    delegates to APL-LNX-002 and macOS delegates to APL-MAC-001. Injectable
+    delegates to the Linux NetworkManager preflight and macOS delegates to the macOS networksetup preflight. Injectable
     preflight results keep the composition layer deterministic in tests.
     """
     backend_id = backend_id_for_platform(platform)
@@ -214,7 +214,7 @@ def require_enable_operational(platform=None, linux_preflight=None, macos_prefli
     return status
 
 
-def create_backend(platform=None, legacy_core=None, logger=None, linux_runner=None):
+def create_backend(platform=None, runtime_core=None, logger=None, linux_runner=None):
     """Instantiate the concrete backend selected for *platform*.
 
     Selection itself stays side-effect free and does not run operational
@@ -222,24 +222,24 @@ def create_backend(platform=None, legacy_core=None, logger=None, linux_runner=No
     This separation is intentional: recovery/disable must remain reachable even
     when a later host preflight is degraded.
 
-    Windows deliberately receives the captured legacy implementation from the
+    Windows deliberately receives the captured Windows implementation from the
     runtime facade. This prevents the Windows adapter from recursively calling
     the new public dispatch functions while preserving the customer-proven
     Windows 0.2.3 mutation path byte-for-byte.
 
     ``linux_runner`` is intentionally optional. When absent, LinuxBackend keeps
-    its normal non-interactive subprocess runner. APL-LNX-004 supplies it only
+    its normal non-interactive subprocess runner. the interactive PolicyKit path supplies it only
     inside the child process launched after explicit GUI authorization consent.
     """
     backend_id = backend_id_for_platform(platform)
     capabilities_for_backend(backend_id)
     if backend_id == "windows":
-        if legacy_core is None:
+        if runtime_core is None:
             raise RuntimeError(
-                "Windows backend selection requires the captured legacy core adapter"
+                "Windows backend selection requires the captured runtime core adapter"
             )
         from windows_backend import WindowsBackend
-        return WindowsBackend(legacy_core=legacy_core)
+        return WindowsBackend(runtime_core=runtime_core)
     if backend_id == "macos":
         from macos_backend import MacOSBackend
         return MacOSBackend(logger=logger)

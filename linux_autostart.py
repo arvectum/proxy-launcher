@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Production-safe per-user Linux/Astra autostart (APL-LNX-005).
+"""Production-safe per-user Linux/Astra autostart (Linux autostart ownership).
 
 The canonical mechanism is an XDG Autostart desktop entry owned by the current
 user.  The module is deliberately fail-closed: it never overwrites or removes a
@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 AUTOSTART_FILENAME = "arvectum-proxy-launcher.desktop"
-OWNERSHIP_MARKER = "X-Arvectum-Autostart=APL-LNX-005"
+OWNERSHIP_MARKER = "X-Arvectum-Autostart=Linux autostart ownership"
 EXPECTED_EXECUTABLE_NAME = "Arvectum Proxy Launcher"
 
 

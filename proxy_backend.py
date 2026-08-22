@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Operating-system proxy integration boundary for Arvectum Proxy Launcher.
 
-APL-CORE-001 deliberately defines the contract only.  Concrete Windows,
+the platform backend contract deliberately defines the contract only.  Concrete Windows,
 macOS, and Linux implementations are introduced separately so the proven
 proxy engine can evolve without coupling transport logic to OS mutation code.
 """

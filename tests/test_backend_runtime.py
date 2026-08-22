@@ -9,7 +9,7 @@ from windows_backend import WindowsBackend
 class BackendRuntimeSelectionTests(unittest.TestCase):
     def test_windows_platform_selects_windows_backend(self):
         marker = object()
-        backend = backend_runtime.create_backend("win32", legacy_core=marker)
+        backend = backend_runtime.create_backend("win32", runtime_core=marker)
         self.assertIsInstance(backend, WindowsBackend)
         self.assertEqual(backend.backend_id, "windows")
         self.assertIs(backend._core, marker)
@@ -26,7 +26,7 @@ class BackendRuntimeSelectionTests(unittest.TestCase):
                 self.assertIsInstance(backend, LinuxBackend)
                 self.assertEqual(backend.backend_id, "linux")
 
-    def test_windows_requires_explicit_captured_legacy_core(self):
+    def test_windows_requires_explicit_captured_runtime_core(self):
         with self.assertRaises(RuntimeError):
             backend_runtime.create_backend("win32")
 

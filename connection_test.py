@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Read-only built-in connection test for Arvectum Proxy Launcher.
 
-APL-WIN-002 verifies the full Windows routing chain without changing proxy or
+Windows connection diagnostics verifies the full Windows routing chain without changing proxy or
 recovery state: direct internet, configured upstream proxy reachability, local
 HTTP and SOCKS5 proxy paths, PAC endpoint, and Windows system proxy state.
 """
@@ -413,7 +413,7 @@ def _recommended_actions(checks):
 
 
 def run_connection_test(target_url="https://arvectum.com", timeout=6.0, core_module=core):
-    """Run the read-only APL-WIN-002 health check and return a structured report."""
+    """Run the read-only Windows connection diagnostics health check and return a structured report."""
     target_url = _normalize_url(target_url)
     timeout = max(1.0, min(float(timeout), 20.0))
     settings = core_module.load_settings()

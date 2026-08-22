@@ -6,7 +6,7 @@ Automatic Proxy Configuration (PAC) and proxy-bypass domains for network
 services that were enabled when ``enable`` was called. Every pre-mutation
 value is durably snapshotted before the first system setting is changed.
 
-APL-CORE-003 intentionally does not wire backend selection into ProxyCore/GUI;
+the macOS backend adapter intentionally does not wire backend selection into ProxyCore/GUI;
 it establishes the concrete macOS safety boundary only.
 """
 

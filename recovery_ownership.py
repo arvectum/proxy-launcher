@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Governed recovery ownership rules for Arvectum Proxy Launcher.
 
-APL-REC-001 defines which recovery state transitions are legal. APL-REC-002
+recovery-state ownership defines which recovery state transitions are legal. recovery mutation ownership
 adds the evidence/ownership contract that decides who may authorize mutation
 and recovery transitions.
 

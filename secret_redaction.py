@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Secret redaction primitives for Arvectum Proxy Launcher diagnostics.
 
-APL-DIAG-002 centralizes the rules used before diagnostic data is persisted.
+diagnostic secret redaction centralizes the rules used before diagnostic data is persisted.
 The module is dependency-free and deliberately conservative: infrastructure
 values such as hosts, IP addresses, ports, file paths and no_proxy entries stay
 visible while credential material is replaced with a stable marker.

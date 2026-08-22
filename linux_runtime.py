@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Linux/Astra runtime environment detection for Arvectum Proxy Launcher.
 
-APL-LNX-001 provides one deterministic, side-effect-free source of runtime facts
+Linux platform detection provides one deterministic, side-effect-free source of runtime facts
 for Linux integration tasks. Detection never mutates the host and does not infer
 support merely from a desktop name or from ``sys.platform``.
 """

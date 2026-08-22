@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Linux/Astra GUI entry point for Arvectum Proxy Launcher (APL-LNX-004/005).
+"""Linux/Astra GUI entry point for Arvectum Proxy Launcher (the interactive PolicyKit path/005).
 
 The established Windows launcher remains untouched. This entry point reuses the
 shared branded dialogs/widgets while replacing Windows-specific runtime UX with
