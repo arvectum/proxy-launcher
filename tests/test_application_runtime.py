@@ -9,7 +9,7 @@ import proxy_core as core
 
 
 class ApplicationRuntimeTests(unittest.TestCase):
-    def test_slice7_functions_are_owned_by_canonical_module(self):
+    def test_functions_are_owned_by_canonical_module(self):
         for name in (
             "_ensure_local_files",
             "_cmd_start",
