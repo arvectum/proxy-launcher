@@ -21,7 +21,10 @@ app="dist/Arvectum Proxy Launcher.app"
 [[ -d "$app/Contents/MacOS" && -f "$app/Contents/Info.plist" ]] || { echo "Invalid .app bundle" >&2; exit 3; }
 /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" | grep -qx 'ru.arvectum.proxylauncher'
 resources="$app/Contents/Resources"
+licenses="$resources/THIRD_PARTY_LICENSES"
 mkdir -p "$resources"
 install -m644 LICENSE "$resources/LICENSE.txt"
 install -m644 THIRD_PARTY_NOTICES.txt "$resources/THIRD_PARTY_NOTICES.txt"
+"$python_bin" tools/third_party_license_bundle.py --build --output "$licenses"
+"$python_bin" tools/third_party_license_bundle.py --verify --output "$licenses"
 echo "$app"
