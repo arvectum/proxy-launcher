@@ -105,12 +105,17 @@ APL-IP-004 is governed by `docs/APL_IP_004_THIRD_PARTY_LICENSE_BUNDLE_PROMOTED_A
 
 ### Windows installer
 
-- workflow run: `32556717718`;
-- the originally scheduled final PR-head run was cancelled by workflow concurrency before checkout completed;
-- the same exact run/job was explicitly re-run during this reconciliation against the preserved PR #167 candidate-equivalent tree;
-- final disposition is recorded in the canonical sign-off only after the rerun completes successfully.
+- workflow run: `32556717718` — **SUCCESS after explicit rerun of the concurrency-cancelled job**;
+- rerun job ID: `96999010497`;
+- canonical portable baseline/license preparation: **SUCCESS**;
+- current installer compile/metadata verification: **SUCCESS**;
+- fresh / upgrade / repair / uninstall E2E: **SUCCESS**;
+- Windows RC packaging and Gate R6 acceptance matrix: **SUCCESS**;
+- artifact ID: `9472408987`;
+- artifact name: `Arvectum-Proxy-Launcher-0.2.3-windows-x64-setup.exe`;
+- artifact digest: `sha256:e384064dafca71d0d4f38d742ed6a68d947b428c28677b611c18316fcf72cc3e`.
 
-The installer contract itself requires the compliant portable bundle and embeds the verified third-party bundle into Setup; it must not be marked reconciled merely from source inspection.
+The original scheduled final PR-head job was cancelled by workflow concurrency before checkout completed; the preserved workflow run was deliberately re-run during this reconciliation. The rerun exercised the same PR #167 candidate-equivalent tree and completed the installer acceptance contract rather than inferring compliance from source inspection.
 
 ### Debian `.deb`
 
@@ -132,9 +137,7 @@ AppImage remains **EXCLUDED / HOLD**. APL-IP-004 carries the common desktop bund
 
 ## 6. L-1 disposition
 
-Finding L-1 may be changed from `PENDING` to **ENGINEERING-REMEDIATED** only for newly built promoted artifacts whose exact packaging lane is green under the APL-IP-004 controls.
-
-Once the Windows installer rerun above is green, the engineering-remediated scope is:
+Finding L-1 is **ENGINEERING-REMEDIATED** for newly built promoted artifacts in all four selected desktop lanes:
 
 - Windows portable;
 - Windows installer;
@@ -152,7 +155,7 @@ Historical artifacts are not retroactively relabeled.
 | R-1 | Executed author -> ООО «Арвектум» rights basis | **PENDING / HUMAN** |
 | R-2 | Rospatent registration/transfer factual status | **PENDING / HUMAN** |
 | R-3 | Corporate/interested-transaction basis where applicable | **PENDING / HUMAN** |
-| L-1 | Complete third-party license/notice bundle for promoted artifacts | **ENGINEERING-REMEDIATED** after successful installer rerun; no legal approval implied |
+| L-1 | Complete third-party license/notice bundle for promoted artifacts | **ENGINEERING-REMEDIATED**; no legal approval implied |
 | L-2 | AppImage downstream/type-2-runtime compliance | **EXCLUDED / HOLD** |
 
 The human factual provenance carry-forward also still requires authorized confirmation for the selected post-APL-IP-004 candidate before final approval.
