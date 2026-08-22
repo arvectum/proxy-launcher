@@ -6,7 +6,7 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-OLD_REPOSITORY_SLUG = "arutyunoveth/proxy-launcher"
+OLD_REPOSITORY_SLUG = "arutyunoveth" + "/proxy-launcher"
 CANONICAL_REPOSITORY_SLUG = "arvectum/proxy-launcher"
 HISTORICAL_REFERENCE_PREFIXES = (
     "docs/evidence/",
