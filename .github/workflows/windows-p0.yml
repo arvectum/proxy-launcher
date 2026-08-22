@@ -29,6 +29,11 @@ jobs:
         run: |
           ./tools/clean_build_windows.ps1 -PythonExecutable python
 
+      - name: APL-IP-004 promoted portable license gate
+        shell: pwsh
+        run: |
+          ./tools/windows_promoted_license_compliance.ps1 -PortableZip '${{ steps.clean_build.outputs.zip_path }}'
+
       - name: Windows Documents execution smoke
         shell: pwsh
         run: |
