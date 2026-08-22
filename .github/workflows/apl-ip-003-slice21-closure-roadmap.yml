@@ -1,0 +1,50 @@
+name: APL-IP-003 Slice 21 closure roadmap
+
+on:
+  push:
+    branches: [apl-ip-003-slice-21-closure]
+    paths:
+      - '.github/workflows/apl-ip-003-slice21-closure-roadmap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  close-roadmap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: apl-ip-003-slice-21-closure
+          fetch-depth: 0
+      - name: Advance canonical refactor roadmap
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md')
+          text = path.read_text(encoding='utf-8')
+          old_status = 'Status: **ACTIVE — SLICES 1–20 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**'
+          new_status = 'Status: **ACTIVE — SLICES 1–21 MERGED; FINAL CLEAN-IP APPROVAL STILL HUMAN/LEGAL GATED**'
+          old_next = '- **NEXT — Slice 21:** regression naming & repository hygiene. Remove obsolete `sliceN` task numbering from maintained test names, canonicalize stale current-repository references while preserving `.mailmap`, release baselines and historical evidence, and add permanent guards against both forms of maintenance debt.'
+          new_block = '''- **DONE — Slice 21:** regression naming & repository hygiene. Final implementation PR `#159`, merge commit `0b01c035eaf5e12ec4c940071762936b850b01ff`. Fifteen historical `sliceN` fragments were removed from maintained regression method names without changing test bodies/assertions; `tests/test_repository_hygiene.py` now guards both semantic regression naming and canonical current-tree repository identity while preserving `.mailmap`, historical evidence and release baselines. The first implementation PR `#158` completed the same 9/9 green CI matrix but was superseded rather than forcing a merge when protected branch status propagation left required `build` in `expected`; the fresh-base PR `#159` completed all 9 workflows successfully, including canonical-source Windows/macOS/Ubuntu, Windows portable/Documents smoke, installer lifecycle/Gate R6, backend contract, provenance and security gates. Closure evidence is recorded in `docs/evidence/APL_IP_003_SLICE_21_REGRESSION_REPOSITORY_HYGIENE.md`.
+- **NEXT — Slice 22:** application/backend boundary & production-source history cleanup. Extend maintained-source hygiene across remaining application/platform boundary modules, remove obsolete APL task/milestone narration from root production Python, retire misleading historical private compatibility terminology where repository-wide evidence proves it internal-only, and guard GUI/application layering so GUI entry points consume common application seams rather than importing concrete platform backends directly. Preserve real legacy/recovery-format semantics and sealed `0.2.3` behaviour.'''
+          if text.count(old_status) != 1:
+              raise SystemExit(f'expected one old status, got {text.count(old_status)}')
+          if text.count(old_next) != 1:
+              raise SystemExit(f'expected one old NEXT entry, got {text.count(old_next)}')
+          text = text.replace(old_status, new_status).replace(old_next, new_block)
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit closure and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "Arvectum Automation"
+          git config user.email "automation@arvectum.com"
+          git add docs/APL_IP_003_CANONICAL_SOURCE_REFACTOR.md
+          git rm .github/workflows/apl-ip-003-slice21-closure-roadmap.yml
+          git diff --cached --check
+          git commit -m "APL-IP-003 Slice 21: advance canonical roadmap"
+          git push origin HEAD:apl-ip-003-slice-21-closure
